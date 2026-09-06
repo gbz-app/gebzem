@@ -17,11 +17,19 @@ class TakipListesi extends ConsumerStatefulWidget {
     required this.userId,
     required this.tur, // followers | following
     required this.baslik,
+    this.kisiAd = '',
+    this.kisiKullanici = '',
   });
 
   final String userId;
   final String tur;
   final String baslik;
+
+  /// ⚠️ TURU 180g — **HEADERDA KISININ ADI** (kullanici: *"takip edilen
+  ///	ve takipci, orada HEADERDA KISININ ISMI KULLANICI ADI
+  ///	yazsin"*). Bos gecilirse eski davranis (yalniz baslik).
+  final String kisiAd;
+  final String kisiKullanici;
 
   @override
   ConsumerState<TakipListesi> createState() => _TakipListesiState();
@@ -32,10 +40,49 @@ class _TakipListesiState extends ConsumerState<TakipListesi> {
   bool _yukleniyor = true;
   String? _hata;
 
+  /// ⚠️⚠️ TURU 180g — **ARAMA ISTEMCIDE** (kullanici: *"takipcilerde ve
+  ///	takip edilenlerde arama yok, onu da ekle"*).
+  ///	Uc (`/users/{id}/followers`) `q` parametresi ALMIYOR ve
+  ///	liste TEK ISTEKTE geliyor — yani suzulen kume kullanicinin
+  ///	gordugu kumenin TAMAMI. Sunucuya alan eklemek gerekmez
+  ///	(turu 122/141'de ayni gerekce).
+  final _aramaCtrl = TextEditingController();
+  String _q = '';
+
   @override
   void initState() {
     super.initState();
     _yukle();
+  }
+
+  @override
+  void dispose() {
+    _aramaCtrl.dispose();
+    super.dispose();
+  }
+
+  /// ⚠️⚠️ Turkce duyarsiz karsilastirma: `toLowerCase` 'İ' harfini
+  ///	BIRLESIK NOKTAYA cevirir ve "İSTANBUL" ile "istanbul"
+  ///	AYRI sayilir (turu 140'ta olculdu).
+  static String _sadelestir(String x) => x
+      .replaceAll('İ', 'i')
+      .replaceAll('I', 'ı')
+      .toLowerCase()
+      .replaceAll('ı', 'i')
+      .replaceAll('ş', 's')
+      .replaceAll('ğ', 'g')
+      .replaceAll('ü', 'u')
+      .replaceAll('ö', 'o')
+      .replaceAll('ç', 'c');
+
+  List<Map<String, dynamic>> get _gorunen {
+    if (_q.trim().isEmpty) return _liste;
+    final a = _sadelestir(_q.trim());
+    return _liste.where((u) {
+      final ad = _sadelestir((u['name'] ?? '').toString());
+      final kul = _sadelestir((u['username'] ?? '').toString());
+      return ad.contains(a) || kul.contains(a);
+    }).toList();
   }
 
   Future<void> _yukle() async {
@@ -73,20 +120,57 @@ class _TakipListesiState extends ConsumerState<TakipListesi> {
   ///	bir `Stack` (geri oku solda, baslik GERCEK ortada). `AppBar`
   ///	in kendi yuksekligi 56 ve basligi `centerTitle`a bagli —
   ///	yan yana konunca iki ekran AYNI GORUNMEZDI.
-  Widget _header(BuildContext context) => SizedBox(
-        height: 44,
+  /// ⚠️⚠️ TURU 180g — Baslikta artik KISININ ADI, altinda kucuk
+  ///	"@kullanici · Takipçiler". Onceden yalniz "Takipçiler"
+  ///	yaziyordu ve kullanici KIMIN listesine baktigini
+  ///	goremiyordu.
+  /// ⚠️ Ad BOSSA eski davranis: yalniz baslik, tek satir.
+  /// ⚠️ Yukseklik 44 -> **52** (iki satir); geri oku kutusu 44'te KALIR
+  ///	(Material dokunma tabani).
+  Widget _header(BuildContext context) {
+    final ad = widget.kisiAd.trim();
+    final kul = widget.kisiKullanici.trim();
+    final altSatir = kul.isEmpty
+        ? widget.baslik
+        : '@$kul · ${widget.baslik}';
+    return SizedBox(
+        height: ad.isEmpty ? 44 : 52,
         child: Stack(
           children: [
             Center(
-              child: Text(
-                widget.baslik,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  height: 1.0,
-                  leadingDistribution: TextLeadingDistribution.even,
+              // ⚠️ Yan dolgu ZORUNLU: geri oku 44 dp yer kapliyor ve uzun
+              //    bir ad ortalanip onun ALTINA girerdi.
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 52),
+                child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    ad.isEmpty ? widget.baslik : ad,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      height: 1.15,
+                      leadingDistribution: TextLeadingDistribution.even,
+                    ),
+                  ),
+                  if (ad.isNotEmpty)
+                    Text(
+                      altSatir,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        height: 1.15,
+                        color: Theme.of(context)
+                            .colorScheme
+                            .onSurface
+                            .withValues(alpha: 0.55),
+                      ),
+                    ),
+                ],
                 ),
               ),
             ),
@@ -104,7 +188,64 @@ class _TakipListesiState extends ConsumerState<TakipListesi> {
             ),
           ],
         ),
-      );
+    );
+  }
+
+  /// ⚠️ Arama kutusu: liste BOSKEN de cizilir mi? HAYIR — bos bir listede
+  ///	arama kutusu ULASILAMAZ bir islev gibi durur. Yalniz veri varken.
+  Widget _arama(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
+      child: TextField(
+        controller: _aramaCtrl,
+        onChanged: (v) => setState(() => _q = v),
+        textInputAction: TextInputAction.search,
+        decoration: InputDecoration(
+          isDense: true,
+          hintText: 'İsim veya kullanıcı adı ara',
+          prefixIcon: const Icon(LucideIcons.search, size: 19),
+          prefixIconConstraints: const BoxConstraints(minWidth: 42),
+          // ⚠️⚠️ `suffixIconConstraints` ZORUNLU: verilmezse
+          //	`InputDecorator` 48 dp'lik dokunma tabanini DAYATIR ve
+          //	kutu ILK HARFTE ~5 dp SICRAR (turu 141'de olculdu).
+          suffixIconConstraints: const BoxConstraints(
+            minWidth: 36,
+            minHeight: 36,
+          ),
+          suffixIcon: _q.isEmpty
+              ? null
+              : GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () {
+                    _aramaCtrl.clear();
+                    setState(() => _q = '');
+                  },
+                  child: const SizedBox(
+                    width: 36,
+                    height: 36,
+                    child: Icon(LucideIcons.x, size: 17),
+                  ),
+                ),
+          filled: true,
+          fillColor: scheme.onSurface.withValues(alpha: 0.06),
+          contentPadding: const EdgeInsets.symmetric(vertical: 11),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: BorderSide.none,
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: BorderSide.none,
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: BorderSide.none,
+          ),
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -114,6 +255,10 @@ class _TakipListesiState extends ConsumerState<TakipListesi> {
         child: Column(
           children: [
             _header(context),
+            // ⚠️ Arama YALNIZ veri varken: bos/hatali listede kutu cizmek
+            //    calismayan bir alan gibi gorunurdu.
+            if (!_yukleniyor && _hata == null && _liste.isNotEmpty)
+              _arama(context),
             Expanded(
               child: _govde(),
             ),
@@ -141,10 +286,20 @@ class _TakipListesiState extends ConsumerState<TakipListesi> {
           ? const Center(
               child: Text('Liste boş', style: TextStyle(color: Colors.grey)),
             )
+          // ⚠️ Suzgec BOSALTTIYSA sebebi SOYLENIR: "Liste boş" demek
+          //    kullaniciyi yanlis yere bakmaya iter.
+          : _gorunen.isEmpty
+          ? Center(
+              child: Text(
+                '"${_q.trim()}" ile eşleşen kimse yok',
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.grey),
+              ),
+            )
           : ListView.builder(
-              itemCount: _liste.length,
+              itemCount: _gorunen.length,
               itemBuilder: (_, i) {
-                final u = _liste[i];
+                final u = _gorunen[i];
                 final ad = (u['name'] ?? '').toString();
                 final kul = (u['username'] ?? '').toString();
                 return ListTile(

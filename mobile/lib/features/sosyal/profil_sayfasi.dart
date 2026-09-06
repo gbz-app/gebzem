@@ -68,6 +68,13 @@ enum ProfilSekmesi {
   foto,
   video,
   reels,
+
+  /// ⚠️⚠️ TURU 180g — **BEGENILENLER** (kullanici emri).
+  ///
+  /// ⚠️ YALNIZ KENDI PROFILIMDE: baskasinin neyi begendigi GIZLIDIR
+  ///	(Instagram da boyle) ve sunucu ucu `/users/me/begeniler`,
+  ///	yani baskasi icin cagrilacak bir yol ZATEN YOK.
+  begeni,
   // ⚠️⚠️ TURU 176 — **`ses` KALDIRILDI** (kullanici emri: *"sesi kaldir,
   //	ses paylasma vs kalksin; SADECE MESAJLARDA ses paylasimi
   //	olacak"*). Enum degeri SILINDI, cunku `switch`ler
@@ -95,6 +102,7 @@ extension ProfilSekmesiBilgi on ProfilSekmesi {
     ProfilSekmesi.foto => 'Fotoğraf',
     ProfilSekmesi.video => 'Video',
     ProfilSekmesi.reels => 'Reels',
+    ProfilSekmesi.begeni => 'Beğeniler',
     ProfilSekmesi.ilan => 'İlanlarım',
     ProfilSekmesi.isIlani => 'İş İlanları',
     ProfilSekmesi.dolap => 'Dolap',
@@ -109,6 +117,7 @@ extension ProfilSekmesiBilgi on ProfilSekmesi {
     ProfilSekmesi.foto => LucideIcons.image,
     ProfilSekmesi.video => LucideIcons.video,
     ProfilSekmesi.reels => LucideIcons.clapperboard,
+    ProfilSekmesi.begeni => LucideIcons.heart,
     ProfilSekmesi.ilan => LucideIcons.tag,
     ProfilSekmesi.isIlani => LucideIcons.briefcase,
     ProfilSekmesi.dolap => LucideIcons.shirt,
@@ -123,6 +132,7 @@ extension ProfilSekmesiBilgi on ProfilSekmesi {
     ProfilSekmesi.foto => 'Henüz fotoğraf yok',
     ProfilSekmesi.video => 'Henüz video yok',
     ProfilSekmesi.reels => 'Henüz reels yok',
+    ProfilSekmesi.begeni => 'Henüz beğendiğin gönderi yok',
     ProfilSekmesi.ilan => 'Henüz ilan vermedin',
     ProfilSekmesi.isIlani => 'Henüz iş ilanı yok',
     ProfilSekmesi.dolap => 'Dolabında ürün yok',
@@ -290,19 +300,32 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
   ///	buradan geliyordu.
   bool get _bosSekme => _sekmeBos(_sekme);
 
-  /// Sekme sayfasinin yuksekligi (bkz. `_seritAlt` serhi).
+  /// ⚠️⚠️⚠️ TURU 180g — **SAYFA YUKSEKLIGI SEKMEDEN BAGIMSIZ.**
+  ///	(kullanici: *"alttaki 'henuz gonderi yok' alani GECISLERDE
+  ///	BUYUYOR, PATLIYOR"*).
+  ///
+  ///	Turu 180e'de yukseklik BOS sekmede kisaltiliyordu. Ama
+  ///	`PageView` kaydirirken IKI sayfa AYNI kutuyu paylasir:
+  ///	bos sekmeden dolu sekmeye gecerken izgara 60 dp'lik kutuya
+  ///	sikisiyor ve **RenderFlex tasmasi** veriyordu.
+  /// ⚠️ Bos durumun ortalanmasi artik `_gorunurSerit` ile, SAYFA BOYUNA
+  ///	DOKUNMADAN yapiliyor.
+  /// ⚠️ YAPMA: yuksekligi tekrar `_bosSekme`ye baglama.
   double _sayfaBoyu(BuildContext c) {
-    final ekran = MediaQuery.sizeOf(c).height;
-    final tavan = ekran * 0.62;
-    // ⚠️ Ikisi de bir SONRAKI karede kosar; ILK karede tavan kullanilir ve
-    //    tek bir yeniden cizimle yerine oturur.
+    // ⚠️ Ikisi de bir SONRAKI karede kosar.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _sayfaSenkron();
       _seritiOlc();
     });
-    if (!_bosSekme) return tavan;
+    return MediaQuery.sizeOf(c).height * 0.62;
+  }
+
+  /// Sekme seridinin ALTINDA kalan GORUNUR yukseklik (yuzen hap dusulmus).
+  /// ⚠️ Olculmediyse makul bir taban doner; tek yeniden cizimle oturur.
+  double _gorunurSerit(BuildContext c) {
+    final ekran = MediaQuery.sizeOf(c).height;
     final alt = _seritAlt;
-    if (alt == null) return tavan;
+    if (alt == null) return ekran * 0.18;
     // ⚠️ Isletme profilinde alttaki yuzen Menü/Rezervasyon hapi listenin
     //    USTUNDE cizilir (`Positioned`) ve onun kapladigi seridi sayfa
     //    yuksekliginden DUSMEK gerekir; yoksa ortalanan blok hapin
@@ -315,10 +338,10 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
         : 10 + 26 + MediaQuery.textScalerOf(c).scale(14.5) * 1.35 + 12;
     final kalan = ekran - alt - MediaQuery.paddingOf(c).bottom - hap;
     // ⚠️⚠️ TABAN 120 DEGIL **56**: emulatorde olculdu - serit altinda
-    //	yalnizca **77 dp** kaliyor ve 120'lik taban kutuyu hapin ALTINA
+    //	yalnizca 60-80 dp kaliyor ve 120'lik taban kutuyu hapin ALTINA
     //	tasirip metni ORTUYORDU. Blok zaten `FittedBox` icinde, yani
     //	kucuk kutuda KIRPILMAZ, kuculur.
-    return kalan.clamp(56.0, tavan);
+    return kalan.clamp(56.0, ekran * 0.62);
   }
 
   /// Serit ile `PageView`i UZLASTIRIR (bkz. `initState` serhi).
@@ -604,8 +627,8 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
                   behavior: HitTestBehavior.opaque,
                   onTap: () => Navigator.of(context).maybePop(),
                   child: const SizedBox(
-                    width: 44,
-                    height: 44,
+                    width: 52,
+                    height: 52,
                     child: Center(
                       child: _BlurDaire(
                         child: Icon(LucideIcons.arrowLeft, size: 22),
@@ -670,8 +693,8 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
                 behavior: HitTestBehavior.opaque,
                 onTap: () => Navigator.of(context).maybePop(),
                 child: const SizedBox(
-                  width: 44,
-                  height: 44,
+                  width: 52,
+                  height: 52,
                   child: Center(
                     child: _BlurDaire(
                       child: Icon(LucideIcons.arrowLeft, size: 22),
@@ -896,11 +919,13 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
             //	zeka yorumunu koy; oraya yapay zekanin GENEL YORUMUNU
             //	gostermen gerekiyor"*). Dokunus yorum panelini acar.
             _aiOzetSatiri(p),
-            const SizedBox(height: 14),
+            const SizedBox(height: 12),
             _dugmeler(p),
             // ⚠️ TURU 179 — 8 -> **22** (kullanici: *"gonderiler vs alt menu
             //	ile takip et mesaj bunlarin arasindaki boslugu ARTTIR"*).
-            const SizedBox(height: 22),
+            // ⚠️ TURU 180g — 22 -> **16**: yapay zeka karti buyudu ve alttaki
+            //	bos duruma kalan yer 60 dp'ye dusmustu (olculdu).
+            const SizedBox(height: 16),
             // ⚠️ TURU 176 — **USTTEKI AYIRICI KALDIRILDI** (kullanici:
             //	*"yukaridaki cizgiyi kaldir"*). Sekme seridinin
             //	KENDI alt ayiricisi duruyor ve secim cizgisi artik
@@ -1106,6 +1131,10 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
                     userId: p.id,
                     tur: 'followers',
                     baslik: 'Takipçiler',
+                    // ⚠️ TURU 180g — header artik KIMIN listesi oldugunu
+                    //    yaziyor (kullanici emri).
+                    kisiAd: p.ad,
+                    kisiKullanici: p.username,
                   ),
                 ),
               ),
@@ -1121,6 +1150,8 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
                     userId: p.id,
                     tur: 'following',
                     baslik: 'Takip edilenler',
+                    kisiAd: p.ad,
+                    kisiKullanici: p.username,
                   ),
                 ),
               ),
@@ -1209,53 +1240,63 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
     );
   }
 
+  /// ⚠️⚠️⚠️ TURU 180g — **YAPAY ZEKA KARTI** (kullanici bir referans
+  ///	gorsel gonderdi: koyu gri kart · ust satirda DAIRE ROZET +
+  ///	ad · sagda "daha fazla bilgi ↗" · altta BEYAZ govde metni,
+  ///	uc satirda kesilip "…" ile bitiyor).
+  ///
+  /// ⚠️ Kart zemini artik MOR TONLU DEGIL notr gri: referansta vurgu
+  ///	yalniz ROZET ve BAGLANTI yazisinda, govde metni beyaz.
+  /// ⚠️⚠️ Baglanti yazisi `Flexible` + ellipsis: ust satirda iki metin
+  ///	ve iki ikon var ve yazi olcegi 1.3'te sabit butce TASAR
+  ///	(turu 98c'de birebir olculen sinif). Kisalan taraf
+  ///	BILEREK baglanti — "Yapay zekâ" etiketi KIMLIKTIR,
+  ///	kirpilmamali.
+  /// ⚠️ Kartin TAMAMI tiklanabilir kalir: "daha fazla bilgi" yalniz
+  ///	GORUNUR bir isarettir, 44 dp'lik bir dokunma hedefi degil.
   Widget _aiOzetSatiri(Profil p) {
     if (_isletme == null) return const SizedBox.shrink();
     final scheme = _ks;
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
       child: Material(
-        color: scheme.primary.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(16),
+        color: scheme.onSurface.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(20),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: () => yorumlarAc(context, isletmeAd: p.ad),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            child: Row(
+            // ⚠️ TURU 180g — dolgu ESIT ve DAHA DAR (kullanici: *"padding
+            //    ic boslugu azalt, esit dagilsin, daha fazla okunsun"*).
+            padding: const EdgeInsets.all(13),
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(LucideIcons.sparkles, size: 17, color: scheme.primary),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Yapay zekâ yorumu',
-                        style: TextStyle(
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w700,
-                          color: scheme.primary,
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        aiOzetMetni,
-                        // ⚠️ Uc satir: ozet burada OKUNSUN diye. Tamami
-                        //    yorum panelinde.
-                        maxLines: 3,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 13.5, height: 1.35),
-                      ),
-                    ],
+                // ⚠️⚠️ TURU 180g — **ROZET IKONU, "daha fazla bilgi" VE OK
+                //	KALDIRILDI** (kullanici emri). Kart ZATEN tamamen
+                //	tiklanabilir; uc ayri isaret (ikon + baglanti + ok)
+                //	metne ayrilacak yeri yiyordu.
+                // ⚠️ Boylece ust satirdaki `Spacer`/`Flexible` yarisi da
+                //	YAPISAL OLARAK ortadan kalkti (varsayilan olcekte
+                //	bile "daha fazla…" diye kirpiliyordu).
+                Text(
+                  'Yapay zekâ',
+                  style: TextStyle(
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.w700,
+                    color: scheme.primary,
                   ),
                 ),
-                const SizedBox(width: 6),
-                Icon(
-                  LucideIcons.chevronRight,
-                  size: 18,
-                  color: scheme.onSurface.withValues(alpha: 0.35),
+                const SizedBox(height: 6),
+                Text(
+                  aiOzetMetni,
+                  // ⚠️ Uc satir: ozet burada OKUNSUN diye. Tamami yorum
+                  //    panelinde.
+                  // ⚠️ 3 -> **4 satir** (kullanici: "daha fazla okunsun");
+                  //    tamami yorum panelinde.
+                  maxLines: 4,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 14, height: 1.38),
                 ),
               ],
             ),
@@ -1477,8 +1518,10 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
       //	sacma olurdu.
       // ⚠️ Bir isletmenin IS ILANI ise MUSTERIYI ilgilendirir — zaten
       //	herkese acik bir liste (`/ilanlar?tur=is&user_id=`).
+      // ⚠️ TURU 180g — `begeni` YALNIZ kendi profilimde (uc `/users/me/`).
       if (x != ProfilSekmesi.genel &&
           x != ProfilSekmesi.video &&
+          (x != ProfilSekmesi.begeni || _benimMi) &&
           (x == ProfilSekmesi.isIlani || !x.ilanMi || _benimMi))
         x,
   ];
@@ -1828,6 +1871,12 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
         }
         if (!mounted) return;
         setState(() => _ilanOnbellek[x] = l);
+      } else if (x == ProfilSekmesi.begeni) {
+        // ⚠️ TURU 180g — AYRI UC: `/users/me/begeniler`. `kullaniciGonderileri`
+        //    ile getirilemez (o `?tur=` suzgeci alir, KAYNAK tabloyu degil).
+        final l = await ref.read(sosyalServisiProvider).begenilenler();
+        if (!mounted) return;
+        setState(() => _gonderiOnbellek[x] = l);
       } else {
         final l = await ref
             .read(sosyalServisiProvider)
@@ -1978,11 +2027,17 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
   ///	ile listenin USTUNDE cizilir ve dikeyde ortalanan metni
   ///	KAPATIYORDU. Blok, hapin kapladigi kadar (52 + 10 + 12 pay)
   ///	YUKARI itilir; hap yoksa dolgu SIFIR olur.
-  /// ⚠️ Hapin kapladigi serit BURADA DEGIL `_sayfaBoyu`nda dusuluyor —
-  ///	boylece `Center` gercek BOS alani ortalar ve `FittedBox` dogru
-  ///	kutuya olceklenir (iki yerde ayri ayri dusulseydi CIFT SAYIM olurdu).
-  Widget _bosDurum(ProfilSekmesi x, Color soluk) => Padding(
-        padding: EdgeInsets.zero,
+  /// ⚠️⚠️ TURU 180g — Blok, sayfanin TAMAMINDA degil **GORUNUR SERITTE**
+  ///	ortalanir. Sayfa `ekran * 0.62` kadar uzun ve buyuk kismi
+  ///	ekranin ALTINDA kaliyor; orada ortalamak blogu GORUNMEZ
+  ///	yapardi (turu 180e'de bu yuzden yukseklik oynanmisti ve
+  ///	gecislerde tasma cikmisti).
+  /// ⚠️ Hapin kapladigi serit `_gorunurSerit` icinde dusuluyor — burada
+  ///	TEKRAR dusme, CIFT SAYIM olur.
+  Widget _bosDurum(ProfilSekmesi x, Color soluk) => Align(
+        alignment: Alignment.topCenter,
+        child: SizedBox(
+        height: _gorunurSerit(context),
         child: Center(
         // ⚠️⚠️ `FittedBox(scaleDown)` ZORUNLU: kalan alan cihaza gore 60-400 dp
         //	arasinda degisir ve sabit olculu blok dar ekranda RenderFlex
@@ -1997,9 +2052,11 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              // ⚠️ 74 -> 62: dar kutuda `FittedBox` daha az kuculsun.
-              width: 62,
-              height: 62,
+              // ⚠️ 74 -> 62 -> **52**: kalan alan olculdu (60-80 dp) ve
+              //    `FittedBox` olcegi 0,55'e kadar dusuyordu; dogal boy
+              //    kuculunce olcek ~0,95'te kaliyor, metin OKUNUR oluyor.
+              width: 52,
+              height: 52,
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
@@ -2010,19 +2067,20 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
                   width: 1.6,
                 ),
               ),
-              child: Icon(x.ikon, size: 27, color: soluk),
+              child: Icon(x.ikon, size: 23, color: soluk),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
             Text(
               x.bosMetin,
               textAlign: TextAlign.center,
               style: TextStyle(
-                fontSize: 14.5,
+                fontSize: 13.5,
                 fontWeight: FontWeight.w600,
                 color: soluk,
               ),
             ),
           ],
+        ),
         ),
         ),
         ),
@@ -2650,11 +2708,12 @@ class _BlurDaire extends StatelessWidget {
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
           child: Container(
-            // ⚠️ TURU 180d — 36 -> **42** (kullanici: *"blur daireleri bir
-            //    tik daha buyut"*). 44 dp'lik dokunma kutusuna 1 dp pay
-            //    kalir; daha buyugu kutuya SIGMAZ ve kirpilirdi.
-            width: 42,
-            height: 42,
+            // ⚠️ TURU 180d 36 -> 42, TURU 180g 42 -> **48** (kullanici iki
+            //    kez *"blur daireleri bir tik daha buyut"* dedi).
+            // ⚠️⚠️ Dokunma kutulari da 44 -> **52**: kutu 44'te kalsaydi
+            //	daire KIRPILIRDI (`ClipOval` kutuya sigar).
+            width: 48,
+            height: 48,
             alignment: Alignment.center,
             color: Colors.black.withValues(alpha: 0.28),
             child: child,

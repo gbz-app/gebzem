@@ -239,7 +239,9 @@ class ProfilBasligi extends StatelessWidget {
         height: cap,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          color: acikMi ? const Color(0xFF2BB673) : const Color(0xFF8A6A4F),
+          // ⚠️ TURU 180g — yesil **bir tik acildi** (kullanici emri):
+          //    #2BB673 -> #34D07F. Kahve DEGISMEDI (kapali durum).
+          color: acikMi ? const Color(0xFF34D07F) : const Color(0xFF8A6A4F),
           border: Border.all(
             color: Theme.of(context).scaffoldBackgroundColor,
             width: halka,

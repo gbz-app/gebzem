@@ -111,6 +111,19 @@ class _UrunKatalogEkraniState extends ConsumerState<UrunKatalogEkrani> {
   //	kucuk bir esikte header her kucuk kaydirmada YANIP SONERDI.
   bool _headerGizli = false;
 
+  /// ⚠️⚠️ TURU 180g — **KAYDIRMA TAKIBI (scroll-spy)** (kullanici: *"menude
+  ///	asagi inerken butonlar DEGISMIYOR, yukari cikarken
+  ///	degismiyor"*). Serit artik ekranin USTUNDEKI bolumu
+  ///	secili gosterir.
+  /// ⚠️ Olcum icin listenin EKRANDAKI ust kenari gerekiyor; bunu
+  ///	`ScrollController`den okuyamayiz (o yalniz ofset verir).
+  final GlobalKey _listeAnahtar = GlobalKey();
+
+  /// ⚠️⚠️ Dokunusla secim SIRASINDA spy KAPALI: `ensureVisible` animasyonu
+  ///	kaydirma olayi uretir ve spy ARA bolumleri secili gosterip
+  ///	seridi titretirdi (dokunulan sekme secili kalmali).
+  bool _elleSecim = false;
+
   GlobalKey _sekmeAnahtari(String bolum) =>
       _sekmeAnahtar.putIfAbsent(bolum, GlobalKey.new);
 
@@ -119,8 +132,29 @@ class _UrunKatalogEkraniState extends ConsumerState<UrunKatalogEkrani> {
 
   /// ⚠️ `alignment: 0` bolumu ekranin USTUNE getirir; varsayilan (0.5)
   //	ortalar ve kullanici "tikladim, ustte degil" derdi.
+  /// ⚠️⚠️⚠️ TURU 180g — **ASAGIDAYKEN DOKUNUS CALISMIYORDU** (kullanici:
+  ///	*"asagida iken butonlara tikladiginda AKTIF OLMUYOR"*).
+  ///
+  ///	Kok neden: liste TEMBEL (`ListView` cocuklarini yalniz
+  ///	goruntu + onbellek seridinde KURAR). Uzaktaki bir bolumun
+  ///	`GlobalKey.currentContext`i **null**dur ve eski kod tam
+  ///	orada `return` ediyordu — dokunus HICBIR SEY yapmiyordu.
+  ///
+  ///	Yeni akis: hedef kurulana kadar o yone **atlaya atlaya**
+  ///	yaklasilir, kurulunca `ensureVisible` ile tam ustune
+  ///	oturtulur.
+  /// ⚠️ Adim 600 dp: daha kucugu cok tur dondurur, daha buyugu hedefi
+  ///	ASAR ve ters yone salinim yapar.
+  /// ⚠️ Tavan 14 tur: sonsuz donguye karsi (liste sonuna dayanirsa
+  ///	`jumpTo` ayni degeri dondurur ve dongu ZATEN kirilir).
   Future<void> _bolumeGit(String bolum) async {
-    setState(() => _aktifBolum = bolum);
+    final adlar = _bolumler.keys.toList();
+    final hedef = adlar.indexOf(bolum);
+    final onceki = adlar.indexOf(_aktifBolum);
+    setState(() {
+      _aktifBolum = bolum;
+      _elleSecim = true;
+    });
     // ⚠️ TURU 180 — dokunulan sekme SERITTE ORTALANIR (`alignment: 0.5`).
     final sk = _sekmeAnahtari(bolum).currentContext;
     if (sk != null) {
@@ -131,16 +165,39 @@ class _UrunKatalogEkraniState extends ConsumerState<UrunKatalogEkrani> {
         curve: Curves.easeOutCubic,
       ));
     }
-    final k = _anahtar(bolum).currentContext;
-    if (k == null) return;
-    // ⚠️ `alignment: 0` bolumu ekranin USTUNE getirir; varsayilan (0.5)
-    //    ortalar ve kullanici "tikladim, ustte degil" derdi.
-    await Scrollable.ensureVisible(
-      k,
-      alignment: 0,
-      duration: const Duration(milliseconds: 320),
-      curve: Curves.easeOutCubic,
-    );
+    try {
+      final yon = (hedef >= 0 && onceki >= 0 && hedef < onceki) ? -1 : 1;
+      for (var tur = 0; tur < 14; tur++) {
+        if (!mounted) return;
+        final k = _anahtar(bolum).currentContext;
+        // ⚠️ `k.mounted`: `k` BASKA bir widget'in context'i ve onceki turun
+        //    `await`inden sonra sokulmus olabilir. State'in `mounted`i bunu
+        //    GORMEZ (analyzer da uyariyor).
+        if (k != null && k.mounted) {
+          // ⚠️ `alignment: 0` bolumu ekranin USTUNE getirir; varsayilan
+          //    (0.5) ortalar ve kullanici "tikladim, ustte degil" derdi.
+          await Scrollable.ensureVisible(
+            k,
+            alignment: 0,
+            duration: const Duration(milliseconds: 320),
+            curve: Curves.easeOutCubic,
+          );
+          return;
+        }
+        if (!_kaydirma.hasClients) return;
+        final simdi = _kaydirma.offset;
+        final yeni = (simdi + yon * 600)
+            .clamp(0.0, _kaydirma.position.maxScrollExtent);
+        if (yeni == simdi) return;
+        _kaydirma.jumpTo(yeni);
+        // ⚠️ Bir KARE beklenir: `jumpTo` sonrasi cocuklar ancak yerlesim
+        //    gecisinde kurulur; beklemeden `currentContext` yine null olur.
+        await WidgetsBinding.instance.endOfFrame;
+        if (!mounted) return;
+      }
+    } finally {
+      if (mounted) setState(() => _elleSecim = false);
+    }
   }
 
   @override
@@ -155,7 +212,56 @@ class _UrunKatalogEkraniState extends ConsumerState<UrunKatalogEkrani> {
   //	"dakika degisince setState" dersinin ayni sinifi).
   void _kaydirmaDegisti() {
     final gizle = _kaydirma.hasClients && _kaydirma.offset > 60;
-    if (gizle != _headerGizli) setState(() => _headerGizli = gizle);
+    final yeniBolum = _elleSecim ? _aktifBolum : _ustdekiBolum();
+    if (gizle == _headerGizli && yeniBolum == _aktifBolum) return;
+    setState(() {
+      _headerGizli = gizle;
+      _aktifBolum = yeniBolum;
+    });
+    // ⚠️ Serit, secili sekme GORUS ALANI DISINDA kaldiysa ona kayar.
+    //    Kosulsuz `ensureVisible` her kaydirma karesinde bir animasyon
+    //    baslatir ve serit TITRERDI.
+    final sk = _sekmeAnahtari(yeniBolum).currentContext;
+    if (sk != null) {
+      unawaited(Scrollable.ensureVisible(
+        sk,
+        alignment: 0.5,
+        duration: const Duration(milliseconds: 240),
+        curve: Curves.easeOutCubic,
+      ));
+    }
+  }
+
+  /// Ekranin USTUNDEKI bolumun adi (kaydirma takibi).
+  ///
+  /// ⚠️ YALNIZ KURULMUS bolumler olculebilir (liste tembel). Hicbiri
+  ///	esigi gecmediyse mevcut secim KORUNUR — bos dize donmek
+  ///	seridi ilk sekmeye ZIPLATIRDI.
+  /// ⚠️ Esik 12 dp: baslik listenin ust kenarina TAM oturmadan bir
+  ///	onceki bolum secili kalsin (goz de oyle okur).
+  String _ustdekiBolum() {
+    final lk = _listeAnahtar.currentContext?.findRenderObject();
+    if (lk is! RenderBox || !lk.hasSize) return _aktifBolum;
+    final ustY = lk.localToGlobal(Offset.zero).dy + 12;
+    var secili = _aktifBolum;
+    double? enYakin;
+    for (final ad in _bolumler.keys) {
+      final c = _bolumAnahtar[ad]?.currentContext;
+      final b = c?.findRenderObject();
+      if (b is! RenderBox || !b.hasSize) continue;
+      final y = b.localToGlobal(Offset.zero).dy;
+      if (y > ustY) continue;
+      if (enYakin == null || y > enYakin) {
+        enYakin = y;
+        secili = ad;
+      }
+    }
+    // ⚠️ Liste TEPEDEYSE daima ILK bolum: yukari cikarken secim eski
+    //    bolumde takili kaliyordu (kullanici: "yukari cikarken degismiyor").
+    if (_kaydirma.hasClients && _kaydirma.offset <= 4 && _bolumler.isNotEmpty) {
+      return _bolumler.keys.first;
+    }
+    return secili;
   }
 
   @override
@@ -232,6 +338,18 @@ class _UrunKatalogEkraniState extends ConsumerState<UrunKatalogEkrani> {
       //	cubugunun ALTINA girer.
       appBar: PreferredSize(
         preferredSize: Size.fromHeight(_headerGizli ? 0 : 44),
+        // ⚠️⚠️⚠️ TURU 180g — **`ClipRect` ZORUNLU** (kullanici: *"asagi
+        //	inerken SOLDAKI GERI TUSU KAYBOLMUYOR"*).
+        //
+        //	`Scaffold` appBar'a `preferredSize` kadar yer verir ama
+        //	cocugu KIRPMAZ. Yukseklik 0'a inince `SafeArea` +
+        //	44 dp'lik `Stack` kutunun DISINA TASIP CIZILMEYE
+        //	devam ediyordu: baslik gidiyor gibi gorunuyor ama geri
+        //	oku EKRANDA KALIYORDU.
+        // ⚠️ `AnimatedSize`in kendi `clipBehavior`i YETMEZ: o yalniz
+        //	KENDI animasyonlu kutusunu kirpar, `SafeArea`nin
+        //	dolgusunu degil.
+        child: ClipRect(
         child: SafeArea(
           bottom: false,
           child: AnimatedSize(
@@ -295,6 +413,7 @@ class _UrunKatalogEkraniState extends ConsumerState<UrunKatalogEkrani> {
             ),
           ),
         ),
+        ),
       ),
       floatingActionButton: widget.benimMi
           ? FloatingActionButton.extended(
@@ -348,6 +467,9 @@ class _UrunKatalogEkraniState extends ConsumerState<UrunKatalogEkrani> {
                   child: YenileSarmali(
                     onRefresh: _yukle,
                     child: ListView(
+                      // ⚠️ Kaydirma takibi listenin EKRANDAKI ust kenarini
+                      //    olcuyor (bkz. `_ustdekiBolum`).
+                      key: _listeAnahtar,
                       controller: _kaydirma,
                       padding: const EdgeInsets.only(top: 4, bottom: 90),
                       children: [
@@ -648,13 +770,12 @@ class _UrunKatalogEkraniState extends ConsumerState<UrunKatalogEkrani> {
 
   /// ⚠️ Alfa 0.07 -> **0.11**: kart zemini de 0.06 ve ikisi ayni tonda
   //	olsaydi resim alani kartin icinde GORUNMEZ olurdu.
+  /// ⚠️ TURU 180g — **IKON KALDIRILDI** (kullanici: *"resim olmayanlarda
+  //	IKON OLMASIN"*). Alan yine CIZILIR: kosullu olsaydi kimi satir
+  //	92 kimi 56 dp olur ve liste ZIPLARDI (turu 178 dersi).
   Widget _yerTutucu(ColorScheme scheme) => ColoredBox(
         color: scheme.onSurface.withValues(alpha: 0.11),
-        child: Icon(
-          LucideIcons.image,
-          size: 26,
-          color: scheme.onSurface.withValues(alpha: 0.3),
-        ),
+        child: const SizedBox.expand(),
       );
 
   /// ⚠️⚠️ AI MENU — **IKI YOL**: menu FOTOGRAFINDAN oku ya da YAZILI TARIFTEN

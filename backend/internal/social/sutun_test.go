@@ -98,9 +98,10 @@ func TestGonderiSorgulariScanIleUyumlu(t *testing.T) {
 	}
 	// ⚠️ Sorgu sayisi DUSERSE de haber ver: biri sorguyu silmis ya da bicimini
 	//    degistirmis olabilir (bu test onu bir daha goremezdi = sessiz korluk).
-	if bulunan < 8 {
-		t.Errorf("yalniz %d gonderi sorgusu tarandi; en az 8 bekleniyordu "+
-			"(Akis x2, Kesfet, UserPosts, Detay, Reels, Kaydedilenler, Mahalle)",
+	if bulunan < 9 {
+		t.Errorf("yalniz %d gonderi sorgusu tarandi; en az 9 bekleniyordu "+
+			"(Akis x2, Kesfet, UserPosts, Detay, Reels, Kaydedilenler, "+
+			"Begenilenler, Mahalle)",
 			bulunan)
 	}
 }
@@ -115,8 +116,14 @@ func ustDuzeydeFrom(s string) int {
 		case ')':
 			derinlik--
 		}
+		// ⚠️⚠️ TURU 180g — **YENI BIR KAYNAK TABLO EKLERKEN BURAYI DA EKLE.**
+		//	Ayristirici sutun listesini ust duzey `FROM`da keser; taninmayan
+		//	bir tablo adinda kesim YAPILAMAZ ve muhafiz WHERE'deki
+		//	virgulleri de sutun sayar -> YANLIS ALARM (`Begenilenler`
+		//	eklenirken birebir bu oldu: "45 sutun var, Scan 23 bekliyor").
 		if derinlik == 0 && (strings.HasPrefix(s[i:], "FROM posts p") ||
-			strings.HasPrefix(s[i:], "FROM post_saves")) {
+			strings.HasPrefix(s[i:], "FROM post_saves") ||
+			strings.HasPrefix(s[i:], "FROM post_likes")) {
 			return i
 		}
 	}
@@ -174,7 +181,10 @@ func sutunEslesir(gercek, beklenen string) bool {
 	case "USERNAME":
 		return strings.Contains(d, "u.username")
 	case "BEGENDIM":
-		return strings.Contains(d, "post_likes")
+		// ⚠️ TURU 180g — `Begenilenler` ucunda sabit `true`: tanim geregi
+		//	listedeki her gonderi begenilmis. (`Kaydedilenler`de ayni
+		//	gerekceyle KAYDETTIM sabit.)
+		return strings.Contains(d, "post_likes") || d == "true"
 	case "KAYDETTIM":
 		// ⚠️ `Kaydedilenler` ucunda sabit `true` — tanim geregi hepsi kayitli.
 		return strings.Contains(d, "post_saves") || d == "true"

@@ -426,6 +426,57 @@ func (h *Handler) Kaydedilenler(w http.ResponseWriter, r *http.Request) {
 	yaz(w, 200, map[string]any{"posts": liste})
 }
 
+// GET /users/me/begeniler — BEGENDIGIM gonderiler.
+//
+// ⚠️⚠️ TURU 180g — kullanici emri: *"gonderiler/fotograflar alanina
+//	BEGENILENLER ekle"*. Boyle bir uc YOKTU; `/posts/{id}/likes`
+//	bir gonderiyi KIMLERIN begendigini donduruyor, tersini DEGIL.
+//
+// ⚠️ Govde `Kaydedilenler` ile BIREBIR ayni kaliptir; tek fark kaynak
+//	tablo (`post_likes`) ve imlec sutunu. Kopyalanmasinin sebebi
+//	iki ucun GORUNURLUK yuklemlerinin ayni kalmasi zorunlulugu:
+//	ortak bir yardimciya cikarmak, gizli hesap / engel / yayinda
+//	kapilarini tek yerde toplamak icin AYRI bir is (ikisi de
+//	`engelYok` + `yayindaOlan` sabitlerini kullaniyor, yani
+//	kural ZATEN tek kaynakta).
+// ⚠️ Liste YALNIZ SAHIBINE acilir (`/users/me/...`): baskasinin neyi
+//	begendigi Instagram'da da GIZLIDIR.
+func (h *Handler) Begenilenler(w http.ResponseWriter, r *http.Request) {
+	me := auth.UserID(r.Context())
+	before := time.Now().Add(time.Hour)
+	if s := r.URL.Query().Get("before"); s != "" {
+		if t, err := time.Parse(time.RFC3339Nano, s); err == nil {
+			before = t
+		}
+	}
+	rows, err := h.db.Query(r.Context(), `
+		SELECT p.id, p.author_id, p.tur, p.metin, p.media_ids,
+		       p.begeni_sayisi, p.yorum_sayisi, p.goruntulenme,`+medyaTurleri+`
+		       p.yorum_kapali, p.created_at,
+		       u.name, COALESCE(u.username,''), u.avatar_url, u.avatar_media_id,
+		       true,
+		       EXISTS(SELECT 1 FROM post_saves sv WHERE sv.post_id=p.id AND sv.user_id=$1)
+		  FROM post_likes lk
+		  JOIN posts p ON p.id = lk.post_id
+		  JOIN users u ON u.id = p.author_id
+		 WHERE lk.user_id=$1 AND p.durum='yayinda' AND lk.created_at < $2
+		   AND (NOT u.gizli_hesap
+		        OR p.author_id=$1
+		        OR EXISTS(SELECT 1 FROM follows f
+		              WHERE f.follower_id=$1 AND f.followee_id=p.author_id
+		                AND f.durum='onayli'))`+engelYok+yayindaOlan+`
+		 ORDER BY lk.created_at DESC LIMIT 30`, me, before)
+	if err != nil {
+		hata(w, 500, "beğenilenler alınamadı")
+		return
+	}
+	defer rows.Close()
+	// ⚠️ Imlec `lk.created_at` (BEGENME zamani) — gonderinin kendi
+	//    `created_at`i DEGIL.
+	liste := h.satirlariOku(r.Context(), me, rows)
+	yaz(w, 200, map[string]any{"posts": liste})
+}
+
 // POST/DELETE /posts/{id}/save — kaydet / kaydı kaldır.
 func (h *Handler) Save(w http.ResponseWriter, r *http.Request) {
 	me := auth.UserID(r.Context())

@@ -245,6 +245,22 @@ class SosyalServisi {
         .toList();
   }
 
+  /// ⚠️⚠️ TURU 180g — **BEGENDIGIM GONDERILER** (kullanici: *"gonderiler
+  ///	fotograflar alanina BEGENILENLER ekle"*).
+  /// ⚠️ `begenenler()` ile KARISTIRMA: o bir gonderiyi KIMLERIN
+  ///	begendigini dondurur; bu, BENIM begendigim gonderileri.
+  /// ⚠️ Uc `/users/me/...`: baskasinin neyi begendigi GIZLIDIR.
+  Future<List<Gonderi>> begenilenler({String? before}) async {
+    final r = await _api.get(
+      '/users/me/begeniler',
+      queryParameters: {if (before != null) 'before': before},
+    );
+    final m = (r.data as Map).cast<String, dynamic>();
+    return ((m['posts'] as List?) ?? [])
+        .map((e) => Gonderi.json((e as Map).cast<String, dynamic>()))
+        .toList();
+  }
+
   Future<List<Map<String, dynamic>>> begenenler(String postId) async {
     final r = await _api.get('/posts/$postId/likes');
     return ((r.data as List?) ?? [])
