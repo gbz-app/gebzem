@@ -153,6 +153,24 @@ const kontrol = (ad, gecti, ek = '') => {
     kontrol('KAYDEDILENLER listesi (yeni uc)',
       kayitli.kod === 200 && ((kayitli.d.posts || []).length === 1),
       'HTTP ' + kayitli.kod + ' adet=' + ((kayitli.d.posts || []).length));
+
+    // ⚠️⚠️ TURU 180g — **BEGENILENLER** (yeni uc). Ayni sinif turu 76'da
+    //	sahaya cikmisti: SELECT/Scan ayrisirsa `satirlariOku` HER
+    //	SATIRI SESSIZCE atlar ve liste BOMBOS doner — hicbir log
+    //	dusmez. Bu kontrol tam onu yakalar (begeni ZATEN atildi).
+    const begenilen = await j('/users/me/begeniler', { token: B.token });
+    kontrol('BEGENILENLER listesi (yeni uc)',
+      begenilen.kod === 200 && ((begenilen.d.posts || []).length === 1),
+      'HTTP ' + begenilen.kod + ' adet=' + ((begenilen.d.posts || []).length));
+    // ⚠️ Begeni GERI ALININCA listeden DUSMELI: kalirsa kullanici
+    //    begenmedigi bir gonderiyi kendi listesinde gorurdu.
+    await j('/posts/' + pid + '/like', { yontem: 'DELETE', token: B.token });
+    const begeniSonra = await j('/users/me/begeniler', { token: B.token });
+    kontrol('begeni geri alininca BEGENILENLERDEN duser',
+      begeniSonra.kod === 200 && ((begeniSonra.d.posts || []).length === 0),
+      'adet=' + ((begeniSonra.d.posts || []).length));
+    // ⚠️ Sonraki kontroller begeninin DURDUGUNU varsayiyor -> geri koy.
+    await j('/posts/' + pid + '/like', { yontem: 'POST', token: B.token });
   }
 
   // ---------- ⚠️ ENGEL KAPISI: /users/{id}/posts (turu 75b sevk engeli)
