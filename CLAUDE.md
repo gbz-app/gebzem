@@ -41,6 +41,94 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
       kaybettiriyorsun"*. **Üçüncüsü olmayacak.**
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
+- **KALDIGIMIZ YER (6 Eyl 14:45): TURU 178 YAYINLANDI — SADECE iOS.**
+  ios **34030670428** (**ae5aaba**), R2 ipa=31895201 (md5 25e55e04),
+  index=7967 (5fde4ae0) surum.json=45 (0c45a51b), purge OK,
+  **CDN BIREBIR**.
+  ⚠️ **ADRES:** https://indir.gebzem.app/index.html?v=20260906-1445
+  Arayuz turu: BACKEND DEGISMEDI, DB TRUNCATE EDILMEDI. health ok.
+  ✅ analyze **0/0** · test **86/86** · emulatorde BES ekran gozle dogrulandi.
+
+- 🔁 ⚠️⚠️⚠️ **TURU 178 — ARAMA SAYFASINDA IKI HEADER VARDI (kullanici
+  yakaladi: *"bunlari test etmiyor musun"*).**
+  `hizmet_menusu.dart` `KesfetEkrani`i `Scaffold(appBar: AppBar('Ara'))` ile
+  push ediyordu; turu 175 ekranin **ICINE** de bir header koymustu. Ikisi
+  birden cizilince ekranda **iki geri oku ve iki baslik** olustu.
+  ⚠️ `Scaffold` KALDI: `KesfetEkrani` Scaffold DONDURMEZ ve `Material` atasi
+     olmadan `TextField` PATLAR (turu 130).
+  ⚠️⚠️ **DERS: bir ekrana header eklerken onu PUSH EDEN yolun zaten bir
+     AppBar verip vermedigini KONTROL ET** — ve o ekrani EMULATORDE AC.
+
+- 🖤 ⚠️⚠️ **TURU 178 — KOYU TEMA ARTIK TEK KAYNAK** (`core/theme.dart`).
+  Kullanici sirayla yemek ekranini, profili ve onlarin actigi alt sayfalari
+  siyah istedi. Uc ekran ayri ayri `ThemeData.dark()` kursaydi ilk ayrisma
+  KACINILMAZDI (bu projede ayni sinif ALTI kez yasandi).
+  · `kKoyuTema` + `koyuSayfa(widget)` TEK KAYNAK; `kKategoriZemin` ve
+    `kProfilZemin` ZATEN var olan **`kAiZemin`**e baglandi.
+  ⚠️⚠️ **STATE METOTLARI BU TEMAYI GORMEZ** (turu 135c/138): `build`in
+     DONDURDUGU agaca konan `Theme`, State'in KENDI `context`inin ALTINDA
+     kalir. Her ekranda `ColorScheme get _ks => kKoyuTema.colorScheme;` var
+     ve metotlar rengi ORADAN okur.
+     📌 Sahada gorunen kaniti: "Henüz gönderi yok" siyah zemine KOYU GRI
+        ciziliyor ve OKUNMUYORDU (emulatorde goruldu).
+  ⚠️ `ThemeData.dark()` "dokunma dairesi YOK" kararini SIFIRLAR — uc alan
+     ACIKCA geri konur (turu 140).
+
+- 🎈 ⚠️⚠️ **TURU 178 — MENU/REZERVASYON CUBUGU ARTIK ANIMASYONSUZ.**
+  `Scaffold.floatingActionButton` cocugunu **HER ZAMAN** bir olcek gecisiyle
+  gosterir ve `null`->widget gecisini de animasyon sayar; isletme detayi ag
+  istegiyle SONRADAN geldigi icin cubuk her profil acilisinda "buyuyerek"
+  giriyordu.
+  ⚠️ `FloatingActionButtonAnimator.noAnimation` **YETMEZ** — o yalniz KONUM
+     animatorudur. Yapisal cozum FAB'i HIC kullanmamak: `Stack` + `Positioned`.
+
+- 🍔 **TURU 178 — MENU EKRANI YENIDEN KURULDU** (kullanici: *"ust header
+  yemekteki gibi, arama olsun, RESIM ALANLARI olsun, ACIKLAMA olsun, yazi
+  tipleri buyuk olsun, daha fazla menu ekle"*).
+  44 dp header · arama (istemci suzgeci, Turkce duyarli) · **92 dp gorsel** ·
+  aciklama (3 satir) · ad 16,5 · fiyat 16/w800.
+  ⚠️ Gorsel **DAIMA cizilir**: kaynak yoksa notr yer tutucu. Kosullu
+     cizilseydi kimi satir 92 kimi 56 dp olur ve liste ZIPLARDI.
+  ⚠️ Bolum basligi `toUpperCase()` KULLANMAZ: Dart 'i' -> 'I' yapar ve
+     'İçecek' -> 'IÇECEK' cikardi (turu 142).
+  ⚠️⚠️ **KALDIRILMIS kalem MUSTERIYE CIZILMEZ**: sunucu silmeyi "soft delete"
+     yapiyor (`durum=kaldirildi`) ve listede DONDURMEYE devam ediyor. Sahibi
+     gormeli (geri alabilir). OLCULDU: McDonald's kaydinda **18 yayinda /
+     24 kaldirilmis**.
+
+- 📅 **TURU 178 — REZERVASYON POPUP + ADIM ADIM** (kullanici: *"tam sayfa
+  olmasin, popup tarzi acilsin, step step yap"*).
+  `randevuAlAc()` -> `showModalBottomSheet(isScrollControlled, %90)`; uc adim:
+  **Tarih** (4 sutunlu gun izgarasi) -> **Saat** -> **Detay** (ozet karti +
+  "Degistir" + kisi/hizmet + not).
+  ⚠️ Adim gecisi OTOMATIK (dokunusun kendisi secimdir); ayri "Ileri" dugmesi
+     YOK — iki dugme "hangisine basmaliyim" ikilemi uretirdi.
+  ⚠️ `viewInsets` dolgusu ZORUNLU: detay adiminda iki metin alani var ve
+     sheet klavyeyi KENDI KENDINE karsilamaz — "Talebi gonder" klavyenin
+     ALTINDA kalirdi (hem gorunmez hem DOKUNULAMAZ).
+  ⚠️ Hucre yuksekligi `mainAxisExtent` ile YAZI OLCEGINDEN turetilir; sabit
+     `childAspectRatio` olcek buyudugunde TASARDI (turu 121).
+  ⚠️ Gecilmis adimlar tiklanabilir, gelecek adimlar DEGIL (saat secmeden
+     detaya atlamak gonderilecek zamani BOS birakirdi).
+
+- 🍟 **TURU 178 — 'Gebze Kebap Salonu' -> McDONALD'S** (kullanici emri +
+  logo/kapak gorsellerini klasore koydu).
+  Tohum kaydi yenilendi (18 kalemlik **aciklamali** menu); avatar (logo) ve
+  kapak (magaza fotografi) **R2'ye yuklenip profile baglandi**
+  (presign -> PUT -> commit).
+  ⚠️ Ham `slidermc.png` **3,0 MB** idi; `mobile/tool/marka_gorsel.dart` ile
+     1200x800 JPEG (**368 KB**) uretildi. Varliklar pakete SIKISTIRILMADAN
+     girer (turu 116b) — ham PNG konsaydi IPA 3 MB sisecekti.
+  ⚠️ Ham kaynaklar `.gitignore`da; uretilen JPEG'ler izleniyor.
+  ⚠️⚠️ **TESCILLI MARKA**: bu kayit ve `assets/marka` varliklari ORNEK/TANITIM
+     verisidir — yayin oncesi `kHaritaOnizleme = false` ile BIRLIKTE cikarilmali.
+
+- 🧹 ⚠️ **TURU 178 — `tools/tohum.js` IDEMPOTENT DEGIL (urun tarafinda).**
+  Hesap 409'da login'e duser ama **urunler KOSULSUZ POST edilir**; betik iki
+  kez kosunca TUM isletmelerde kalemler ciftlendi (Kahve Molasi'nda "Serpme
+  kahvalti" iki kez goruldu). 16 hesap taranip **22 yinelenen** silindi.
+  ⏳ Kalici cozum (ad+bolum tekilligi) AYRI IS.
+
 - **KALDIGIMIZ YER (6 Eyl 13:24): TURU 175-177 YAYINLANDI — SADECE iOS.**
   ios **34026696916** (**8d55870**), R2 ipa=31345315 (md5 ea31d755),
   index=7967 (d04b723f) surum.json=45 (b607ff2f), purge OK, **CDN BIREBIR**,
