@@ -10002,3 +10002,84 @@ yorumlarda resim, odeme/ozellikler, is ilani + rezervasyon modernizasyonu).
 ### ✅ Dogrulama
 `flutter analyze` **0/0** · `flutter test` **86/86** · `go build/vet/test`
 temiz · emulatorde alti ekran gozle dogrulandi.
+
+---
+
+## Oturum — Turu 180f · 180g · 180h · 180i (6 Eylul 2026)
+
+### Turu 180f — kapak alt kosesi: AYNA RADUS
+Dort turdur anlasamadigimiz sekil, **cizerek** cozuldu: gecici bir `-t`
+entry point (`lib/kose_deneme_main.dart`) ile uc aday (A normal · B ters/oyuk
+· C ayna) emulatorde yan yana cizildi, kullanici **C**'yi secti.
+Alt kenar ortada DUZ (`y = h - r`), iki alt kose duz hattin ALTINA sarkar;
+yay merkezleri `(r, h)` ve `(w-r, h)` — yani kapagin DISINDA.
+⚠️ Kavis payi `kh`ye EKLENIR (`height: kh + kKapakKavis`), yoksa sarkan
+koseler `Positioned`in alt kenarinda KIRPILIR ve degisiklik EKRANDA HIC
+GORUNMEZ.
+📌 **Surec dersi:** belirsiz bir GORSEL istekte once cizip goster.
+
+### Turu 180g — profil, menu, takip listesi, AI karti
+- **`Beğeniler` sekmesi**: yeni uc `GET /users/me/begeniler` (Kaydedilenler
+  kalibinin esi, imlec `lk.created_at`). Sekme YALNIZ kendi profilimde.
+  ⚠️ Go muhafizi (`social/sutun_test.go`) `FROM post_likes`i tanimiyordu ->
+  ayristirici + `BEGENDIM` sabit `true` kabulu eklendi, sorgu sayisi 8 -> 9.
+  E2E 402 -> **404**.
+- **"Henuz gonderi yok" UC AYRI KOK NEDENLE bozuktu:** (1) `ListView`
+  icindeki `Center` ORTALAMAZ (dikey kisit sinirsiz) — bos dal artik
+  `ListView`e SARILMADAN donuluyor; (2) sayfa yuksekligi sekmeye gore
+  degisiyordu -> `PageView` gecisinde izgara 60 dp kutuya sikisip tasiyordu,
+  yukseklik SABITLENDI; (3) gorunur alan EKRANDAN olculuyordu -> alt menunun
+  arkasinda kaliyordu, alt sinir artik LISTENIN KENDI alt kenari.
+- **Serit ile sayfa ayrisiyordu**: `initialPage` KAYNAK enum'dan indeks
+  aliyordu, `_sekmeler` ise `genel`/`video`yu eliyor. `initialPage` kalkti,
+  `_sayfaSenkron` ilk karede oturuyor.
+- **Menu ekrani uc kusur**: kaydirma takibi (`_ustdekiBolum`) · asagidayken
+  sekme dokunusu (tembel liste -> `currentContext` null, 600 dp adimlarla
+  yaklasiliyor) · header gizlenirken geri oku ekranda kaliyordu (`Scaffold`
+  appBar cocugunu KIRPMAZ -> `ClipRect` ZORUNLU).
+- **Takip listesi**: istemcide Turkce duyarsiz arama + headerda kisinin adi
+  ve `@kullanici · Takipçiler`; ekran `koyuSayfa` ile SIYAHA alindi.
+- **AI karti sadelesti**: rozet · "daha fazla bilgi" · ok KALDIRILDI.
+  Boylece ust satirdaki `Spacer` + `Flexible` yarisi da yapisal olarak bitti.
+
+### Turu 180h — feedmc medyasi (BUILD ALMADAN)
+`tools/feed_yukle.js`: presign -> R2 PUT -> commit; olculer **ffprobe** ile
+gercekten olculuyor (`media_boyut` akis kartinin en-boyunu suruyor).
+⚠️ Videolarin ON IZLEME resmi yoktu: **poster karesi** ffmpeg ile 1. saniyeden
+uretilip `thumb_bytes` ile presign'a veriliyor ve **commit'ten ONCE** PUT
+ediliyor (thumb anahtari presign aninda uretiliyor — sonradan eklemenin yolu
+YOK). Videolarda sol altta play ikonu + goruntulenme; reels gonderiler artik
+reels tarzinda aciliyor. `tools/is_ilani.js` ile 3 ornek is ilani (anahtarlar
+`GET /ilan-kategoriler?tur=is` ile DOGRULANIYOR; kurye ucreti `fiyat_gizli`).
+
+### Turu 180i — YAZI TIPI: Google Sans -> **Google Sans Flex**
+- Yeni sabit **`kYaziAilesi`** (`core/theme.dart`). ⚠️ `theme.dart`in
+  yillardir yazan serhi *"kod genelinde BASKA yerde `fontFamily` YAZILI
+  DEGIL"* **YANLISTI**: aile ON YERDE geciyordu (tema + kendi `ThemeData`sini
+  kuran DOKUZ ekran). Elle degistirilseydi biri atlanir ve o ekran SESSIZCE
+  sistem fontuna duserdi.
+- 📏 **Satir kutusu DEGISMEDI — olculdu** (TTF `OS/2` + `hhea` okundu):
+  Google Sans 966/-286/0 @ upem 1000 · Flex 1932/-572/0 @ upem 2000 ->
+  ikisi de **1,252**, ikisinde de `USE_TYPO_METRICS` acik. Turu
+  121/135b/157/173 formulleri aynen gecerli; emulatorde tasma **0**.
+- 🇹🇷 Turkce glifler `cmap`ten dogrulandi; eksik tek karakter `₺` ve o zaten
+  kullanilmiyor (turu 179'da fiyatlar "TL"ye cevrildi).
+- 📦 Fontlar **7,28 MB -> 0,5 MB**; **IPA 31,9 -> 29,1 MB**.
+
+### ✅ Yayin (6 Eyl 21:08)
+ios **34050172075** (`0481e43`), R2 ipa=29085268 (md5 0a1caa0c),
+index=7967, surum.json=45, purge OK, **CDN ucu de BIREBIR**,
+`get-task-allow: false`, ad hoc profil, `MapsApiKey` VAR.
+IPAda `Google Sans` **TEK KEZ** geciyor ve o da `Google Sans Flex`in parcasi.
+Adres: https://indir.gebzem.app/index.html?v=20260906-2108
+
+### ⚠️ Durust sinirlar (devrediyor)
+- `users.onayli`yi set eden UC YOK — rozet icin canli DB'de UPDATE; her
+  TRUNCATE+tohum sonrasi TEKRAR gerekir.
+- `feedmc/` ve `assets/marka` **tescilli marka** icerigi: yayin oncesi
+  `kHaritaOnizleme = false` ile BIRLIKTE paketten cikarilmali.
+- Google Cloud kota tavani + butce alarmi HALA YOK.
+
+### ✅ Dogrulama
+`flutter analyze` **0/0** · `flutter test` **86/86** · emulatorde anasayfa ·
+Yemek · isletme profili gozle dogrulandi, logcat tasma **0**.
