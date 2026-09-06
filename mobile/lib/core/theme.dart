@@ -12,6 +12,24 @@ import 'package:flutter/services.dart';
 //    AAA KAYBEDILIR. Istenirse AYRI ve OLCUMLU bir tur isi + kullanici karari.
 const morLogo = Color(0xFF6C2BD9); // marka moru
 
+/// ⚠️⚠️⚠️ TURU 180i — **UYGULAMANIN YAZI TIPI (TEK KAYNAK).**
+///
+/// Kullanici emri: *"uygulamayi komple Google Sans Flex olarak degistir
+/// yazi tipini"*. Onceki deger `'Google Sans'` idi.
+///
+/// ⚠️⚠️ **NEDEN SABIT:** `theme.dart`taki serh yillardir *"kod genelinde
+///	BASKA yerde fontFamily YAZILI DEGIL"* diyordu — **YANLISTI**.
+///	Bu turda tarandi: aile adi **ON YERDE** geciyordu (tema + kendi
+///	`ThemeData`sini kuran dokuz ekran: GebzemAI, isletme filtre,
+///	Yakinimda x2, hizmet menusu x2, rota, ulasim). Elle degistirilen
+///	her yerde bir tanesinin atlanmasi = o ekranin SESSIZCE sistem
+///	fontuna dusmesi demekti.
+/// ⚠️ YAPMA: cagri yerlerine tekrar duz dize (`'Google Sans...'`) yazma.
+/// ⚠️ YAPMA: fontu tamamen kaldirma — turu 180d'de "varsayilan yazi tipi"
+///	istegini fontu silmek diye okumak bu projenin EN AGIR hatasiydi;
+///	istek DAIMA `letterSpacing` hakkindadir.
+const kYaziAilesi = 'Google Sans Flex';
+
 /// ⚠️⚠️ TURU 117 — **HIKAYE HALKASI GRADYANI (TEK KAYNAK).**
 ///
 /// Kullanici emri: *"border rengini logo icin oradaki turuncu kirmizimsi,
@@ -173,9 +191,12 @@ ThemeData _tema(Brightness parlaklik) {
     //	⚠️ YAPMA: bunu tekrar kaldirma. "Default" istegi
     //	   `letterSpacing`e aittir, AILEYE degil.
     //
-    // ⚠️ Kod genelinde BASKA yerde `fontFamily` YAZILI DEGIL — aile
-    //	degisikligi yalnizca BURADAN ve pubspec'ten yapilir.
-    fontFamily: 'Google Sans',
+    // ⚠️⚠️ TURU 180i — aile artik **`kYaziAilesi` SABITINDEN** gelir
+    //	(Google Sans -> **Google Sans Flex**). Eski serh *"kod genelinde
+    //	baska yerde fontFamily yazili degil"* diyordu; OLCULDU, YANLISTI:
+    //	kendi `ThemeData`sini kuran dokuz ekran daha aileyi ELLE
+    //	yaziyordu. Hepsi ayni sabiti okuyor.
+    fontFamily: kYaziAilesi,
     // ALT MENU icon TAP dairesi (ripple/splash) KALDIR (test turu 7): NoSplash + saydam vurgu.
     splashFactory: NoSplash.splashFactory,
     splashColor: Colors.transparent,

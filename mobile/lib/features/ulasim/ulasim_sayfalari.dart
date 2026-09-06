@@ -17,7 +17,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
-import '../../core/theme.dart' show kAiZemin, morLogo;
+import '../../core/theme.dart' show kAiZemin, morLogo, kYaziAilesi;
 import '../isletme/isletme_kart.dart' show kYanBosluk, kYaricap, kYuzeyGri;
 import 'ulasim_veri.dart';
 
@@ -30,7 +30,7 @@ ThemeData _koyuTema() => ThemeData.dark(useMaterial3: true).copyWith(
       scaffoldBackgroundColor: kAiZemin,
       textTheme: ThemeData.dark(useMaterial3: true)
           .textTheme
-          .apply(fontFamily: 'Google Sans'),
+          .apply(fontFamily: kYaziAilesi),
       // ⚠️ `ThemeData.dark()` uygulamanin "dokunma dairesi YOK" kararini
       //    (turu 7 kullanici emri) SIFIRLAR; acikca geri konur.
       splashFactory: NoSplash.splashFactory,

@@ -15,7 +15,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
-import '../../core/theme.dart' show kAiZemin, morLogo;
+import '../../core/theme.dart' show kAiZemin, morLogo, kYaziAilesi;
 import '../isletme/isletme_kart.dart' show kYanBosluk, kYaricap, kYuzeyGri;
 import 'adres_servisi.dart';
 import 'rota_bul.dart';
@@ -55,7 +55,7 @@ ThemeData _koyuTema() => ThemeData.dark(useMaterial3: true).copyWith(
       scaffoldBackgroundColor: kAiZemin,
       textTheme: ThemeData.dark(useMaterial3: true)
           .textTheme
-          .apply(fontFamily: 'Google Sans'),
+          .apply(fontFamily: kYaziAilesi),
       splashFactory: NoSplash.splashFactory,
       splashColor: Colors.transparent,
       highlightColor: Colors.transparent,

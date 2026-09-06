@@ -39,7 +39,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 // ⚠️ TURU 140 — filtre ekraninin zemini menu/GebzemAI/harita paneliyle AYNI
 //    siyahi kullanir (TEK KAYNAK); marka moru zorla-koyu temanin tohumu.
-import '../../core/theme.dart' show kAiZemin, morLogo;
+import '../../core/theme.dart' show kAiZemin, morLogo, kYaziAilesi;
 
 import '../sosyal/hizmet_menusu.dart' show KalinIkon;
 import 'isletme_kart.dart' show kYaricap, kVurgu, kYuzeyGri, isletmeAcikMi, isletmeGeceAcikMi;
@@ -246,7 +246,7 @@ Future<bool> isletmeFiltreAc(BuildContext context, IsletmeFiltre f) async {
           scaffoldBackgroundColor: kAiZemin,
           textTheme: ThemeData.dark(useMaterial3: true)
               .textTheme
-              .apply(fontFamily: 'Google Sans'),
+              .apply(fontFamily: kYaziAilesi),
           // ⚠️ Uygulamanin "dokunma dairesi YOK" karari (turu 7 kullanici
           //    emri) `ThemeData.dark()` ile SIFIRLANIYOR; acikca geri konur.
           splashFactory: NoSplash.splashFactory,

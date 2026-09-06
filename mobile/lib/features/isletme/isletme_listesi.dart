@@ -1937,8 +1937,10 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
     //
     // ⚠️ FIX **TEK KAYNAK**: `Text`in yaptigi seyin AYNISI yapilir —
     //    ortamdaki `DefaultTextStyle` uzerine ayni farklar `merge` edilir.
-    //    Buraya elle `fontFamily: 'Google Sans'` YAZILMAZ: tema ailesi
-    //    degisirse olcum yine geride kalirdi.
+    //    Buraya elle bir aile adi (`kYaziAilesi` dahil) YAZILMAZ: tema
+    //    ailesi degisirse olcum yine geride kalirdi — nitekim turu 180i'de
+    //    aile Google Sans -> **Google Sans Flex** oldu ve bu satir sayesinde
+    //    olcum kendiliginden dogru kaldi.
     // ⚠️ Kalinlik BILEREK w700 (cizim w600): kalin yazi DAHA GENIS, yani
     //    olcum DAIMA guvenli tarafta kalir (bkz. yukaridaki serh).
     final olcumStili = DefaultTextStyle.of(context).style.merge(

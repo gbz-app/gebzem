@@ -15,7 +15,7 @@ import '../home/home_screen.dart' show aktifSekme;
 import '../isletme/kategori_slider.dart';
 import '../medya/medya_gorsel.dart' show Avatar;
 import 'kesfet_ekrani.dart';
-import '../../core/theme.dart' show morLogo, kAiZemin, AiZemin, kAiKartYuzey;
+import '../../core/theme.dart' show morLogo, kAiZemin, AiZemin, kAiKartYuzey, kYaziAilesi;
 import '../home/home_screen.dart' show myProfileProvider;
 import 'package:permission_handler/permission_handler.dart';
 
@@ -565,10 +565,10 @@ class _HizmetMenusuState extends ConsumerState<HizmetMenusu> {
           scaffoldBackgroundColor: Colors.transparent,
           textTheme: ThemeData.dark(
             useMaterial3: true,
-          ).textTheme.apply(fontFamily: 'Google Sans'),
+          ).textTheme.apply(fontFamily: kYaziAilesi),
           primaryTextTheme: ThemeData.dark(
             useMaterial3: true,
-          ).primaryTextTheme.apply(fontFamily: 'Google Sans'),
+          ).primaryTextTheme.apply(fontFamily: kYaziAilesi),
         ),
         child: AiZemin(
           // ⚠️⚠️⚠️ TURU 129 — **`Material` SARMALI ZORUNLU** (emulatorde

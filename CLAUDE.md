@@ -134,6 +134,30 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
   · Blur daireler 42 -> **48**; dokunma kutulari 44 -> **52** (kutu
     buyutulmeseydi `ClipOval` daireyi KIRPARDI).
 
+- 🔤 ⚠️⚠️ **TURU 180i — YAZI TIPI: GOOGLE SANS -> GOOGLE SANS FLEX**
+  (kullanici emri: *"uygulamayi komple Google Sans Flex olarak degistir"*).
+  · Yeni sabit **`kYaziAilesi`** (`core/theme.dart`) — aile adi artik TEK
+    YERDE. ⚠️⚠️ `theme.dart`in yillardir yazan serhi *"kod genelinde
+    BASKA yerde `fontFamily` YAZILI DEGIL"* **YANLISTI**: aile **ON
+    YERDE** geciyordu (tema + kendi `ThemeData`sini kuran DOKUZ ekran:
+    GebzemAI · isletme filtre · Yakinimda x2 · hizmet menusu x2 · rota ·
+    ulasim). Elle degistirilseydi biri atlanir ve o ekran SESSIZCE sistem
+    fontuna duserdi.
+  · 📏 **SATIR KUTUSU DEGISMEDI — OLCULDU** (TTF `OS/2`+`hhea` okundu):
+    Google Sans 966/-286/0 @ upem 1000 · Google Sans Flex 1932/-572/0 @
+    upem 2000 -> **ikisi de 1,252** ve ikisinde de `USE_TYPO_METRICS`
+    acik. Yani turu 121/135b/157/173'te Google Sans'in kutusuna gore
+    ayarlanmis yukseklik formulleri **AYNEN GECERLI**; emulatorde tasma
+    **0** olculdu.
+  · 🇹🇷 Turkce glifler `cmap`ten dogrulandi (s S g G i I c C o O u U +
+    sapkalilar). Eksik tek karakter **`₺`** ve o ZATEN kullanilmiyor
+    (turu 179'da fiyatlar "TL"ye cevrildi).
+  · 📦 Fontlar **7,28 MB -> 0,5 MB** (degisken fonttan kesilmis statik
+    ornekler) -> IPA ~7 MB kuculur.
+  ⚠️ **YAPMA:** cagri yerlerine tekrar duz dize yazma; fontu KALDIRMA
+     (turu 180d dersi aynen gecerli — "varsayilan yazi tipi" istegi
+     DAIMA `letterSpacing` demektir).
+
 - **KALDIGIMIZ YER (6 Eyl 18:16): TURU 180d+180e YAYINLANDI — SADECE iOS.**
   ios **34041313257** (**e856fb8**), R2 ipa=**31928388** (md5 4fa0be0d),
   index=7967 (445c9e3f) surum.json=45 (6bd603f9), purge OK, **CDN BIREBIR**

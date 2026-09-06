@@ -10,7 +10,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/api.dart';
-import '../../core/theme.dart' show morLogo, AiZemin, kKoyuPanelZemin, kKoyuPanelSekli;
+import '../../core/theme.dart' show morLogo, AiZemin, kKoyuPanelZemin, kKoyuPanelSekli, kYaziAilesi;
 import '../home/home_screen.dart' show myProfileProvider;
 import '../../router.dart' show rootMessengerKey;
 import '../isletme/isletme_kart.dart' show kYanBosluk, kYaricap;
@@ -340,9 +340,13 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani>
         //	`fontFamily: Google Sans` ayari TASINMIYOR, sistem fontuna
         //	(Roboto) dusuyordu.
         //	⚠️ `copyWith` ile SARMALIN KENDISINE eklendi.
-        //	⚠️ YAPMA: `fontFamily`yi cagri yerlerine tek tek yazma —
-        //	   `theme.dart` serhi "kod genelinde BASKA yerde yazili degil"
-        //	   diyor ve bu tek kaynagi bozardi.
+        //	⚠️⚠️ TURU 180i — aile artik `kYaziAilesi` SABITINDEN okunur.
+        //	   Eskiden burada duz dize (`'Google Sans'`) yaziyordu ve
+        //	   `theme.dart`in *"kod genelinde baska yerde yazili degil"*
+        //	   serhi YANLISTI: kendi `ThemeData`sini kuran DOKUZ ekran
+        //	   aileyi elle tasiyordu. Google Sans -> Google Sans Flex
+        //	   gecisinde biri atlansa o ekran SESSIZCE sistem fontuna
+        //	   duserdi. ⚠️ YAPMA: buraya tekrar duz dize yazma.
         data: ThemeData.dark(useMaterial3: true).copyWith(
           colorScheme: ColorScheme.fromSeed(
             seedColor: morLogo,
@@ -351,10 +355,10 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani>
           scaffoldBackgroundColor: Colors.transparent,
           textTheme: ThemeData.dark(
             useMaterial3: true,
-          ).textTheme.apply(fontFamily: 'Google Sans'),
+          ).textTheme.apply(fontFamily: kYaziAilesi),
           primaryTextTheme: ThemeData.dark(
             useMaterial3: true,
-          ).primaryTextTheme.apply(fontFamily: 'Google Sans'),
+          ).primaryTextTheme.apply(fontFamily: kYaziAilesi),
         ),
         // ⚠️⚠️⚠️ TURU 127 — **DUZ GRADYAN DEGIL, YUMUSAK MOR PARLAMALAR.**
         //

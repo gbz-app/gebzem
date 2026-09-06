@@ -280,15 +280,32 @@ flutter:
   #	gerekirse `https://fonts.googleapis.com/css2?family=Google+Sans
   #	:wght@400;500;600;700` ciktisindaki gstatic adreslerinden indir.
   fonts:
-    - family: Google Sans
+    # ⚠️⚠️⚠️ TURU 180i — **GOOGLE SANS -> GOOGLE SANS FLEX** (kullanici emri:
+    #   *"uygulamayi komple Google Sans Flex olarak degistir"*).
+    #
+    # ⚠️ **SATIR KUTUSU DEGISMEDI — OLCULDU.** Iki fontta da USE_TYPO_METRICS
+    #   acik ve OS/2 typo metrikleri AYNI orani veriyor:
+    #     Google Sans        966 / -286 / 0 @ upem 1000 -> 1,252
+    #     Google Sans Flex  1932 / -572 / 0 @ upem 2000 -> 1,252
+    #   Yani turu 121/135b/157/173'te Google Sans'in satir kutusuna gore
+    #   ayarlanmis yukseklik formulleri OLDUGU GIBI gecerli; tasma/bosluk
+    #   riski YOK.
+    # ⚠️ Turkce glifler DOGRULANDI (cmap okundu): s S g G i I c C o O u U
+    #   ve sapkalilar TAMAM. Eksik tek karakter `₺` ve o ZATEN kullanilmiyor
+    #   (turu 179'da fiyatlar 'TL'ye cevrildi).
+    # ⚠️ 7,28 MB -> **0,5 MB**: dosyalar degisken fonttan kesilmis STATIK
+    #   ornekler (her agirlik ayri dosya). IPA ~7 MB kuculur.
+    # ⚠️ YAPMA: bu girdileri silme — turu 180d'de fontu kaldirmak bu
+    #   projenin EN AGIR hatasiydi.
+    - family: Google Sans Flex
       fonts:
-        - asset: assets/fonts/GoogleSans-400.ttf
+        - asset: assets/fonts/GoogleSansFlex-400.ttf
           weight: 400
-        - asset: assets/fonts/GoogleSans-500.ttf
+        - asset: assets/fonts/GoogleSansFlex-500.ttf
           weight: 500
-        - asset: assets/fonts/GoogleSans-600.ttf
+        - asset: assets/fonts/GoogleSansFlex-600.ttf
           weight: 600
-        - asset: assets/fonts/GoogleSans-700.ttf
+        - asset: assets/fonts/GoogleSansFlex-700.ttf
           weight: 700
 
   # An image asset can refer to one or more resolution-specific "variants", see

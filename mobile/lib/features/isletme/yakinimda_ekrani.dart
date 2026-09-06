@@ -34,7 +34,7 @@ import 'dart:async';
 import 'dart:io' show Platform;
 // ⚠️ TURU 138 — `kAiKartYuzey`: cip ikonunun arkasindaki daire, MENUDEKI
 //    kategori kartiyla AYNI yuzeyi kullanir (kullanici emri; kopya renk YOK).
-import '../../core/theme.dart' show morLogo, kAiKartYuzey, kAiZemin;
+import '../../core/theme.dart' show morLogo, kAiKartYuzey, kAiZemin, kYaziAilesi;
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
@@ -2186,7 +2186,7 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani>
           scaffoldBackgroundColor: kAiZemin,
           textTheme: ThemeData.dark(useMaterial3: true)
               .textTheme
-              .apply(fontFamily: 'Google Sans'),
+              .apply(fontFamily: kYaziAilesi),
           // ⚠️ Uygulamanin "dokunma dairesi YOK" karari (turu 7 kullanici
           //    emri) `ThemeData.dark()` ile SIFIRLANIYOR; acikca geri konur.
           splashFactory: NoSplash.splashFactory,
@@ -5813,7 +5813,7 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani>
         scaffoldBackgroundColor: kAiZemin,
         textTheme: ThemeData.dark(useMaterial3: true)
             .textTheme
-            .apply(fontFamily: 'Google Sans'),
+            .apply(fontFamily: kYaziAilesi),
         splashFactory: NoSplash.splashFactory,
         splashColor: Colors.transparent,
         highlightColor: Colors.transparent,
