@@ -1057,18 +1057,29 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
               //    yorum panelini acar.
               // ⚠️ `FittedBox` ZORUNLU: uzun etiket dar dugmede tek
               //    kelimeyi ORTADAN BOLERDI (turu 143 dersi).
+              // ⚠️⚠️ TURU 180 — **`FittedBox` KALDIRILDI, METIN IKI SATIR.**
+              //	Uc dugmelik satirda "Yapay zekâ yorumu" tek satira
+              //	sigmiyor ve `FittedBox` onu **0,55 kata** kadar
+              //	kucultuyordu: yazi kardeslerinin yaninda okunmayacak
+              //	kadar ufak kaliyordu (emulatorde goruldu).
+              // ⚠️ `height: 1.05` ZORUNLU: iki satir varsayilan satir
+              //	kutusuyla dugmenin 40 dp'lik ic yuksekligini ASAR.
               child: OutlinedButton(
                 onPressed: () => yorumlarAc(context, isletmeAd: p.ad),
-                child: const FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(LucideIcons.sparkles, size: 15),
-                      SizedBox(width: 5),
-                      Text('Yapay zekâ yorumu'),
-                    ],
-                  ),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                ),
+                child: const Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(LucideIcons.sparkles, size: 15),
+                    SizedBox(height: 2),
+                    Text(
+                      'Yapay zekâ\nyorumu',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 11.5, height: 1.05),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -1786,10 +1797,23 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
                   child: Container(
                     key: secili ? _seciliSekmeAnahtar : null,
                     padding: const EdgeInsets.symmetric(horizontal: 18),
+                    // ⚠️⚠️ TURU 180 — **`IntrinsicWidth` ZORUNLU.**
+                    //
+                    //	Cizginin ikon+yazi genisliginde olmasi icin
+                    //	`crossAxisAlignment: stretch` gerekiyor; ama
+                    //	bu `Column` YATAY bir `ListView`in cocugu ve
+                    //	orada genislik kisiti SINIRSIZDIR. `stretch`
+                    //	sinirsiz genislige yayilmaya calisip SERIDI
+                    //	TAMAMEN COKERTIYORDU (emulatorde goruldu:
+                    //	sekmeler EKRANDAN KAYBOLDU).
+                    //	`IntrinsicWidth` once cocuklarin dogal
+                    //	genisligini olcer, `stretch` de o olcuye
+                    //	yayilir.
+                    // ⚠️ Maliyeti var (fazladan bir olcum gecisi) ama serit
+                    //	en fazla 8 oge tasiyor.
+                    child: IntrinsicWidth(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
-                      // ⚠️ TURU 180 — cizgi ustteki satirin genisligini
-                      //    alsin diye (bkz. cizgi serhi).
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         // ⚠️⚠️ TURU 176 — **SECILI OLMAYANDA SADECE IKON**
@@ -1856,6 +1880,7 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
                           ),
                         ),
                       ],
+                    ),
                     ),
                   ),
                 ),
