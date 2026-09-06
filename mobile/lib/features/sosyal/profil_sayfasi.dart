@@ -983,8 +983,13 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
 
     final takipli = p.takipEdiyorum;
     final bekliyor = p.istekBekliyor;
-    // ⚠️⚠️ TURU 179 — yan bosluk 40 -> **52** (kullanici: *"takip et ve
+    // ⚠️⚠️ TURU 179 — yan bosluk 40 -> **24** (kullanici: *"takip et ve
     //	mesaj bunlarin genisligini biraz daha AZALT"*).
+    //	⚠️ 52 DENENDI ve EMULATORDE GERI ALINDI: satira UCUNCU dugme
+    //	("Yorumlar") girince `FittedBox` metinleri kucultmeye
+    //	basladi ve "Takip et"/"Yorumlar" yazilari "Mesaj"dan
+    //	GORUNUR bicimde ufak kaldi. Dugmeler turu 176'daki 12 dp'ye
+    //	gore HALA dar; degisen yalniz kucultmenin devreye girmemesi.
     // ⚠️ Hepsi `Expanded` oldugu icin ESITLIK KORUNUR; degisen yalniz
     //    satirin dis payi.
     // ⚠️⚠️ **YORUMLAR ORTAYA** (kullanici: *"takip et ve mesaj arasina
@@ -996,7 +1001,7 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
     //	Flutter tek kelimeyi ORTADAN BOLER).
     final yorumVar = _isletme != null;
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 52),
+      padding: const EdgeInsets.symmetric(horizontal: 24),
       child: Row(
         children: [
           Expanded(

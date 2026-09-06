@@ -14,6 +14,7 @@ import '../../router.dart' show rootMessengerKey;
 import '../medya/medya_gorsel.dart';
 import '../medya/medya_kapisi.dart';
 import '../medya/medya_servisi.dart';
+import 'urun_detay.dart';
 import 'urun_servisi.dart';
 import '../../core/theme.dart';
 
@@ -457,6 +458,14 @@ class _UrunKatalogEkraniState extends ConsumerState<UrunKatalogEkrani> {
         borderRadius: BorderRadius.circular(18),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
+      // ⚠️⚠️ TURU 179 — **MUSTERI DOKUNUSU ARTIK DETAY SAYFASINI ACAR**
+      //	(kullanici: *"urun detay sayfasi da olacakti; POPUP DEGIL,
+      //	direk icine girsin"*). Onceden `benimMi` degilse `onTap`
+      //	**null** idi: kalem tiklanabilir gorunmuyordu ve detay
+      //	gormenin HICBIR yolu yoktu.
+      // ⚠️ Sahipte DUZENLEME ekrani KALIR: detay salt okuma, duzenleme
+      //	ayri bir yetki — ikisini tek ekranda birlestirmek musteriye
+      //	gorunen bir yuzeyde yazma yollari acardi.
       onTap: widget.benimMi
           ? () async {
               final ok = await Navigator.of(context).push<bool>(
@@ -467,7 +476,12 @@ class _UrunKatalogEkraniState extends ConsumerState<UrunKatalogEkrani> {
               );
               if (ok == true) _yukle();
             }
-          : null,
+          : () => urunDetayAc(
+              context,
+              urun: u,
+              isletmeAd: widget.isletmeAd,
+              modul: widget.modul,
+            ),
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: Row(
