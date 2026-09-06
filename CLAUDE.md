@@ -107,7 +107,12 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
   ⚠️ **DB TRUNCATE EDILMEDI** (050 additive: yalniz iki sutun ekliyor).
   ✅ analyze **0/0** · test **86/86** · emulatorde ALTI ekran gozle dogrulandi.
 
-- 🔤 ⚠️⚠️⚠️ **TURU 180 — GOOGLE SANS KALDIRILDI, VARSAYILAN YAZI TIPI**
+- 🔤 ⚠️⚠️⚠️ **[GECERSIZ — TURU 180d'DE GERI ALINDI] TURU 180 — GOOGLE SANS
+  KALDIRILDI, VARSAYILAN YAZI TIPI**
+  ⚠️⚠️ **BU KARAR YANLISTI VE AYNI GUN GERI ALINDI.** Kullanici *"ozel bir
+  sey kullanilmasin, default olsun"* derken **`letterSpacing`i** kastediyordu;
+  fontu DEGIL. Asagidaki blok TARIHSEL kayit olarak duruyor — **uygulama
+  yeniden GOOGLE SANS kullaniyor, kaldirma.**
   (kullanici: *"yazi halen default degil, biz Google Sans kullaniyoruz, yazi
   tipi garip geliyor bana"*).
   `fontFamily` VERILMEZ -> Android **Roboto**, iOS **SF Pro**.
