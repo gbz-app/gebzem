@@ -278,6 +278,13 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
   ///	olcum/yerlesim dongusu YAPISAL OLARAK imkansiz.
   final GlobalKey _seritAnahtar = GlobalKey();
   double? _seritAlt;
+
+  /// ⚠️⚠️ TURU 180g — Gorunur alanin ALT siniri EKRANIN dibi DEGIL,
+  ///	**LISTENIN KENDI alt kenari**. Kendi profilimde sayfa ALT
+  ///	MENULU bir `Scaffold`un govdesinde yasiyor; ekran
+  ///	yuksekliginden hesaplayinca bos durum blogu alt menunun
+  ///	ARKASINDA kaliyordu (emulatorde goruldu).
+  final GlobalKey _listeAnahtar = GlobalKey();
   final _seciliSekmeAnahtar = GlobalKey();
 
   // ⚠️⚠️ **STATE METOTLARI `Theme`I GORMEZ** (turu 135c/138 sinifi):
@@ -336,7 +343,12 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
     final hap = _menuRezervasyon() == null
         ? 0.0
         : 10 + 26 + MediaQuery.textScalerOf(c).scale(14.5) * 1.35 + 12;
-    final kalan = ekran - alt - MediaQuery.paddingOf(c).bottom - hap;
+    // ⚠️ Liste olculemezse ekran dibine duseriz (yalniz ILK kare).
+    final lb = _listeAnahtar.currentContext?.findRenderObject();
+    final altSinir = (lb is RenderBox && lb.hasSize)
+        ? lb.localToGlobal(Offset.zero).dy + lb.size.height
+        : ekran - MediaQuery.paddingOf(c).bottom;
+    final kalan = altSinir - alt - hap;
     // ⚠️⚠️ TABAN 120 DEGIL **56**: emulatorde olculdu - serit altinda
     //	yalnizca 60-80 dp kaliyor ve 120'lik taban kutuyu hapin ALTINA
     //	tasirip metni ORTUYORDU. Blok zaten `FittedBox` icinde, yani
@@ -801,6 +813,9 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
           YenileSarmali(
         onRefresh: _yukle,
         child: ListView(
+          // ⚠️ Bos durum blogu bu listenin ALT KENARINA gore ortalanir
+          //    (bkz. `_listeAnahtar` serhi).
+          key: _listeAnahtar,
           // ⚠️ TURU 82b — `AlwaysScrollableScrollPhysics` ZORUNLU: icerigi
           //    ekrandan KISA profillerde (gonderisi olmayan hesap) Android'in
           //    varsayilan `ClampingScrollPhysics`i overscroll uretmedigi icin
