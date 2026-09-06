@@ -9809,3 +9809,106 @@ yeniden uretmesi (o dugme durak/rota modunda HIC cizilmiyor).
 gecici olcum dosyalari SILINDI.
 
 ### 🚧 BUILD ALINMADI — KULLANICIYA SORULACAK (CLAUDE.md kural 0)
+
+---
+
+## Oturum: 6 Eylul 2026 — TURU 178 (arayuz duzeltmeleri + McDonald's)
+
+Kullanici turu 175-177'yi telefonda test etti ve **acik bir uyariyla** geri
+dondu: *"sana bir sey diyorum dostum duyuyor musun, sana soylediklerime
+dikkat etmiyorsun ... bunlari test etmiyor musun"*. Sikayetlerin biri
+(**arama sayfasinda IKI header**) emulatorde bir kez bakilsa gorulurdu —
+turun en degerli dersi bu.
+
+### Yapilanlar
+
+**1. CIFT HEADER (sevk kusuru, kullanici yakaladi)**
+`hizmet_menusu.dart` `KesfetEkrani`i `Scaffold(appBar: AppBar(title:'Ara'))`
+ile push ediyordu; turu 175 ekranin ICINE de bir header koymustu. Ikisi
+birden cizilince ekranda **iki geri oku ve iki baslik** olustu.
+- FIX: push eden route'un `AppBar`i kaldirildi.
+- ⚠️ `Scaffold` KALDI: `KesfetEkrani` Scaffold DONDURMEZ ve `Material`
+  atasi olmadan `TextField` PATLAR (turu 130).
+- ⚠️⚠️ **DERS: bir ekrana header eklerken onu PUSH EDEN yolun zaten bir
+  AppBar verip vermedigini KONTROL ET.**
+
+**2. PROFIL — kullanicinin 6 maddesi**
+- baslik (`@kullaniciadi`) KALDIRILDI (ad zaten kapagin altinda buyuk yaziyor)
+- geri oku `automaticallyImplyLeading` yerine ACIKCA `LucideIcons.arrowLeft`
+  (Material'in `BackButton`u PLATFORMA gore degisir — kullanici farki gordu)
+- Takip/Mesaj yan boslugu 12 -> **40** (DARALDI).
+  ⚠️ Turu 176'da *"genisligini"* ifadesini GENISLET diye okumustum; kullanici
+    *"DARALT dedim"* diye duzeltti.
+- sekme seridi dolgusu 10 -> 6, oge dolgusu 10 -> **18** (sekmeler genisledi)
+- **Menu/Rezervasyon ARTIK ANIMASYONSUZ**: `Scaffold.floatingActionButton`
+  cocugunu HER ZAMAN bir olcek gecisiyle gosterir ve `null`->widget gecisini
+  de animasyon sayar; isletme detayi ag istegiyle SONRADAN geldigi icin cubuk
+  her acilista "buyuyerek" giriyordu.
+  ⚠️ `FloatingActionButtonAnimator.noAnimation` YETMEZ (yalniz KONUM
+    animatorudur). Yapisal cozum FAB'i HIC kullanmamak: `Stack` + `Positioned`.
+- **ZEMIN SIYAH** (kullanicinin sonraki mesaji)
+
+**3. KOYU TEMA TEK KAYNAGA ALINDI** (`core/theme.dart`)
+Uc ekran ayri ayri `ThemeData.dark()` kurmak uzereydi; ilk ayrisma
+KACINILMAZDI (bu projede ayni sinif alti kez yasandi).
+- `kKoyuTema` + `koyuSayfa(widget)` TEK KAYNAK; `kKategoriZemin` ve
+  `kProfilZemin` degeri ZATEN var olan `kAiZemin`e baglandi.
+- ⚠️⚠️ **STATE METOTLARI BU TEMAYI GORMEZ** (turu 135c/138 sinifi): `build`in
+  DONDURDUGU agaca konan `Theme`, State'in KENDI `context`inin ALTINDA kalir.
+  Bu yuzden her ekranda `ColorScheme get _ks => kKoyuTema.colorScheme;`
+  getter'i var ve metotlar rengi ORADAN okur.
+  📌 Sahada gorunen kaniti: "Henüz gönderi yok" siyah zemine KOYU GRI
+     ciziliyor ve OKUNMUYORDU (emulatorde goruldu, duzeltildi).
+
+**4. MENU EKRANI YENIDEN KURULDU** (kullanici: *"menuye tikladiginda ust
+menu yemekteki gibi olsun, arama olsun, RESIM ALANLARI olsun, ACIKLAMA
+olsun, yazi tipleri buyuk olsun, daha fazla menu ekle"*)
+- 44 dp header (yemek ekraniyla ayni) · arama kutusu (istemci suzgeci,
+  Turkce'ye duyarli) · 92 dp gorsel · aciklama (3 satir) · ad 16,5 · fiyat 16
+- ⚠️ Gorsel **DAIMA cizilir**: kaynak yoksa notr yer tutucu. Kosullu
+  cizilseydi kimi satir 92 kimi 56 dp olur ve liste ZIPLARDI.
+- ⚠️ Bolum basligi `toUpperCase()` KULLANMAZ: Dart 'i' -> 'I' yapar ve
+  'İçecek' -> 'IÇECEK' cikardi (turu 142).
+- ⚠️⚠️ **KALDIRILMIS kalem MUSTERIYE CIZILMEZ**: sunucu silmeyi "soft delete"
+  yapiyor (`durum=kaldirildi`) ve listede DONDURMEYE devam ediyor. Sahibi
+  gormeli (geri alabilir), musteri icin YOK hukmunde. Olculdu: McDonald's
+  kaydinda 18 yayinda / 24 kaldirilmis.
+
+**5. REZERVASYON POPUP + ADIM ADIM** (kullanici: *"tam sayfa olmasin, popup
+tarzi acilsin, step step yap"*)
+- `randevuAlAc()` -> `showModalBottomSheet(isScrollControlled, %90)`
+- 3 adim: **Tarih** (4 sutunlu gun izgarasi) -> **Saat** -> **Detay**
+  (ozet karti + Degistir + kisi/hizmet + not)
+- ⚠️ Adim gecisi OTOMATIK (dokunusun kendisi secimdir); ayrica "Ileri"
+  dugmesi YOK — iki dugme kullaniciyi ikileme sokardi.
+- ⚠️ `viewInsets` dolgusu ZORUNLU: detay adiminda iki metin alani var ve
+  sheet klavyeyi KENDI KENDINE karsilamaz — dugme klavyenin altinda kalirdi.
+- ⚠️ Hucre yuksekligi `mainAxisExtent` ile yazi olceginden turetilir; sabit
+  `childAspectRatio` olcek buyudugunde TASARDI (turu 121).
+- ⚠️ Gecilmis adimlar tiklanabilir, gelecek adimlar DEGIL (saat secmeden
+  detaya atlamak sunucuya gonderilecek zamani BOS birakirdi).
+
+**6. FAVORILERIM + TAKIPCI/TAKIP** — yemek ekraniyla ayni 44 dp header.
+
+**7. McDONALD'S** (kullanici: *"isletmelerde Gebze Kebap Salonu yerine
+mcdonald olsun"* + logo/slider gorsellerini klasore koydu)
+- `tools/tohum.js`: kayit **McDonald's**, 18 kalemlik ACIKLAMALI menu
+- Avatar (logo) + kapak (magaza fotografi) **R2'ye yuklenip profile baglandi**
+  (presign -> PUT -> commit; `mc.js`).
+- ⚠️ Ham `slidermc.png` **3,0 MB** idi; `mobile/tool/marka_gorsel.dart` ile
+  1200x800 JPEG (**368 KB**) uretildi. Varliklar pakete SIKISTIRILMADAN
+  girer (turu 116b) — ham PNG konsaydi IPA 3 MB sisecekti.
+- ⚠️ Ham kaynaklar `.gitignore`a alindi; uretilen JPEG'ler izleniyor.
+- Menu kalemi gorselleri (`menu_*.png`) pubspec'e GERI kondu (turu 143'te
+  "resimleri kaldir" denip cikarilmislardi; karar TERSINE dondu).
+
+**8. TOHUM YINELENMESI TEMIZLENDI**
+Tohum iki kez kosunca TUM isletmelerde urunler ciftlendi (Kahve Molasi'nda
+"Serpme kahvalti" iki kez goruldu). 16 hesap taranip **22 yinelenen** silindi.
+⚠️ `tools/tohum.js` urunleri KOSULSUZ POST ediyor — idempotent DEGIL.
+   Iki kez kosulursa yine ciftler. (Ayri is: ad+bolum tekilligi.)
+
+### ✅ Dogrulama
+`flutter analyze` **0 hata 0 uyari** · `flutter test` **86/86** ·
+emulatorde BES ekran gozle dogrulandi (arama · profil · menu · rezervasyon ·
+favorilerim) ve ekran goruntuleri kullaniciya gonderildi.
