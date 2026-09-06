@@ -9954,3 +9954,51 @@ emulatorde gozle dogrulandi**.
 `flutter analyze` **0/0** · `flutter test` **86/86** · emulatorde bes ekran
 (profil · bilgi paneli · yorumlar · menu · urun detay) gorulup ekran
 goruntuleri kullaniciya gonderildi.
+
+---
+
+## Oturum: 6 Eylul 2026 — TURU 180 (varsayilan font, kapak kavisi, isletme ozellikleri)
+
+Kullanici tek mesajda **18 madde** sayip *"derinlemesine analiz et, step step
+dikkatli yap"* dedi; tur boyunca dort ek istek daha geldi (kapak kavisi,
+yorumlarda resim, odeme/ozellikler, is ilani + rezervasyon modernizasyonu).
+
+### En degerli uc ders
+1. **`stretch` yatay `ListView`de COKERTIR.** Sekme cizgisini icerik
+   genisligine yaymak icin konuldu; o `Column` yatay bir listenin cocugu ve
+   orada genislik kisiti SINIRSIZ. Sonuc: **sekmeler ekrandan TAMAMEN
+   kayboldu**. `analyze` TEMIZDI — yalnizca emulatorde goruldu.
+   FIX: `IntrinsicWidth`.
+2. **Ozelligi ikinci kez isteyen kullaniciya sahte veri degil ALAN acilir.**
+   Turu 176/179'da "odeme secenekleri / ozellikler" alan olmadigi icin
+   yazilmamisti. Dogru cozum migration 050 + `GET /isletme-katalog` +
+   duzenleme formu oldu; artik her isletme KENDI ozelliklerini seciyor.
+3. **SQL ham dizesi icinde backtick Go raw string'ini KAPATIR** — yorumda
+   `nil` yazmak derlemeyi patlatti.
+
+### Yapilanlar
+- Google Sans KALDIRILDI -> platform yazi tipi; **IPA 31,9 -> 28,9 MB**
+- Kapak alt kenari ASAGI kavisli (turu 179'un ters kosesi kullanicinin
+  tarif ettigi sey DEGILDI) + 15 dp yukseldi
+- Header ikonlari blur daire icinde (kapak fotografinda kayboluyorlardi)
+- Buton "Yapay zeka yorumu" iki satir (FittedBox 0,55 kata kucultuyordu)
+- Sekme cizgisi icerik genisliginde · ikonlar 19 dp · video sekmesi kalkti ·
+  IS ILANLARI sekmesi geldi (herkese acik, `?sahibi=<uuid>`)
+- Bos durum daire icinde ikon + dikeyde ortalanmis
+- Yorum paneli: yorum yazma alani + yorumlarda resim
+- migration 050 + katalog ucu + bilgi panelinde cipler + FilterChip formu
+- Menu: arama-serit boslugu · dokunulan sekme ortalanir · header gizlenir
+- Ilan karti ve rezervasyon arayuzu modernlestirildi
+
+### ⚠️ Durust sinirlar
+- **Facebook/Instagram alani HALA YOK** (ozellik/odeme acildi ama sosyal
+  medya ayri bir alan ister).
+- **Yorumlar ORNEK KAYIT**; gonderme/fotograf ucu yok ve panel bunu soyluyor.
+- `users.onayli`yi set eden UC YOK — rozet icin canli DB'de UPDATE atiliyor,
+  her TRUNCATE+tohum sonrasi TEKRAR gerekir.
+- **Olcu riski**: satir yuksekligi formulleri Google Sans'a gore ayarliydi;
+  yeni fontta tasma degil BOSLUK olusabilir (emulatorde bakildi, sorun yok).
+
+### ✅ Dogrulama
+`flutter analyze` **0/0** · `flutter test` **86/86** · `go build/vet/test`
+temiz · emulatorde alti ekran gozle dogrulandi.

@@ -41,6 +41,103 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
       kaybettiriyorsun"*. **Üçüncüsü olmayacak.**
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
+- **KALDIGIMIZ YER (6 Eyl 17:06): TURU 180 YAYINLANDI — SADECE iOS.**
+  ios **34037583324** (**9fc45fd**), R2 ipa=**28899538** (md5 5548ad9d),
+  index=7967 (5ce56d3a) surum.json=45 (f9f44567), purge OK, **CDN BIREBIR**,
+  `get-task-allow: false`.
+  ⚠️ **IPA 31,9 -> 28,9 MB**: Google Sans (4 ttf, 7,6 MB) paketten CIKTI.
+  IPAda turu 180 dizeleri VAR: `Yapay zekâ` · `Deneyimini paylaş` ·
+  `Özellikler` · `Ödeme seçenekleri` · `İş İlanları` · `Yorumunu yaz`;
+  `flutter_assets/assets/fonts/` **YOK**. Kontrol dizesi `Yakınımda` VAR.
+  ⚠️ **ADRES:** https://indir.gebzem.app/index.html?v=20260906-1706
+  ✅ **BACKEND DEPLOY** (899201c) + migration **050** canlida + health ok.
+  ⚠️ **DB TRUNCATE EDILMEDI** (050 additive: yalniz iki sutun ekliyor).
+  ✅ analyze **0/0** · test **86/86** · emulatorde ALTI ekran gozle dogrulandi.
+
+- 🔤 ⚠️⚠️⚠️ **TURU 180 — GOOGLE SANS KALDIRILDI, VARSAYILAN YAZI TIPI**
+  (kullanici: *"yazi halen default degil, biz Google Sans kullaniyoruz, yazi
+  tipi garip geliyor bana"*).
+  `fontFamily` VERILMEZ -> Android **Roboto**, iOS **SF Pro**.
+  ⚠️⚠️ **OLCU DERSI**: bu projede satir yuksekligi hesaplayan YERLER Google
+     Sans'in ~1.44'luk satir kutusuna gore ayarlanmisti (turu 121/135b/157/173).
+     Roboto/SF Pro DAHA DAR kutu kullanir — yani formuller artik FAZLA yer
+     ayirir: **tasma DEGIL, bosluk** riski var.
+  ⚠️ Dosyalar `assets/fonts/` altinda ve git'te DURUYOR; pubspec'ten CIKTI
+     (okunmayan varlik pakete HAM boyutuyla girer — turu 116b).
+
+- 🔻 ⚠️⚠️⚠️ **TURU 180 — KAPAK: TERS KOSE DEGIL, ALT KENAR ASAGI KAVISLI.**
+  Turu 179'da koseler ters radusle OYULMUSTU; kullanici *"allah askina ALTA
+  DOGRU yapacaksin"* diye duzeltti. Istenen KOSE degil **ALT KENARIN
+  KENDISI**: ortasi asagi sarkan bir yay (`_AltKavisKirpici`,
+  `quadraticBezierTo`).
+  ⚠️ Kavis payi `kapakYuksekligi`ye EKLENIR: eklenmeseydi egri
+     `Positioned(height: kh)` tarafindan kirpilip DUZ CIZGIYE donerdi —
+     degisiklik EKRANDA HIC GORUNMEZDI.
+  ⚠️ +15 dp carpanin DISINDA toplanir (kullanicinin verdigi olcu MUTLAK).
+
+- 🫧 **TURU 180 — HEADER IKONLARI BLUR DAIRE ICINDE** (`_BlurDaire`).
+  ⚠️ Gerekce SUS DEGIL OKUNABILIRLIK: header `extendBodyBehindAppBar` ile
+     KAPAK FOTOGRAFININ uzerinde ve beyaz ikon acik gokyuzunde KAYBOLUYORDU
+     (McDonald's kapaginda goruldu).
+  ⚠️ `ClipOval` ZORUNLU: `BackdropFilter` kirpilmazsa bulaniklik TUM ekrana
+     yayilir. ⚠️ Ustune hafif siyah dolgu: yalniz blur, acik zeminde beyaz
+     ikonu HALA gorunmez birakirdi.
+
+- 📑 ⚠️⚠️⚠️ **TURU 180 — `stretch` YATAY `ListView`DE SERIDI COKERTTI.**
+  Sekme cizgisinin "ikon+yazi genisliginde" olmasi icin
+  `crossAxisAlignment: stretch` konuldu; ama o `Column` YATAY bir `ListView`in
+  cocugu ve orada genislik kisiti **SINIRSIZDIR**. Sonuc: sekmeler
+  **EKRANDAN TAMAMEN KAYBOLDU** (emulatorde goruldu, analyze TEMIZDI).
+  **FIX: `IntrinsicWidth`** — once dogal genislik olculur, `stretch` ona yayilir.
+  ⚠️ Maliyeti bir olcum gecisi; serit en fazla 8 oge tasiyor.
+
+- 🏷️ ⚠️⚠️ **TURU 180 — `FittedBox` METNI 0,55 KATA KUCULTUYORDU.**
+  Uc dugmelik satirda "Yapay zekâ yorumu" tek satira sigmiyor ve `FittedBox`
+  onu kardeslerinin yaninda OKUNMAYACAK kadar ufaltiyordu. **FIX: iki satir**
+  (11,5 punto, `height: 1.05` — varsayilan satir kutusu 40 dp'lik ic
+  yuksekligi ASARDI).
+
+- ⭐ **TURU 180 — YORUM PANELI: YAZMA ALANI + RESIM** (kullanici emri).
+  Yildiz secimi CANLI (yerel durum); gonderme ve fotograf ekleme ucu YOK ve
+  bu kullaniciya DURUSTCE soylenir. Yorum kartlarinda gorsel ALANI cizilir
+  (gercek medya yok — yorumlar ornek kayit).
+
+- 🧰 ⚠️⚠️⚠️ **TURU 180 — ISLETME OZELLIKLERI + ODEME (migration 050).**
+  Kullanici IKINCI kez istedi: *"bilgi kisminda odeme secenekleri,
+  ozellikler yok; sigara icilmez, cocuk yeri vs"*.
+  ⚠️⚠️ Turu 176/179'da BILEREK yazilmamisti (alan YOKTU, sabit liste basmak
+     YALAN olurdu). Dogru cozum arayuze sahte liste koymak DEGIL **alani
+     acmak**: `isletmeler.ozellikler/odeme TEXT[]` + `GET /isletme-katalog`
+     (16 ozellik · 7 odeme) + bilgi panelinde cipler + duzenleme formunda
+     `FilterChip`.
+  ⚠️ **KATALOG SUNUCUDA** (turu 77 kurali): yeni bir ozellik magaza onayi
+     GEREKTIRMEZ. Ikon adi Lucide kimligi; bilinmeyen ad NOTR ikona duser.
+  ⚠️ Istek alanlari **ISARETCI**: "gonderilmedi" ile "bosaltildi" AYRI
+     (turu 85b koordinat dersi). `temizListe` **`nil` DONMEZ** — NOT NULL
+     sutunda `nil` dilim `23502` verirdi (turu 75b `posts.media_ids`).
+  ⚠️ CHECK constraint YOK: beyaz liste Go'da (036/037'de CHECK IKI KEZ sevk
+     engeli uretmisti).
+  ⚠️ **SQL ham dizesi icinde BACKTICK YAZMA**: Go raw string'i KAPATIR
+     (bu turda derleme patladi).
+
+- 💼 **TURU 180 — PROFILDE IS ILANLARI SEKMESI** (kullanici emri).
+  Yeni `GET /ilanlar?sahibi=<uuid>`; sekme **HERKESE** acik (bir isletmenin
+  is ilani musteriyi ilgilendirir), digerleri (`ilan`/`dolap`/`talep`) YALNIZ
+  kendi profilinde.
+  ⚠️ `benim: true` birakilsaydi kullanici HER profilde KENDI ilanlarini
+     gorurdu — sessiz ve fark edilmesi zor bir hata.
+  ⚠️ `durumKosulu` DOKUNULMADI: baskasinin ilanlarinda yalniz `yayinda`
+     gorunur (satilmis/kaldirilmis kayit onun gecmisini IFSA ederdi).
+  ⚠️ Deger sorgu PARAMETRESI olamiyor (`$1` zaten `me`, pgx kullanilmayan
+     parametreyi HATA sayar) -> regex ile dogrulanip gomuluyor.
+
+- 🧹 **TURU 180 — DIGER:** `video` sekmesi seritten cikti (icerik `tumu` ve
+  `reels`te ZATEN var) · bos durum daire icinde ikon + DIKEYDE ORTALANMIS
+  (onceden blogun TEPESINDEYDI) · ilan karti menu kalemleriyle ayni kart
+  dilinde · menude arama-serit boslugu + dokunulan sekme ORTALANIR + asagi
+  inince header gizlenir (`clipBehavior` ZORUNLU: icerik arama kutusunun
+  uzerine BINIYORDU) · rezervasyon adim seridi/cip/ozet modernlestirildi.
+
 - **KALDIGIMIZ YER (6 Eyl 15:54): TURU 179 YAYINLANDI — SADECE iOS.**
   ios **34034013611** (**5e21aee**), R2 ipa=31913759 (md5 edb1f9d8),
   index=7967 (cdfa45c0) surum.json=45 (8dfdcc9c), purge OK, **CDN BIREBIR**,
