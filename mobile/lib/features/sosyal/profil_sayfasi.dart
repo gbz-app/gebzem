@@ -249,6 +249,25 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
 
   /// ⚠️ Sekme seridini secili sekmeye kaydirmak icin.
   final _seritCtrl = ScrollController();
+
+  /// ⚠️⚠️⚠️ TURU 180e — **BOS SEKME EKRANA SIGMALI** (kullanici: *"gonderi
+  ///	yok vs orada asagi cekme OLMAYACAK, tam orada YUKSEKLIKTEN
+  ///	ORTALI olsun"*).
+  ///
+  ///	Sekme sayfasi SABIT `ekran * 0.62` yuksekligindedir. Bos
+  ///	durum o kutunun ORTASINA konunca, kutunun buyuk kismi ekranin
+  ///	ALTINDA kaldigi icin blok **HIC GORUNMUYORDU** ve kaydirma da
+  ///	kapali oldugu icin ulasilamiyordu (emulatorde olculdu: serit
+  ///	altinda yalnizca ~169 dp kaliyor, kutu ise 496 dp).
+  ///
+  ///	Cozum: serit seridinin EKRANDAKI ALT KENARI olculur ve bos
+  ///	sekmede sayfa yuksekligi "geri kalan gorunur alan" yapilir.
+  /// ⚠️ Olcum YALNIZ bos sekmede yapilir; orada kaydirma kapali oldugu
+  ///	icin ofset SABITTIR (dolu sekmede liste kayar ve deger bayatlar).
+  /// ⚠️ Sayfa yuksekligi seridin KONUMUNU degistirmez (serit USTTE) ->
+  ///	olcum/yerlesim dongusu YAPISAL OLARAK imkansiz.
+  final GlobalKey _seritAnahtar = GlobalKey();
+  double? _seritAlt;
   final _seciliSekmeAnahtar = GlobalKey();
 
   // ⚠️⚠️ **STATE METOTLARI `Theme`I GORMEZ** (turu 135c/138 sinifi):
@@ -261,14 +280,44 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
   /// Acik sekmenin icerigi BOS mu (bkz. kaydirma fizigi serhi).
   /// ⚠️ Yuklenirken `false`: cark donerken kaydirmayi kilitlemek gereksiz
   ///	bir donma hissi verirdi.
+  /// ⚠️⚠️ TURU 180e — **OLCUT `_sekmeSayfasi` ILE BIREBIR AYNI OLMALI.**
+  ///	Onceden `g != null && g.isEmpty` yaziyordu, yani ONBELLEK HENUZ
+  ///	YOKKEN (`null`) "bos degil" diyordu. Oysa `_sekmeSayfasi` ayni
+  ///	durumda `?? const []` ile BOS DURUMU CIZIYOR. Iki olcut
+  ///	ayrisinca ekranda "gonderi yok" gorunurken kaydirma fizigi ve
+  ///	sayfa yuksekligi DOLU sekme gibi davraniyordu — kullanicinin
+  ///	gordugu kusur (blok ekranin altinda kalip gorunmuyordu) tam
+  ///	buradan geliyordu.
   bool get _bosSekme {
     if (_sekmeYukleniyor.contains(_sekme)) return false;
-    if (_sekme.ilanMi) {
-      final l = _ilanOnbellek[_sekme];
-      return l != null && l.isEmpty;
-    }
-    final g = _gonderiOnbellek[_sekme];
-    return g != null && g.isEmpty;
+    if (_sekmeHata[_sekme] != null) return false;
+    if (_sekme.ilanMi) return (_ilanOnbellek[_sekme] ?? const []).isEmpty;
+    return (_gonderiOnbellek[_sekme] ?? const []).isEmpty;
+  }
+
+  /// Sekme sayfasinin yuksekligi (bkz. `_seritAlt` serhi).
+  double _sayfaBoyu(BuildContext c) {
+    final ekran = MediaQuery.sizeOf(c).height;
+    final tavan = ekran * 0.62;
+    if (!_bosSekme) return tavan;
+    // ⚠️ Olcum bir sonraki karede yapilir; ILK karede tavan kullanilir ve
+    //    tek bir yeniden cizimle yerine oturur.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _seritiOlc());
+    final alt = _seritAlt;
+    if (alt == null) return tavan;
+    final kalan = ekran - alt - MediaQuery.paddingOf(c).bottom;
+    return kalan.clamp(140.0, tavan);
+  }
+
+  void _seritiOlc() {
+    if (!mounted || !_bosSekme) return;
+    final r = _seritAnahtar.currentContext?.findRenderObject();
+    if (r is! RenderBox || !r.hasSize) return;
+    final alt = r.localToGlobal(Offset.zero).dy + r.size.height;
+    // ⚠️ 0,5 dp esigi ZORUNLU: esiksiz karsilastirma yuvarlama gurultusunde
+    //    setState -> yeniden olcum dongusu uretirdi.
+    if (_seritAlt != null && (_seritAlt! - alt).abs() < 0.5) return;
+    setState(() => _seritAlt = alt);
   }
 
   /// Sayfanin uc dali da (yukleniyor · hata · icerik) bundan gecer.
@@ -845,7 +894,7 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
               // ⚠️ TURU 82b — INSTAGRAM TARZI SEKME SERIDI (kullanici emri:
               //    *"profilde gonderi, fotograf, video vb alan olsun Instagram
               //    gibi, hepsi bir yerde, tikladiginda ona gecsin"*).
-              _sekmeSeridi(),
+              KeyedSubtree(key: _seritAnahtar, child: _sekmeSeridi()),
               // ⚠️⚠️⚠️ TURU 114 — **SEKMELER ARASI YATAY KAYDIRMA** (kullanici
               //	emri: *"profilde gonderi fotograf video sol sag kaydirmali
               //	olsun"*).
@@ -882,7 +931,9 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
               //    (`allowImplicitScrolling` varsayilan false), yani on
               //    sekmenin izgarasi AYNI ANDA medya cozmez (turu 76b dersi).
               SizedBox(
-                height: MediaQuery.sizeOf(context).height * 0.62,
+                // ⚠️ Bkz. `_seritAlt` serhi: bos sekmede yukseklik EKRANDA
+                //    KALAN alan kadar; dolu sekmede eski davranis (0,62).
+                height: _sayfaBoyu(context),
                 child: PageView.builder(
                   controller: _sayfaCtrl,
                   itemCount: _sekmeler.length,
@@ -1869,10 +1920,22 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
   ///	KAPATIYORDU. Blok, hapin kapladigi kadar (52 + 10 + 12 pay)
   ///	YUKARI itilir; hap yoksa dolgu SIFIR olur.
   Widget _bosDurum(ProfilSekmesi x, Color soluk) => Padding(
+        // ⚠️ Isletme profilinde alttaki yuzen Menü/Rezervasyon hapi listenin
+        //    USTUNDE cizilir (`Positioned`) ve metni KAPATIYORDU; hap varsa
+        //    blok onun kapladigi kadar (52 + 10) yukari itilir.
         padding: EdgeInsets.only(
-          bottom: _menuRezervasyon() == null ? 0 : 74,
+          bottom: _menuRezervasyon() == null ? 0 : 62,
         ),
         child: Center(
+        // ⚠️⚠️ `FittedBox(scaleDown)` ZORUNLU: kalan alan cihaza gore 60-400 dp
+        //	arasinda degisir ve sabit olculu blok dar ekranda RenderFlex
+        //	tasmasi (sari-siyah serit) uretirdi. `scaleDown` yalnizca
+        //	GEREKTIGINDE kucultur, buyutmez.
+        // ⚠️ Bedeli biliniyor (docs/yazi-olcegi.md): `FittedBox` yazi
+        //	olceginin bir kismini geri alir. Bos durum etiketi icin kabul
+        //	edilebilir; alternatif metnin KIRPILMASIYDI.
+        child: FittedBox(
+        fit: BoxFit.scaleDown,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -1902,6 +1965,7 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
               ),
             ),
           ],
+        ),
         ),
         ),
       );
