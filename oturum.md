@@ -9912,3 +9912,45 @@ Tohum iki kez kosunca TUM isletmelerde urunler ciftlendi (Kahve Molasi'nda
 `flutter analyze` **0 hata 0 uyari** · `flutter test` **86/86** ·
 emulatorde BES ekran gozle dogrulandi (arama · profil · menu · rezervasyon ·
 favorilerim) ve ekran goruntuleri kullaniciya gonderildi.
+
+---
+
+## Oturum: 6 Eylul 2026 — TURU 179 (profil rozetleri, bilgi+yorum panelleri, menu karti, urun detay)
+
+Kullanici tek mesajda **14 madde** sayip *"derinlemesine incele, derinlemesine
+planla, step step dikkatli yap"* dedi; arkasindan iki ek istek geldi (kapak
+kosesi, urun detay sayfasi). Hepsi ayni turda bitirildi ve **her ekran
+emulatorde gozle dogrulandi**.
+
+### Yapilanlar (adim adim)
+1. **`₺` -> `TL`** — `kurusMetni` + etkinlik bicimleyicisi TEK KAYNAK; 20 nokta.
+   `_kurusOku` artik "TL" ekini de temizliyor.
+2. **`letterSpacing` son kalintilari** (hikaye katmani) silindi; auth istisnasi
+   (OTP/sifre) BELGELI olarak duruyor.
+3. **Kapak alt koseleri TERS (konkav)** — `_TersKoseKirpici`. `clockwise:false`
+   olmadan degisiklik EKRANDA GORUNMEZ.
+4. **Avatar acik/kapali noktasi** — `bool?`; `null` = cizilmez (uc durum var).
+5. **Buton satiri Takip · Yorumlar · Mesaj**; yan bosluk 52 denendi, emulatorde
+   metinler kuculdugu icin **24**'e cekildi. Sekme seridiyle arasi 22 dp.
+6. **Soru isareti -> %95 bilgi paneli** (yeni dosya `isletme_bilgi.dart`):
+   acik/kapali · adres · telefon · WhatsApp · web · 7 gun saat, her satir
+   kendi kartinda. `genel` sekmesi seritten cikti.
+7. **Yorumlar paneli** — yildiz · AI ozeti · begeni · sikayet (ORNEK veri).
+8. **Menu**: sabit arama + bolum sekmeleri + her kalem KART + BOS resim alani.
+9. **Urun detay sayfasi** (yeni dosya `urun_detay.dart`) — TAM SAYFA.
+10. McDonald's sunucuda `onayli=true` yapildi (onay rozeti icin).
+
+### ⚠️ Durust sinirlar (kullaniciya soylendi)
+- **Facebook/Instagram alani SUNUCUDA YOK.** Sabit hesap adi basmak yalan
+  olurdu; panel *"daha fazla iletisim kanali eklenmemis"* diyor.
+  ⏳ Gerekli: migration + sunucu alani + duzenleme formu.
+- **Yorumlar ORNEK KAYIT.** Isletme yorumu icin tablo/uc yok; panelin ustunde
+  bu ACIKCA yaziyor. Begeni yalniz ekranda artar, sikayet ucu yok ve bu da
+  kullaniciya soyleniyor.
+- **`users.onayli`yi SET EDEN UC YOK** — rozet icin canli DB'de tek satirlik
+  UPDATE atildi. Her TRUNCATE+tohum sonrasi TEKRARLANMASI gerekir.
+
+### ✅ Dogrulama
+`flutter analyze` **0/0** · `flutter test` **86/86** · emulatorde bes ekran
+(profil · bilgi paneli · yorumlar · menu · urun detay) gorulup ekran
+goruntuleri kullaniciya gonderildi.

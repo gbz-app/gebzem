@@ -41,6 +41,122 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
       kaybettiriyorsun"*. **Üçüncüsü olmayacak.**
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
+- **KALDIGIMIZ YER (6 Eyl 15:54): TURU 179 YAYINLANDI — SADECE iOS.**
+  ios **34034013611** (**5e21aee**), R2 ipa=31913759 (md5 edb1f9d8),
+  index=7967 (cdfa45c0) surum.json=45 (8dfdcc9c), purge OK, **CDN BIREBIR**,
+  `get-task-allow: false`.
+  IPAda turu 179 dizeleri VAR: `Yorumlar` · `Yapay zekâ özeti` ·
+  `Şu an açık` · `WhatsApp` · `Çalışma saatleri` · `Şikayet et`;
+  eski `₺` simgesi **YOK**. Kontrol dizesi `Yakınımda` VAR.
+  ⚠️ **ADRES:** https://indir.gebzem.app/index.html?v=20260906-1554
+  Arayuz turu: BACKEND DEGISMEDI, DB TRUNCATE EDILMEDI. health ok.
+  ⚠️ Sunucuda TEK VERI degisikligi: `UPDATE users SET onayli=true WHERE
+     username='mcdonalds'` (onay rozeti icin; `onayli`yi SET EDEN UC YOK).
+  ✅ analyze **0/0** · test **86/86** · emulatorde BES ekran gozle dogrulandi.
+
+- 💠 **TURU 179 — PROFILDE ACIK/KAPALI NOKTASI** (kullanici: *"logonun sag
+  altinda YESIL daire olsun acik olduguna isaret, degilse hafif KAHVE"*).
+  `ProfilBasligi.acik` **`bool?`**.
+  ⚠️⚠️ **`null` = NOKTA HIC CIZILMEZ.** Uc durum var (acik · kapali · BILGI
+     YOK) ve iki renge indirgenseydi calisma saatini girmemis HER isletme
+     "KAPALI" gorunurdu — olmayan bir veriyi iddia etmek olurdu.
+  ⚠️ Konum `_avatarCap`tan TURETILIR (45 derece, r/√2); sabit dp yazilsaydi
+     avatar olcusu degisince nokta daireden KOPARDI.
+  ⚠️ `Stack(clipBehavior: Clip.none)` ZORUNLU — nokta halkanin KENARINDA.
+
+- 🔻 ⚠️⚠️ **TURU 179 — KAPAK ALT KOSELERI TERS (KONKAV)** (kullanici:
+  *"alt sol ve sag alt raduslar YUKARI bakiyor, ASAGI dogru bakmali"*).
+  `ClipRRect` -> **`ClipPath(_TersKoseKirpici)`**: yay merkezi dikdortgenin
+  ICINE degil TAM KOSE NOKTASINA (w,h) alinir ve TERS yonde cizilir.
+  ⚠️ **`clockwise: false` KRITIK**: `true` birakilirsa merkez yine ice duser
+     ve sonuc SIRADAN bir yuvarlak kose olur — degisiklik EKRANDA HIC
+     GORUNMEZ.
+  ⚠️ Yaricap `h/2` ile sinirlanir: kisa bir kapakta iki yay ust uste binip
+     `Path` kendini KESERDI.
+
+- 🎛️ **TURU 179 — BUTON SATIRI: Takip · YORUMLAR · Mesaj.**
+  Yan bosluk 40 -> **24** ve butonlar `FittedBox(scaleDown)` ile korunuyor.
+  ⚠️⚠️ **52 DENENDI, EMULATORDE GERI ALINDI**: ucuncu dugme girince
+     `FittedBox` metinleri kucultmeye basladi ve "Takip et"/"Yorumlar"
+     yazilari "Mesaj"dan GORUNUR bicimde ufak kaldi.
+  ⚠️ "Yorumlar" YALNIZ isletmede cizilir: kisisel hesabin yorumu YOKTUR,
+     dugme HER ZAMAN bos panel acardi.
+  · Dugmeler ile sekme seridi arasi 8 -> **22 dp** (kullanici emri).
+
+- ❓ **TURU 179 — SORU ISARETI -> %95 ISLETME BILGI PANELI**
+  (`features/sosyal/isletme_bilgi.dart`, YENI dosya).
+  Kullanici emri: *"hamburger menunun SOLUNA soru isareti ... gonderinin
+  solundaki GENEL bilgileri oraya tikladiginda %95 POPUP olarak acilsin, bu
+  bilgilerin ARKA PLAN RENGI olacak, SAAT IKONU eklemelisin"*.
+  Icerik: acik/kapali seridi · adres (harita) · telefon · **WhatsApp** · web
+  · 7 gunun saatleri; her satir KENDI KARTINDA.
+  ⚠️ **WhatsApp TELEFONDAN TURETILIR** (`wa.me`), ayri bir alan YOK.
+  ⚠️⚠️ **FACEBOOK/INSTAGRAM YAZILMADI**: `Isletme` modelinde ve sunucuda
+     boyle bir alan YOK (olculdu). Sabit bir hesap adi basmak "bu isletmenin
+     Instagram'i budur" YALANI olurdu — turu 176'da "Ozellikler (kredi karti
+     · wifi)" AYNI gerekceyle yazilmamisti. Panel bunu durustce soyluyor.
+     ⏳ Gerekli: migration + `PUT /users/me/isletme` alani + duzenleme formu.
+  ⚠️ **GOMULU HARITA YOK** (turu 176 karari): `geo:` semasi ile cihazin
+     harita uygulamasi acilir; `GoogleMap` her acilista $7/1000'lik bir
+     Dynamic Maps yuklemesi demekti.
+  · Profildeki **`genel` sekmesi seritten CIKARILDI** (icerik buraya tasindi).
+    ⚠️ Enum degeri ve `_genelSayfasi` govdesi SILINMEDI: `switch`ler tukenmis
+       yazilmis, olu deger her birinde ULASILAMAZ dal birakirdi (turu 176).
+
+- ⭐ **TURU 179 — YORUMLAR PANELI** (ayni dosya).
+  Yildizlar · **yapay zeka ozeti** · Turkce yorumlar · saat · begeni ·
+  sikayet.
+  ⚠️⚠️ **YORUMLAR ORNEK VERI** (kullanici *"mockup"* dedi): projede isletme
+     yorumu icin **tablo ya da uc YOK** (olculdu). Panelin en ustunde bu
+     ACIKCA yaziyor — sahte yorumu gercekmis gibi gostermek turu 135'te
+     (uydurma kur seridi) reddedilen sinifin ta kendisi.
+  ⚠️ "Yapay zeka ozeti" metni **BU LISTEDEN TURETILIR** (olumlu yuzdesi), bir
+     MODEL CIKTISI DEGILDIR ve alt satirda oyle yaziyor.
+  ⚠️ Begeni YALNIZ EKRANDA artar; sikayet ucu yorum icin YOK ve panel bunu
+     kullaniciya SOYLER (sessizce "gonderildi" demek yalan olurdu).
+
+- 🍔 **TURU 179 — MENU: SABIT ARAMA + BOLUM SEKMELERI + KART.**
+  Kullanici: *"asagi inerken arama ustte kalsin, ustte menu cizgileri, burger
+  vs tikladigimda oraya girsin; cheeseburger'in ismi aciklamasi fiyati resim
+  alani BIR ALANIN ICINDE olsun; resim yerine BOS kalsin"*.
+  · Arama ve serit **kaydirmanin DISINDA** (`Column` + `Expanded(ListView)`).
+    ⚠️ `SliverPersistentHeader` KULLANILMADI: `YenileSarmali` bir
+       `RefreshIndicator` ve cocugu kaydirilabilir olmak ZORUNDA.
+  · Bolume dokunus `Scrollable.ensureVisible(alignment: 0)`.
+    ⚠️ `GlobalKey`ler `putIfAbsent` ile SAKLANIR: her `build`de yenisi
+       uretilseydi `ensureVisible` OLU anahtara bakar, dokunus HICBIR SEY
+       YAPMAZDI.
+    ⚠️ Sekme kalinligi SABIT w700: secimle degisseydi metnin genisligi
+       degisir ve serit her dokunusta KAYARDI (turu 140).
+    ⚠️ Tek bolumde serit CIZILMEZ; serit ARAMA SONUCUNA gore daralir (yoksa
+       gorunmeyen bir bolume goturen OLU sekme kalirdi).
+  · Her kalem `Material`+`InkWell` KART icinde (`Material` DISTA: ters
+    kurulsaydi dalga kartin dis kosesine TASARDI).
+  · `assets/marka` ORNEK fotograflari ARTIK CIZILMIYOR (kullanici emri);
+    GERCEK medya hala cizilir. `_ornekGorsel` `ignore: unused_element` ile
+    DURUYOR — karar tek satirla geri alinabilsin.
+
+- 📄 **TURU 179 — URUN DETAY SAYFASI** (`features/isletme/urun_detay.dart`,
+  YENI). Kullanici: *"urun detay sayfasi POPUP DEGIL, direk icine girsin"*.
+  4:3 gorsel alani · bolum rozeti · ad · aciklama · fiyat karti · modulden
+  gelen ozellikler.
+  ⚠️⚠️ **MUSTERI DOKUNUSU ONCEDEN `null` IDI**: kalem tiklanabilir
+     gorunmuyordu ve detay gormenin HICBIR yolu yoktu. Sahipte DUZENLEME
+     ekrani KALIR (detay salt okuma).
+
+- 💵 **TURU 179 — FIYATLARDA `₺` -> `TL`** (kullanici emri).
+  `kurusMetni` (urun) ve etkinlik bicimleyicisi TEK KAYNAK; etiketler,
+  demo veriler ve doviz paneli de cevrildi.
+  ⚠️ Ilan tarafinda ayni karar turu 110'da ZATEN alinmisti (bazi Android
+     fontlarinda `₺` glifi EKSIK ve TOFU cizilir); urun tarafi geride
+     kalmisti.
+  ⚠️ `_kurusOku` artik **"TL" ekini de** temizler (etiket degistigi icin
+     kullanici "250 TL" yazabiliyor); `₺` temizligi KALIR.
+
+- ✍️ **TURU 179 — `letterSpacing` SON KALINTILARI SILINDI** (hikaye katmani).
+  ⚠️ Auth ekranlarindaki (OTP / sifre) `letterSpacing` **KALIR** — orada
+     haneler AYRI okunmali ve istisna CLAUDE.md'de BELGELI.
+
 - **KALDIGIMIZ YER (6 Eyl 14:45): TURU 178 YAYINLANDI — SADECE iOS.**
   ios **34030670428** (**ae5aaba**), R2 ipa=31895201 (md5 25e55e04),
   index=7967 (5fde4ae0) surum.json=45 (0c45a51b), purge OK,
