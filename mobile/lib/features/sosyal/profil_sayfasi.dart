@@ -288,12 +288,7 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
   ///	sayfa yuksekligi DOLU sekme gibi davraniyordu — kullanicinin
   ///	gordugu kusur (blok ekranin altinda kalip gorunmuyordu) tam
   ///	buradan geliyordu.
-  bool get _bosSekme {
-    if (_sekmeYukleniyor.contains(_sekme)) return false;
-    if (_sekmeHata[_sekme] != null) return false;
-    if (_sekme.ilanMi) return (_ilanOnbellek[_sekme] ?? const []).isEmpty;
-    return (_gonderiOnbellek[_sekme] ?? const []).isEmpty;
-  }
+  bool get _bosSekme => _sekmeBos(_sekme);
 
   /// Sekme sayfasinin yuksekligi (bkz. `_seritAlt` serhi).
   double _sayfaBoyu(BuildContext c) {
@@ -1820,11 +1815,34 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
   /// ⚠️ Yukleme/hata/bos dallari SAYFANIN KENDISINDE: eskiden `_sekme`ye
   ///    bakiyorlardi ve `PageView`de komsu sayfa da cizildigi icin YANLIS
   ///    sayfada spinner gorunurdu.
-  Widget _sekmeSayfasi(ProfilSekmesi x) => ListView(
-    key: PageStorageKey<String>('sekme-${x.name}'),
-    padding: EdgeInsets.zero,
-    children: [_sekmeIcerigi(x)],
-  );
+  /// ⚠️⚠️⚠️ TURU 180e — **BOS SEKME `ListView`E SARILMAZ.**
+  ///
+  ///	Kok neden buydu: icerik her durumda bir `ListView`in cocugu
+  ///	olarak veriliyordu ve orada DIKEY KISIT SINIRSIZDIR. `Center`
+  ///	sinirsiz kisitta ORTALAYAMAZ — cocugunun kendi boyuna buzulur,
+  ///	yani blok sayfanin TEPESINDE kalir. Sayfa yuksekligini ya da
+  ///	dolguyu degistirmek bu yuzden HICBIR SEY YAPMIYORDU
+  ///	(emulatorde uc kez olculdu: blok her seferinde ayni yerde).
+  ///
+  ///	Bos dalda icerik DOGRUDAN donuluyor; `PageView` ona TIGHT
+  ///	kisit verir ve `Center` gercekten ortalar.
+  /// ⚠️ Kaydirma kaybi YOK: bos sayfada kaydirilacak icerik ZATEN yok.
+  Widget _sekmeSayfasi(ProfilSekmesi x) {
+    if (_sekmeBos(x)) return _sekmeIcerigi(x);
+    return ListView(
+      key: PageStorageKey<String>('sekme-${x.name}'),
+      padding: EdgeInsets.zero,
+      children: [_sekmeIcerigi(x)],
+    );
+  }
+
+  /// Sekmenin icerigi BOS mu (`_sekmeIcerigi`nin bos daliyla BIREBIR).
+  bool _sekmeBos(ProfilSekmesi x) {
+    if (x == ProfilSekmesi.genel) return false;
+    if (_sekmeYukleniyor.contains(x) || _sekmeHata[x] != null) return false;
+    if (x.ilanMi) return (_ilanOnbellek[x] ?? const []).isEmpty;
+    return (_gonderiOnbellek[x] ?? const []).isEmpty;
+  }
 
   Widget _sekmeIcerigi(ProfilSekmesi x) {
     // ⚠️⚠️ TURU 176 — **GENEL SEKMESI EN BASTA ELE ALINIR.** Asagidaki
