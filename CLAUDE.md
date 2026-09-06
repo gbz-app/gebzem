@@ -41,7 +41,64 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
       kaybettiriyorsun"*. **Üçüncüsü olmayacak.**
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
-- **KALDIGIMIZ YER (6 Eyl 09:21): TURU 171-173 YAYINLANDI — SADECE iOS.**
+- **KALDIGIMIZ YER (6 Eyl 11:59): TURU 174 YAYINLANDI — SADECE iOS.**
+  ios **34022966520** (**58e2d1a**), R2 ipa=31123091 (md5 268c60a1),
+  index=7967 (bd13ceb5) surum.json=45 (9afadc56), purge OK, **CDN BIREBIR**,
+  `get-task-allow: false`, `MapsApiKey` + `NSLocationWhenInUse` VAR.
+  ⚠️ **ADRES:** https://indir.gebzem.app/index.html?v=20260906-1159
+  Arayuz turu: **BACKEND DEGISMEDI**, DB TRUNCATE EDILMEDI. health ok.
+  ✅ analyze **0/0** · test **86/86** · emulatorde tasma **0**.
+
+- 🍽️ **TURU 174 — KATEGORI EKRANI SADELESTI** (kullanici emri: *"solda
+  KONUM SEC var onu kaldir, altindaki NE YESEM diye buyuk kartlari kaldir,
+  aramayi BORDERSIZ yap, arka plan SIYAH olacak, ALT MENUYU kaldir"* +
+  *"mutfagin altinda isletme kartlari var onlari kaldir; FILTRELEME
+  ALTINDAKI isletmeden bahsetmiyorum"*).
+  Kaldirilanlar (govdeler SILINMEDI, cagri yerleri kapatildi):
+  `_konumDugmesi` · `_kesifIzgarasi` · `_isletmeSeridi` · `AltMenu`
+  (`kAltMenuAcik = false`).
+  ⚠️ Bu dosyada uye silmek BES kez komsu uyeyi de goturdu
+     (turu 127/138/140/141/143) -> hepsi `ignore: unused_element`.
+  ⚠️ Filtre satirinin ALTINDAKI **asil liste** ('Restoranlar (N)') DURUYOR.
+
+- ⚠️⚠️ **TURU 174 — CIKIS YOLU CAKISMASI** (kullaniciya bildirildi):
+  konum secici ve alt menu IKISI BIRDEN kalkinca ekranda **gorunur hicbir
+  cikis yolu kalmiyordu**; kodun kendi serhi de bunu yaziyordu (*"YAPMA:
+  bu satiri kaldirma — ekranda baska cikis yolu yok"*). Konum secicinin
+  yerine **GERI OKU** kondu (`KategoriKabugu` da sol kose bosken geri oku
+  cizer — ayni dil).
+
+- ⚠️⚠️⚠️ **TURU 174 — SIYAH ZEMIN: `backgroundColor` TEK BASINA YETMEZ.**
+  Govde `Theme(ThemeData.dark())` ile sarildi AMA ekranin kendi renk
+  getter'lari (`_notrYazi` · `_notrKenar` · `kYuzeyGri(context)`) birer
+  **`State` uyesi** ve `context` **State'in context'idir** — yani o
+  `Theme`in **USTUNDE** kalir ve UYGULAMANIN temasini cozer. Acik temada
+  sonuc: siyah zemine **SIYAH YAZI** (turu 135c'de olculen 1,056:1'in ayni
+  sinifi; turu 138 dersinin tekrari).
+  **FIX:** renkler KOYUYA SABITLENDI (`_yuzey` getter'i `kYuzeyGri`nin koyu
+  daliyla BIREBIR ayni deger) — ekran artik temadan BAGIMSIZ.
+  ⚠️ `splashFactory`/`splashColor`/`highlightColor` ACIKCA geri konur:
+     `ThemeData.dark()` "dokunma dairesi YOK" kararini (turu 7) SILER.
+  ⚠️ Durum cubugu ikonlari `AnnotatedRegion` ile ACIK: acik temada
+     saat/wifi/pil KOYU cizilir ve siyah zeminde OKUNMUYORDU (emulatorde).
+
+- ⚠️ **TURU 174 — BORDERSIZ ARAMA:** kenarligi kaldirmak TEK BASINA yetmez;
+  siyah zeminde cercevesiz **ve dolgusuz** bir `TextField` GORUNMEZ olur.
+  Yerine hafif dolgu kondu. `InputBorder.none` **UC HALDE DE** verilir
+  (enabled/focused/border), yoksa odaga girince cizgi GERI GELIR.
+
+- ⏳ **TURU 174 — DURUST SINIRLAR:**
+  · Degisiklik `isletme_listesi.dart`i besleyen **17 KATEGORININ HEPSINI**
+    etkiler (Kafe · Market · Otel …), yalniz Yemek'i degil.
+  · **"Ne Yesem?"** (rastgele isletme) artik HICBIR yerden cagrilmiyor —
+    o tek ozellik ULASILAMAZ oldu. Digerleri ('İndirimli' · '4+' ·
+    'Şimşek' · 'Yakınımda' · 'Gece Kuşu' · 'Yeni Restoran' · 'Favori')
+    filtre seridinden ve filtre panelinden ULASILABILIR (IPA dogrulamasi:
+    `Ne Yesem?` ve `Konum seç` **YOK**, `Gece Kuşu` **VAR**).
+  · Ilan/Etkinlik/Talep ekranlari `KategoriKabugu` kullaniyor ve
+    DEGISMEDI (hala alt menulu, tema duyarli) — gorsel TUTARSIZLIK var.
+
+- **ONCEKI (6 Eyl 09:21): TURU 171-173 YAYINLANDI — SADECE iOS.**
   ios **34015864277** (**101c8b9**), R2 ipa=31138715 (md5 fa5750b6),
   index=7967 (641db604) surum.json=45 (c698fbea), purge OK, **CDN BIREBIR**
   (uc dosyanin ucu de), `get-task-allow: false` (debug imza YOK), profil
