@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../../core/theme.dart';
 import '../medya/medya_gorsel.dart';
 import 'profil_sayfasi.dart';
 import 'sosyal_servisi.dart';
@@ -164,9 +165,7 @@ class _TakipListesiState extends ConsumerState<TakipListesi> {
                       style: TextStyle(
                         fontSize: 12.5,
                         height: 1.15,
-                        color: Theme.of(context)
-                            .colorScheme
-                            .onSurface
+                        color: _ks.onSurface
                             .withValues(alpha: 0.55),
                       ),
                     ),
@@ -194,7 +193,7 @@ class _TakipListesiState extends ConsumerState<TakipListesi> {
   /// ⚠️ Arama kutusu: liste BOSKEN de cizilir mi? HAYIR — bos bir listede
   ///	arama kutusu ULASILAMAZ bir islev gibi durur. Yalniz veri varken.
   Widget _arama(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final scheme = _ks;
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
       child: TextField(
@@ -247,9 +246,21 @@ class _TakipListesiState extends ConsumerState<TakipListesi> {
     );
   }
 
+  /// ⚠️⚠️ TURU 180g — **SAYFA SIYAH** (turu 178 karari: *"profil ve
+  ///	onlarin actigi ALT SAYFALAR siyah olsun"*). Bu ekran
+  ///	profildeki sayaclardan aciliyor ve TEK BEYAZ yuzey olarak
+  ///	kalmisti (emulatorde goruldu).
+  /// ⚠️ `koyuSayfa` TEK KAYNAK: burada ayri bir `ThemeData.dark()`
+  ///	kurulsaydi ilk ayrisma KACINILMAZDI (bu projede ayni sinif
+  ///	ALTI kez yasandi).
+  /// ⚠️⚠️ Metotlar rengi `_ks`ten okur, `Theme.of(context)`ten DEGIL:
+  ///	State metotlari `build`in DONDURDUGU agactaki `Theme`i
+  ///	GORMEZ (turu 135c/138).
+  ColorScheme get _ks => kKoyuTema.colorScheme;
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return koyuSayfa(Scaffold(
       body: SafeArea(
         bottom: false,
         child: Column(
@@ -265,7 +276,7 @@ class _TakipListesiState extends ConsumerState<TakipListesi> {
           ],
         ),
       ),
-    );
+    ));
   }
 
   Widget _govde() {
