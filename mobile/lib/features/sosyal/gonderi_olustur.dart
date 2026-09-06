@@ -233,6 +233,7 @@ class _GonderiOlusturState extends ConsumerState<GonderiOlustur> {
   ///    Sebep YAPISAL — kart ses dalinda galeri seridi CIZMEZ (`sesliMi`
   ///    dali `_medya()`yi ATLAR), yani karma bir gonderide fotograflar
   ///    GORUNMEZ olurdu. Kullaniciya bu ACIKCA soyleniyor.
+  // ignore: unused_element
   Future<void> _sesEkle() async {
     if (_medya.isNotEmpty) {
       _uyar('Ses kaydı tek başına paylaşılır — önce diğer medyayı kaldır');
@@ -935,7 +936,16 @@ class _GonderiOlusturState extends ConsumerState<GonderiOlustur> {
             _yukleniyor ? null : _videoSec,
           ),
           if (!_reelsMi) ...[
-            ek(LucideIcons.mic, 'Ses', _yukleniyor ? null : _sesEkle),
+            // ⚠️⚠️ TURU 176 — **"Ses" EKI KALDIRILDI** (kullanici emri:
+            //	*"sesi kaldir, ses paylasma vs kalksin; SADECE
+            //	MESAJLARDA ses paylasimi olacak"*).
+            // ⚠️ `_sesEkle` ve `_SecilenMedya.ses` govdeleri SILINMEDI:
+            //	sunucu tarafi (`media_assets.kind='audio'`) ve
+            //	MEVCUT ses gonderileri duruyor; okuma yolu
+            //	kirilmamali. Kaldirilan yalniz YENI ses
+            //	paylasmanin GIRISI.
+            // ⚠️ Sohbetteki `SesNotuKaydedici` DOKUNULMADI - kullanici
+            //    onu acikca istisna tuttu.
             ek(
               LucideIcons.vote,
               'Anket',

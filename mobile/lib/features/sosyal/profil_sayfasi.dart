@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -54,11 +55,22 @@ import 'takip_listesi.dart';
 ///	kisayollari profili DOGRUDAN o sekmede aciyor. Ikinci bir liste ekrani
 ///	yazilmadigi icin liste/yukleme/bos-durum mantigi TEK YERDE kaliyor.
 enum ProfilSekmesi {
+  /// TURU 176 — **GENEL** (kullanici emri: *"yemek/hacimahalle bilgi
+  /// karti olmasin, onu gonderinin soluna GENEL olarak koy: adres,
+  /// iletisim, calisma saatleri, harita, ozellikler"*).
+  ///
+  /// ⚠️ Sekmelerin **ILKI**: kullanicinin tarif ettigi yer "gonderinin
+  ///	SOLU" ve serit soldan basliyor.
+  genel,
   tumu,
   foto,
   video,
   reels,
-  ses,
+  // ⚠️⚠️ TURU 176 — **`ses` KALDIRILDI** (kullanici emri: *"sesi kaldir,
+  //	ses paylasma vs kalksin; SADECE MESAJLARDA ses paylasimi
+  //	olacak"*). Enum degeri SILINDI, cunku `switch`ler
+  //	tukenmis (exhaustive) yazilmis ve olu bir deger birakmak
+  //	her birinde ULASILAMAZ bir dal birakirdi.
   ilan,
   dolap,
   hizmet,
@@ -68,11 +80,11 @@ enum ProfilSekmesi {
 
 extension ProfilSekmesiBilgi on ProfilSekmesi {
   String get etiket => switch (this) {
+    ProfilSekmesi.genel => 'Genel',
     ProfilSekmesi.tumu => 'Gönderiler',
     ProfilSekmesi.foto => 'Fotoğraf',
     ProfilSekmesi.video => 'Video',
     ProfilSekmesi.reels => 'Reels',
-    ProfilSekmesi.ses => 'Ses',
     ProfilSekmesi.ilan => 'İlanlarım',
     ProfilSekmesi.dolap => 'Dolap',
     ProfilSekmesi.hizmet => 'Hizmetlerim',
@@ -81,11 +93,11 @@ extension ProfilSekmesiBilgi on ProfilSekmesi {
   };
 
   IconData get ikon => switch (this) {
+    ProfilSekmesi.genel => LucideIcons.info,
     ProfilSekmesi.tumu => LucideIcons.layoutGrid,
     ProfilSekmesi.foto => LucideIcons.image,
     ProfilSekmesi.video => LucideIcons.video,
     ProfilSekmesi.reels => LucideIcons.clapperboard,
-    ProfilSekmesi.ses => LucideIcons.audioLines,
     ProfilSekmesi.ilan => LucideIcons.tag,
     ProfilSekmesi.dolap => LucideIcons.shirt,
     ProfilSekmesi.hizmet => LucideIcons.wrench,
@@ -94,11 +106,11 @@ extension ProfilSekmesiBilgi on ProfilSekmesi {
   };
 
   String get bosMetin => switch (this) {
+    ProfilSekmesi.genel => 'Bilgi yok',
     ProfilSekmesi.tumu => 'Henüz gönderi yok',
     ProfilSekmesi.foto => 'Henüz fotoğraf yok',
     ProfilSekmesi.video => 'Henüz video yok',
     ProfilSekmesi.reels => 'Henüz reels yok',
-    ProfilSekmesi.ses => 'Henüz ses paylaşımı yok',
     ProfilSekmesi.ilan => 'Henüz ilan vermedin',
     ProfilSekmesi.dolap => 'Dolabında ürün yok',
     ProfilSekmesi.hizmet => 'Henüz hizmet ilanın yok',
@@ -108,14 +120,13 @@ extension ProfilSekmesiBilgi on ProfilSekmesi {
 
   /// Sunucu `?tur=` degeri (gonderi sekmeleri icin).
   ///
-  /// ⚠️ **SES ICIN AYRI TUR YOK**: `posts.tur` CHECK'i (migration 021)
-  ///    yalniz `foto|video|reels|yazi` kabul eder. Ses gonderisi
-  ///    `tur='foto'` + `media_kinds[0]=='audio'`tir; bu yuzden Ses de
-  ///    Fotograf da AYNI sayfayi ceker, ayrim ISTEMCIDE yapilir.
   /// ⚠️ Reels ISTEMCIDE ayirt EDILEMEZ (medya turu yine `video`) — sunucu
   ///    suzgeci ZORUNLU.
+  /// ⚠️ TURU 176 — Ses sekmesi kaldirildi; `posts.tur` CHECK'ine ve
+  ///	sunucuya DOKUNULMADI (mevcut ses gonderileri Fotograf
+  ///	sekmesinde gorunmeye devam eder, veri KAYBOLMAZ).
   String? get sunucuTuru => switch (this) {
-    ProfilSekmesi.foto || ProfilSekmesi.ses => 'foto',
+    ProfilSekmesi.foto => 'foto',
     ProfilSekmesi.video => 'video',
     ProfilSekmesi.reels => 'reels',
     _ => null,
@@ -190,6 +201,17 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
   final Set<ProfilSekmesi> _sekmeYukleniyor = {};
   final Map<ProfilSekmesi, String> _sekmeHata = {};
   ProfilSekmesi _sekme = ProfilSekmesi.tumu;
+
+  /// TURU 176 — **ISLETME DETAYI ARTIK SAYFANIN KENDI ALANI.**
+  ///
+  /// ⚠️⚠️ Onceden yalnizca `IsletmeSeridi` (bilgi karti) icindeydi. Artik
+  ///	AYNI veriyi IKI yer okuyor: **Genel sekmesi** ve **yuzen
+  ///	Menü/Rezervasyon geçisi**. Iki ayri yerde ayri ayri
+  ///	cekilseydi ayni profil icin IKI istek gider ve biri
+  ///	digerinden once dondugunde ekran tutarsiz cizilirdi
+  ///	(bu projede ALTI kez yasanan "ayni kuralin iki kopyasi"
+  ///	sinifi).
+  Isletme? _isletme;
 
   /// Menunun capalanacagi dugme.
   bool _yukleniyor = true;
@@ -281,6 +303,10 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
       // ⚠️ `tumu` HARIC: onu yukaridaki `kullaniciGonderileri` zaten yazdi.
       // ⚠️ YAPMA: bu satiri kaldirma.
       if (_sekme != ProfilSekmesi.tumu) unawaited(_sekmeYukle(_sekme));
+      // ⚠️ Isletme detayi SESSIZ ve BAGIMSIZ cekilir: kisisel hesapta
+      //    404 doner ve `_isletme` null kalir — Genel sekmesi ve yuzen
+      //    geçis o zaman HIC cizilmez.
+      unawaited(_isletmeYukle());
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -484,9 +510,58 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
                 context,
               ).push(MaterialPageRoute(builder: (_) => const HesabimEkrani())),
             ),
-          IconButton(icon: const Icon(LucideIcons.ellipsis), onPressed: _menu),
+          // ⚠️⚠️ TURU 176 — **"..." YERINE IKI CIZGILI HAMBURGER**
+          //	(kullanici emri: *"sagda ... nokta yerine hamburger
+          //	ikonu, 2 tane alt ust; ustteki daha uzun soldan saga,
+          //	alttaki kisa ama SAGDA olsun"*).
+          //
+          // ⚠️ Hazir ikon KULLANILAMAZ: Lucide'in `menu` UC esit cizgi,
+          //	`alignRight` ise UC cizgidir (kaynaktan bakildi).
+          //	Istenen bicim IKI cizgi ve ASIMETRIK - elle cizildi.
+          // ⚠️ Dokunma alani 44 dp korunur (Material tabani); cizgiler
+          //    onun ICINDE, saga yasli.
+          IconButton(
+            tooltip: 'Menü',
+            onPressed: _menu,
+            icon: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Container(
+                  width: 20,
+                  height: 2,
+                  decoration: BoxDecoration(
+                    color: IconTheme.of(context).color,
+                    borderRadius: BorderRadius.circular(1),
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Container(
+                  width: 12,
+                  height: 2,
+                  decoration: BoxDecoration(
+                    color: IconTheme.of(context).color,
+                    borderRadius: BorderRadius.circular(1),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
+      // ⚠️⚠️⚠️ TURU 176 — **MENÜ / REZERVASYON ALTTAN 10 dp YUKARIDA,
+      //	ORTADA** (kullanici emri). Onceden bilgi kartinin
+      //	icindeydiler ve o kart kaldirildi.
+      //
+      // ⚠️ `floatingActionButtonLocation: centerFloat` + `Padding`:
+      //	Flutter FAB'i guvenli alanin hemen ustune koyar; 10 dp
+      //	ek bosluk kullanicinin verdigi olcu.
+      // ⚠️ Yalniz ISLETME profilinde ve YALNIZ ilgili yetenek aciksa
+      //	cizilir: `randevuAcik` SUNUCUDAN gelir. Kategoriden
+      //	tahmin edilseydi ayari acmamis isletmede dugme cizilir
+      //	ve kullanici 404 alirdi (turu 80 dersi).
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+      floatingActionButton: _menuRezervasyon(),
       body: YenileSarmali(
         onRefresh: _yukle,
         child: ListView(
@@ -576,13 +651,18 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
             // TURU 77 — ISLETME BILGI SERIDI. Profil bir ISLETME hesabiysa
             // kategori/adres/telefon/calisma saatleri ve Urunler/Menu girisi
             // burada cizilir. Kisisel hesapta HIC cizilmez.
-            _isletmeSeridi(p),
+            // ⚠️ TURU 176 — bilgi karti buradan KALDIRILDI; icerigi artik
+            //    **Genel** sekmesinde (bkz. `_genelSayfasi`).
             const SizedBox(height: 16),
             _sayaclar(p),
             const SizedBox(height: 14),
             _dugmeler(p),
             const SizedBox(height: 8),
-            const Divider(height: 1),
+            // ⚠️ TURU 176 — **USTTEKI AYIRICI KALDIRILDI** (kullanici:
+            //	*"yukaridaki cizgiyi kaldir"*). Sekme seridinin
+            //	KENDI alt ayiricisi duruyor ve secim cizgisi artik
+            //	onun tam ustune biniyor; iki cizgi ust uste
+            //	seridi bir kutu gibi gosteriyordu.
             if (p.icerikKilitli)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 60, horizontal: 40),
@@ -744,6 +824,13 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
     );
   }
 
+  // ⚠️⚠️ TURU 176 — **BILGI KARTI CAGRI YERINDEN CIKARILDI** (kullanici:
+  //	*"yemek hacimahalle vs bilgi karti olmasin, onu gonderinin
+  //	soluna GENEL olarak koy"*). Icerik `_genelSayfasi`na tasindi.
+  // ⚠️ `IsletmeSeridi` sinifi SILINMEDI: baska bir ekrandan cagrilirsa
+  //    diye duruyor ve bu dosyada silme riski yuksek (turu 67'de buyuk
+  //    dosyada coklu blok duzenlemesi dosyayi BOZMUSTU).
+  // ignore: unused_element
   Widget _isletmeSeridi(Profil p) =>
       IsletmeSeridi(userId: p.id, ad: p.ad, benimMi: _benimMi);
 
@@ -814,8 +901,12 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
 
     final takipli = p.takipEdiyorum;
     final bekliyor = p.istekBekliyor;
+    // ⚠️ TURU 176 — yan bosluk 16 -> 12: iki dugme de GENISLER (kullanici:
+    //    *"takip ve mesaj butonlarinin genisligini"*).
+    // ⚠️ Ikisi de `Expanded` oldugu icin **ESITLIK KORUNUR**; degisen
+    //    yalniz satirin dis payi.
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 12),
       child: Row(
         children: [
           Expanded(
@@ -953,7 +1044,6 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
         ham
             .where((g) => g.mediaIds.isNotEmpty && g.kind(0) == 'image')
             .toList(),
-      ProfilSekmesi.ses => ham.where((g) => g.sesliMi).toList(),
       _ => ham,
     };
   }
@@ -976,11 +1066,314 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
       if (!x.ilanMi || _benimMi) x,
   ];
 
+  /// TURU 176 — alttaki yuzen **Menü / Rezervasyon** geçisi.
+  ///
+  /// ⚠️ Isletme degilse ya da hicbir yetenek yoksa **null** doner ve
+  ///	Scaffold hicbir sey cizmez (bos bir kabuk birakmak ekranin
+  ///	dibinde anlamsiz bir golge birakirdi).
+  Widget? _menuRezervasyon() {
+    final i = _isletme;
+    if (i == null) return null;
+    final rez = i.randevuAcik;
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Material(
+        elevation: 6,
+        borderRadius: BorderRadius.circular(26),
+        color: scheme.surfaceContainerHighest,
+        clipBehavior: Clip.antiAlias,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _gecisDugmesi(
+              ikon: LucideIcons.bookOpen,
+              // TURU 89 - kategoriye gore Menü / Odalar / Hizmetler;
+              //    ad SUNUCUDAN gelir, istemcide tahmin EDILMEZ.
+              etiket: i.modul.ad,
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => UrunKatalogEkrani(
+                    isletmeId: widget.userId,
+                    isletmeAd: _p?.ad ?? '',
+                    benimMi: _benimMi,
+                    modul: i.modul,
+                  ),
+                ),
+              ),
+            ),
+            if (rez)
+              _gecisDugmesi(
+                ikon: LucideIcons.calendarPlus,
+                etiket: i.randevuTuru == 'rezervasyon'
+                    ? 'Rezervasyon'
+                    : 'Randevu',
+                vurgulu: true,
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => RandevuAlEkrani(
+                      isletmeId: widget.userId,
+                      isletmeAd: _p?.ad ?? '',
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _gecisDugmesi({
+    required IconData ikon,
+    required String etiket,
+    required VoidCallback onTap,
+    bool vurgulu = false,
+  }) {
+    final scheme = Theme.of(context).colorScheme;
+    final on = vurgulu ? scheme.onPrimary : scheme.onSurface;
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        color: vurgulu ? scheme.primary : Colors.transparent,
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 13),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(ikon, size: 17, color: on),
+            const SizedBox(width: 8),
+            Text(
+              etiket,
+              style: TextStyle(
+                  fontSize: 14.5, fontWeight: FontWeight.w700, color: on),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// TURU 176 — **GENEL SEKMESI** (kullanici emri: *"gonderinin soluna
+  /// Genel olarak koy; adres, iletisim, calisma saatleri, harita"*).
+  ///
+  /// ⚠️⚠️ **GOMULU HARITA CIZILMEDI, BILINCLI.** `GoogleMap` her profil
+  ///	acilisinda bir **Dynamic Maps** yuklemesi demek ($7/1000 —
+  ///	turu 169'da olculen tabloya gore 50K kullanicida aylik
+  ///	binlerce dolar). Yerine konum SATIRI + dokununca CIHAZIN
+  ///	harita uygulamasi acilir: kullanici icin ayni is, bize
+  ///	maliyeti **0**.
+  /// ⏳ **"Ozellikler" (kredi karti · wifi) YAZILMADI**: `Isletme`
+  ///	modelinde ve sunucuda BOYLE BIR ALAN YOK (olculdu). Sabit
+  ///	bir liste basmak "bu isletme kredi karti aliyor" YALANI
+  ///	olurdu (turu 135'te kur seridi TAM BU SEBEPLE silindi).
+  ///	Once migration + `PUT /users/me/isletme` alani gerekiyor.
+  Widget _genelSayfasi() {
+    final i = _isletme;
+    final scheme = Theme.of(context).colorScheme;
+    if (i == null) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(16, 28, 16, 16),
+        child: Center(
+          child: Text(
+            'Bilgi yok',
+            style: TextStyle(
+                color: scheme.onSurface.withValues(alpha: 0.6)),
+          ),
+        ),
+      );
+    }
+    final adres =
+        [i.adres, i.ilce, i.il].where((x) => x.isNotEmpty).join(', ');
+    const gunAd = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 100),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (i.calisma.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Row(
+                children: [
+                  Icon(
+                    i.simdiAcik ? LucideIcons.circleCheck : LucideIcons.clock,
+                    size: 16,
+                    color: i.simdiAcik
+                        ? const Color(0xFF2BB673)
+                        : scheme.onSurface.withValues(alpha: 0.5),
+                  ),
+                  const SizedBox(width: 7),
+                  Text(
+                    i.simdiAcik ? 'Şu an açık' : 'Şu an kapalı',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: i.simdiAcik
+                          ? const Color(0xFF2BB673)
+                          : scheme.onSurface.withValues(alpha: 0.6),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          if (adres.isNotEmpty)
+            _genelSatir(LucideIcons.mapPin, 'Adres', adres,
+                // ⚠️ Dokunus YALNIZ koordinat VARSA: koordinatsiz bir
+                //    adresle harita acmak bos ekran gosterirdi.
+                onTap: (i.enlem != null && i.boylam != null)
+                    ? () => _haritadaAc(i.enlem!, i.boylam!, adres)
+                    : null),
+          if (i.telefon.isNotEmpty)
+            _genelSatir(LucideIcons.phone, 'Telefon', i.telefon,
+                onTap: () => _telefonAc(i.telefon)),
+          if (i.web.isNotEmpty)
+            _genelSatir(LucideIcons.globe, 'Web', i.web),
+          if (i.calisma.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(
+              'Çalışma saatleri',
+              style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: scheme.onSurface),
+            ),
+            const SizedBox(height: 6),
+            // ⚠️ **YEDI GUNUN HEPSI** yazilir (eski kart yalnizca BUGUNU
+            //    gosteriyordu). Kullanici *"calisma saatleri"* dedi;
+            //    tek gun bir "saat" degil bir "durum" bildirir.
+            for (var g = 1; g <= 7; g++)
+              Builder(builder: (_) {
+                final c = i.calisma.where((e) => e.gun == g).firstOrNull;
+                final bugunMu = DateTime.now().weekday == g;
+                final metin = (c == null || c.kapali)
+                    ? 'Kapalı'
+                    : '${c.acilis} - ${c.kapanis}';
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 3),
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        width: 46,
+                        child: Text(
+                          gunAd[g - 1],
+                          style: TextStyle(
+                            fontSize: 13.5,
+                            fontWeight:
+                                bugunMu ? FontWeight.w800 : FontWeight.w600,
+                            color: scheme.onSurface
+                                .withValues(alpha: bugunMu ? 1 : 0.65),
+                          ),
+                        ),
+                      ),
+                      Text(
+                        metin,
+                        style: TextStyle(
+                          fontSize: 13.5,
+                          fontWeight:
+                              bugunMu ? FontWeight.w800 : FontWeight.w500,
+                          color: scheme.onSurface
+                              .withValues(alpha: bugunMu ? 1 : 0.65),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _genelSatir(IconData ikon, String etiket, String deger,
+      {VoidCallback? onTap}) {
+    final scheme = Theme.of(context).colorScheme;
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 9),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(ikon,
+                size: 17,
+                color: scheme.onSurface.withValues(alpha: 0.55)),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    etiket,
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                      color: scheme.onSurface.withValues(alpha: 0.5),
+                    ),
+                  ),
+                  const SizedBox(height: 1),
+                  Text(
+                    deger,
+                    style: TextStyle(
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w600,
+                        color: scheme.onSurface),
+                  ),
+                ],
+              ),
+            ),
+            // ⚠️ Ok YALNIZ dokunulabilir satirda: dokunulamayan bir satirda
+            //    ok cizmek "olu dugme" olurdu.
+            if (onTap != null)
+              Icon(LucideIcons.chevronRight,
+                  size: 17,
+                  color: scheme.onSurface.withValues(alpha: 0.35)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Cihazin harita uygulamasini acar (**bize maliyeti 0**).
+  Future<void> _haritadaAc(double lat, double lng, String ad) async {
+    final u = Uri.parse(
+        'geo:$lat,$lng?q=$lat,$lng(${Uri.encodeComponent(ad)})');
+    // ⚠️ `geo:` semasi yoksa (bazi cihazlarda) web haritasina duser.
+    if (!await launchUrl(u, mode: LaunchMode.externalApplication)) {
+      await launchUrl(
+        Uri.parse('https://www.google.com/maps/search/?api=1&query=$lat,$lng'),
+        mode: LaunchMode.externalApplication,
+      );
+    }
+  }
+
+  Future<void> _telefonAc(String t) async {
+    await launchUrl(Uri.parse('tel:$t'));
+  }
+
+  /// Isletme detayini ceker. **Hata SESSIZ**: kisisel hesapta 404 NORMAL.
+  ///
+  /// ⚠️ Servis await'ten ONCE yakalanir (turu 78b: disposed State'te
+  ///	`ref.read` StateError firlatir ve `catch` onu yutar).
+  Future<void> _isletmeYukle() async {
+    final svc = ref.read(isletmeServisiProvider);
+    try {
+      final i = await svc.detay(widget.userId);
+      if (mounted) setState(() => _isletme = i);
+    } catch (_) {
+      // SESSIZ - isletme olmayan hesapta bu beklenen durumdur.
+    }
+  }
+
   /// Secili sekmenin verisini ceker (yalniz ILK secimde).
   ///
   /// ⚠️ `_sekmeYukleniyor` yeniden-girme kapisi: sekmeye hizli hizli
   ///    dokunmak ayni istegi tekrar tekrar atardi.
   Future<void> _sekmeYukle(ProfilSekmesi x) async {
+    // ⚠️ Genel sekmesinin verisi `_isletme` ile ZATEN cekiliyor; buraya
+    //    girseydi `_gonderiOnbellek`e bos liste yazip sekmeyi "yuklendi
+    //    ama bos" durumuna dusururdu.
+    if (x == ProfilSekmesi.genel) return;
     if (_sekmeYukleniyor.contains(x)) return;
     if (_gonderiOnbellek.containsKey(x) || _ilanOnbellek.containsKey(x)) return;
     setState(() {
@@ -1046,6 +1439,11 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
   );
 
   Widget _sekmeIcerigi(ProfilSekmesi x) {
+    // ⚠️⚠️ TURU 176 — **GENEL SEKMESI EN BASTA ELE ALINIR.** Asagidaki
+    //	yukleme/hata/bos dallari `_gonderiOnbellek`e bakiyor ve
+    //	Genel'in boyle bir onbellegi YOK: kapi konmasaydi sekme
+    //	KALICI olarak "Bilgi yok" gosterirdi.
+    if (x == ProfilSekmesi.genel) return _genelSayfasi();
     final soluk = Theme.of(
       context,
     ).colorScheme.onSurface.withValues(alpha: 0.6);
@@ -1172,6 +1570,12 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
+                        // ⚠️⚠️ TURU 176 — **SECILI OLMAYANDA SADECE IKON**
+                        //	(kullanici emri: *"secili olmayan menude
+                        //	sadece icon olsun"*).
+                        // ⚠️ Erisilebilirlik KAYBOLMAZ: disaridaki
+                        //    `Semantics(label: x.etiket)` etiketi HER
+                        //    durumda okur (ekran okuyucu icin metin var).
                         Row(
                           children: [
                             Icon(
@@ -1181,20 +1585,24 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
                                   ? scheme.onSurface
                                   : scheme.onSurface.withValues(alpha: 0.45),
                             ),
-                            const SizedBox(width: 6),
-                            Text(
-                              x.etiket,
-                              style: TextStyle(
-                                fontSize: 14.5,
-                                fontWeight: FontWeight.w700,
-                                color: secili
-                                    ? scheme.onSurface
-                                    : scheme.onSurface.withValues(alpha: 0.45),
+                            if (secili) ...[
+                              const SizedBox(width: 6),
+                              Text(
+                                x.etiket,
+                                style: TextStyle(
+                                  fontSize: 14.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: scheme.onSurface,
+                                ),
                               ),
-                            ),
+                            ],
                           ],
                         ),
-                        const SizedBox(height: 6),
+                        // ⚠️⚠️ TURU 176 — bosluk 6 -> **0**: kullanici
+                        //	*"secili oldugunda BEYAZ hafif gorunmeyen
+                        //	cizginin TAM USTUNE olsun"* dedi. 6 dp
+                        //	bosluk cizgiyi ayiricidan KOPARIYORDU.
+                        const Spacer(),
                         // ⚠️ Cizgi SECILI OLMASA DA yer kaplar (saydam): aksi
                         //    halde secim degisince satir 2 dp ziplardi.
                         Container(
@@ -1202,7 +1610,7 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
                           width: 26,
                           decoration: BoxDecoration(
                             color: secili
-                                ? scheme.onSurface
+                                ? Colors.white
                                 : Colors.transparent,
                             borderRadius: BorderRadius.circular(2),
                           ),

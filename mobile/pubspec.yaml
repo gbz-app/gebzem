@@ -240,6 +240,10 @@ flutter:
     # ⚠️ **POPEYES LOGOSU YOK** — kullanici klasore koymadi. O kayit
     #    logosuz cizilir (kategori ikonuna duser); sahte bir logo
     #    URETILMEDI. Dosya gelince buraya bir satir eklenir.
+    # TURU 177 - slider ilk slayt gorseli (kullanici verdi).
+    # UYARI Tek tek dosya: klasor toptan yazilirsa sonradan atilan HER
+    #    dosya pakete girer (turu 116b: 1,27 MiB olu varlik).
+    - assets/slider/slider1.jpg
     - assets/marka/mcdonalds.jpg
     - assets/marka/burgerking.png
     - assets/marka/dominos.png

@@ -859,6 +859,10 @@ class _HizmetMenusuState extends ConsumerState<HizmetMenusu> {
     child: KategoriSlider(
       slaytlar: _bosSlaytlar,
       yuzey: kAiKartYuzey(context, alfa: kSlaytAlfa),
+      // TURU 177 - ilk slayt gorseli (kullanici emri). Kategori ekraniyla
+      //    AYNI sabit; iki yerde ayri yol yazilsaydi biri degisince oteki
+      //    geride kalirdi.
+      ilkGorsel: kSliderIlkGorsel,
     ),
   );
 

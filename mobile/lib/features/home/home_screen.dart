@@ -226,7 +226,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         index: _index,
         children: [
           const AkisEkrani(), // TURU 75 — ana sayfa akisi
-          const KesfetEkrani(), // TURU 76 — PROFIL ARAMA + kesfet izgarasi
+          // TURU 175 - `sekmeModu: true`: bu bir SEKME, header (geri oku
+          //	+ baslik) CIZILMEZ. Geri oku burada yanlis olurdu -
+          //	gidilecek bir yer yok.
+          const KesfetEkrani(sekmeModu: true), // TURU 76 — PROFIL ARAMA
           // ⚠️⚠️ REELS **YALNIZ SEKME ACIKKEN KURULUR** — bu bir SES GUVENLIGI
           //    karari, stil tercihi degil. `IndexedStack` TUM cocuklari agacta
           //    CANLI tutar; reels sekmesinden ciksaydik video oynaticisi

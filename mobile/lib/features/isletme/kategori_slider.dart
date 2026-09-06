@@ -17,13 +17,36 @@ import 'package:flutter/material.dart';
 //    sabiti kullanmak ZORUNDA (bkz. `isletme_kart.dart` yaricap serhi).
 import 'isletme_kart.dart' show kYanBosluk, kYaricap;
 
+/// TURU 177 — anasayfa ve kategori slider'inin **ILK SLAYT GORSELI**.
+///
+/// ⚠️⚠️ **MARKA HAKKI**: bu gorsel tescilli bir markanin (McDonald's)
+///	logosunu ve urun fotografini tasiyor. Ornek kayitlarla ayni
+///	sinifta: **YAYIN ONCESI `kHaritaOnizleme` ornekleriyle
+///	BIRLIKTE paketten CIKARILMALI** (turu 140'ta `assets/marka`
+///	icin yazilan ayni uyari).
+const String kSliderIlkGorsel = 'assets/slider/slider1.jpg';
+
 /// Sunucudan gelen slayt.
 typedef Slayt = ({String baslik, String alt});
 
 class KategoriSlider extends StatefulWidget {
-  const KategoriSlider({super.key, required this.slaytlar, this.yuzey});
+  const KategoriSlider({
+    super.key,
+    required this.slaytlar,
+    this.yuzey,
+    this.ilkGorsel,
+  });
 
   final List<Slayt> slaytlar;
+
+  /// TURU 177 — **ILK SLAYTIN GORSELI** (varlik yolu).
+  ///
+  /// ⚠️ `Slayt` tipine alan EKLENMEDI: o bir `typedef` record ve alan
+  ///	eklemek TUM olusturma yerlerini (sunucudan cozme dahil)
+  ///	degistirmeyi gerektirirdi. Gorsel su an TEK bir slayt icin
+  ///	isteniyor; parametre o isi tam olarak yapiyor.
+  /// ⚠️ `null` ise davranis AYNEN eskisi gibi (bos renkli slayt).
+  final String? ilkGorsel;
 
   /// ⚠️⚠️ TURU 129 — SLAYT ZEMINI (menu ekrani GebzemAI'daki kendi mesaj
   ///	balonunun rengini geciyor: `kAiKartYuzey`).
@@ -199,7 +222,13 @@ class _KategoriSliderState extends State<KategoriSlider> {
                   //    zamanlayici bir sonraki sayfayi ondan hesapliyor.
                   onPageChanged: (i) => _aktif = i,
                   itemCount: widget.slaytlar.length,
-                  itemBuilder: (_, i) => _slayt(widget.slaytlar[i], zemin),
+                  // ⚠️ Gorsel YALNIZ ILK slaytta (kullanici emri:
+                  //    *"1. siraya koy"*).
+                  itemBuilder: (_, i) => _slayt(
+                    widget.slaytlar[i],
+                    zemin,
+                    gorsel: i == 0 ? widget.ilkGorsel : null,
+                  ),
                 ),
             ),
           ),
@@ -236,12 +265,33 @@ class _KategoriSliderState extends State<KategoriSlider> {
   ///    olur ve yandaki slaytlar ayirt edilemezdi.
   /// ⚠️ Yatay dolgu, komsu kartlar arasindaki BOSLUGU uretir; kaldirilirsa
   ///    kartlar bitisir ve yine tek blok gibi gorunur.
-  Widget _slayt(Slayt s, Color zemin) => Padding(
+  Widget _slayt(Slayt s, Color zemin, {String? gorsel}) => Padding(
         padding: const EdgeInsets.symmetric(horizontal: kSlaytAralik / 2),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(
               kYaricap(KategoriSlider.yukseklik)),
-          child: ColoredBox(color: zemin, child: const SizedBox.expand()),
+          // ⚠️⚠️ TURU 177 — gorselli slayt (kullanici emri: *"bu gorseli
+          //	anasayfadaki ve yemekteki slider'in 1. sirasina koy"*).
+          // ⚠️ `cover`: slayt kutusu ~1:1'e yakin, gorsel 5:3. `contain`
+          //	olsaydi altta/ustte genis bos bantlar kalirdi.
+          //	`cover` kenarlardan kirpar - gorselin ORTASI korunur.
+          // ⚠️ Zemin `ColoredBox` ALTTA kalir: gorsel yuklenene kadar
+          //	(ilk karede) bos beyaz degil, slaytin kendi rengi
+          //	gorunur.
+          child: ColoredBox(
+            color: zemin,
+            child: gorsel == null
+                ? const SizedBox.expand()
+                : Image.asset(
+                    gorsel,
+                    fit: BoxFit.cover,
+                    width: double.infinity,
+                    height: double.infinity,
+                    // ⚠️ Varlik bulunamazsa slayt BOS cizilir, uygulama
+                    //    COKMEZ (pubspec'e eklenmemis olma ihtimali).
+                    errorBuilder: (_, _, _) => const SizedBox.expand(),
+                  ),
+          ),
         ),
       );
 }

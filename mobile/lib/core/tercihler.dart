@@ -27,6 +27,46 @@ class Tercihler {
   static const _kTema = 'tema_modu';
   static const _kOnboarding = 'onboarding_goruldu';
   static const _kHarita = 'harita_stili';
+  static const _kSonAramalar = 'son_aramalar';
+
+  /// TURU 175 — **SON ARAMALAR** (kullanici emri: *"aramada en son
+  /// arananlar ... olacak"*).
+  ///
+  /// ⚠️ **KALICI** (oturum omurlu DEGIL): "en son aradiklarim" ancak
+  ///	uygulama kapanip acildiginda da duruyorsa o adi hak eder.
+  ///	Turu 142'de menudeki arama sayfasi bunu oturum omurlu
+  ///	tutuyordu ve her acilista BOS geliyordu.
+  /// ⚠️ Depo acilamazsa bos liste doner — ozellik COKMEZ, yalnizca
+  ///	hatirlamaz (`_p` null olabilir, bkz. sinif serhi).
+  List<String> get sonAramalar => _p?.getStringList(_kSonAramalar) ?? const [];
+
+  /// En basa ekler, tekrarlari eler, **en fazla 8** tutar.
+  ///
+  /// ⚠️ Tekilleme BUYUK/KUCUK HARF DUYARSIZ ve Turkce'ye gore: `toLowerCase`
+  ///	'İ'yi birlesik noktaya cevirir ve "İSTANBUL" ile "istanbul"
+  ///	AYRI kayit sayilirdi (turu 140'ta olculen tuzak). Karsilastirma
+  ///	icin harfler ELLE sadelestirilir.
+  Future<void> aramaEkle(String q) async {
+    final t = q.trim();
+    if (t.isEmpty) return;
+    String sade(String x) => x
+        .replaceAll('İ', 'i')
+        .replaceAll('I', 'ı')
+        .toLowerCase()
+        .trim();
+    final anahtar = sade(t);
+    final l = [t, ...sonAramalar.where((e) => sade(e) != anahtar)];
+    await _p?.setStringList(_kSonAramalar, l.take(8).toList());
+  }
+
+  Future<void> aramaSil(String q) async {
+    await _p?.setStringList(
+        _kSonAramalar, sonAramalar.where((e) => e != q).toList());
+  }
+
+  Future<void> aramalariTemizle() async {
+    await _p?.remove(_kSonAramalar);
+  }
 
   /// ⚠️ TURU 89 — HARITA RENGI (kullanici emri: *"ayarlardan harita rengi
   ///    ayarlanmali, gece ve uberin gri beyaz tarzi"*).

@@ -880,8 +880,14 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
                         child: _aramaKutusu(),
                       ),
                     ),
-                    const SliverToBoxAdapter(
-                        child: SizedBox(height: kBosluk)),
+                    // ⚠️ TURU 175 — slider YOKSA bir sonraki oge "Mutfaklar"
+                    //    ya da cip seridi olur; kural slider'inkiyle AYNI.
+                    SliverToBoxAdapter(
+                        child: SizedBox(
+                            height: (_slaytlar.isNotEmpty ||
+                                    _altKategoriler.isNotEmpty)
+                                ? kBosluk
+                                : kBosluk - kCipPay)),
 
                     // ⚠️⚠️ SLAYT YOKSA SLIDER HIC CIZILMEZ: istek patlarsa
                     //    `_slaytlar` bos kalir ve `PageView` 0 ogeyle
@@ -895,12 +901,24 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
                       // ⚠️ YAPMA: burayi tekrar `Padding` ile sarma — kart
                       //    16 yerine ~35 dp'ye kayar (olculdu).
                       SliverToBoxAdapter(
-                        child: KategoriSlider(slaytlar: _slaytlar),
+                        child: KategoriSlider(
+                          slaytlar: _slaytlar,
+                          ilkGorsel: kSliderIlkGorsel,
+                        ),
                       ),
                       // ⚠️ TURU 96 — bu bosluk artik OTEKILERLE BIREBIR AYNI
                       //    (kullanici emri); slider'a ozel genis nefes YOK.
-                      const SliverToBoxAdapter(
-                          child: SizedBox(height: kBosluk)),
+                      // ⚠️⚠️ TURU 175 — cip payi ARTIK BURADA dusulur: kesif
+                      //	izgarasi kalkinca slider'in bir SONRAKI ogesi
+                      //	ya "Mutfaklar" basligi (pay YOK) ya da
+                      //	dogrudan filtre cipleri (kendi 4 px ic payi
+                      //	VAR) oluyor. Pay dusulmezse cipli dalda
+                      //	gorunen bosluk 16 degil 20 dp olurdu.
+                      SliverToBoxAdapter(
+                          child: SizedBox(
+                              height: _altKategoriler.isNotEmpty
+                                  ? kBosluk
+                                  : kBosluk - kCipPay)),
                     ],
 
                     // ── KESIF KARTLARI (4 x 2) — **KALDIRILDI (turu 174)** ──
@@ -921,26 +939,26 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
                     //	ozellik ulasilamaz oldu. Istenirse filtre
                     //	seridine bir cip olarak geri konabilir.
 
-                    // ⚠️⚠️⚠️ TURU 96k — BURADA **IKI BOSLUK UST USTE** VARDI
-                    //	(`kBosluk` + kosullu `kBosluk`) ve izgara ile
-                    //	"Mutfaklar" arasi **32 dp** oluyordu; sayfanin geri
-                    //	kalani 16 ile yuruyor. Kullanici olculeri isteyince
-                    //	ortaya cikti — gozle "burasi biraz genis" denip
-                    //	gecilebilecek, OLCMEDEN bulunamayacak bir hataydi.
-                    // ⚠️ Alt kategori seridi VARSA tam bosluk; YOKSA hemen
-                    //    altta cip seridi geliyor demektir ve onun kendi
-                    //    4px payi DUSULUR (bkz. `kCipPay`).
-                    // ⚠️⚠️ TURU 135 — pay YALNIZ bir sonraki oge CIP SERIDIYSE
-                    //	dusulur. Isletme karti araya girdiginde SONRAKI oge
-                    //	KART olur ve kartin boyle bir ic payi YOKTUR; pay yine
-                    //	dusulseydi izgara ile kart arasi 16 yerine 12 dp kalirdi.
-                    // ⚠️ YAPMA: buraya ikinci bir `SizedBox` ekleme.
-                    SliverToBoxAdapter(
-                        child: SizedBox(
-                            height: (_altKategoriler.isNotEmpty ||
-                                    isletmeSeridi != null)
-                                ? kBosluk
-                                : kBosluk - kCipPay)),
+                    // ⚠️⚠️⚠️ TURU 175 — **BU BOSLUK KALDIRILDI** (kullanici:
+                    //	*"mutfaklar slider yukarida fazla bosluk olmus,
+                    //	hepsinin arasindaki bosluk ESIT olmali"*).
+                    //
+                    //	Turu 174'te kesif izgarasi kaldirildi ama onun
+                    //	**ALTINDAKI bosluk BIRAKILDI**; slider'in kendi
+                    //	`kBosluk`u ile ust uste gelip slider ↔ "Mutfaklar"
+                    //	arasini **32 dp** yapiyordu. Sayfanin geri kalani
+                    //	16 ile yuruyor.
+                    //
+                    // ⚠️⚠️ **TURU 96k'NIN BIREBIR TEKRARI**: o turda da tam
+                    //	bu iki bosluk ust uste gelmisti ve serhi HEMEN
+                    //	BURADA yaziliydi. Bir blogu kaldirirken **onun
+                    //	bosluklarini da kaldir** — yoksa hata gozle
+                    //	"burasi biraz genis" diye gecilir.
+                    //
+                    // ⚠️ Cip payi (`kCipPay`) ARTIK BURADA DUSULMEZ: bir
+                    //    sonraki oge alt kategori seridi YOKSA filtre cipleri
+                    //    gelir ve o payi **slider'in kendi boslugu** dusuyor
+                    //    (bkz. asagidaki `_slaytlar` blogu).
 
                     // ── "MUTFAKLAR" + ALT KATEGORI SERIDI (60x60) ──
                     // ⚠️ Kullanici emri: *"döner kebap vs. bunlari isletme ara
@@ -1267,8 +1285,21 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
               ),
               Align(
                 alignment: Alignment.centerRight,
+                // ⚠️⚠️ TURU 175 — **KALP CIZGISI 1 TIK INCE** (kullanici:
+                //	*"kalp beyaz border 1 tik incelt"*).
+                //	Lucide bir **FONT**tur; `strokeWidth` YOKTUR
+                //	(turu 93/141'de kaynaktan dogrulandi) ve
+                //	kalinlik ancak GLIFIN KENDISIYLE degisir.
+                //	Material'in `favorite_border` glifi ayni 24 dp
+                //	izgarada daha INCE cizilir - istenen "1 tik"
+                //	tam bu.
+                // ⚠️ Boyut DEGISMEDI (24): `size`i kucultmek cizgiyi
+                //    inceltir ama ikonu da kucultur; kullanici boyut
+                //    degil KALINLIK istedi.
+                // ⚠️ Ayni istisna projede daha once de var (turu 98:
+                //    dolu kalp icin Material `Icons.favorite`).
                 child: _headerDaire(
-                  LucideIcons.heart,
+                  Icons.favorite_border,
                   'Favorilerim',
                   () => Navigator.of(context).push(
                     MaterialPageRoute(
@@ -2647,7 +2678,17 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
                           width: hucre,
                         ),
                 ),
-                kampanyaRozetleri(o),
+                // ⚠️⚠️ TURU 175 — **IZGARADA KAMPANYA ROZETI CIZILMEZ**
+                //	(kullanici: *"sol sag ortadaki gorunumu
+                //	sectigimde isletme kartinin uzerindeki 300 TL
+                //	indirim vs GORUNMEYECEK"*).
+                //
+                // ⚠️ Rozet TEK SATIRLI LISTE gorunumunde DURUYOR: orada
+                //    kapak ekranin tamamina yakin genislikte ve rozet
+                //    okunabiliyor. Izgarada hucre ~yari genislikte,
+                //    'İlk sipariş 100 TL indirim' zaten kirpiliyordu.
+                // ⚠️ `kampanyaRozetleri` SILINMEDI - liste gorunumu ve
+                //    diger ekranlar onu kullanmaya devam ediyor.
               ],
             ),
           ),

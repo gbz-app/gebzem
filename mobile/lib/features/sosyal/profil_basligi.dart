@@ -81,7 +81,27 @@ class ProfilBasligi extends StatelessWidget {
         height: kh + _tasma,
         child: Stack(
           children: [
-            Positioned(top: 0, left: 0, right: 0, height: kh, child: _kapak()),
+            // ⚠️⚠️ TURU 176 — **KAPAK SOL/SAG/ALT RADUSLU** (kullanici:
+            //	*"header resim alani sol sag asagi dogru raduslu
+            //	olsun"*).
+            // ⚠️ UST kose radussuz: kapak durum cubugunun ALTINA giriyor
+            //    (`extendBodyBehindAppBar`) ve ustte yuvarlatilirsa
+            //    ekranin tepesinde iki kenar bosluk gorunurdu.
+            // ⚠️ `ClipRRect` `Positioned`in ICINDE: disina konsaydi
+            //    avatarin kapaktan TASAN kismi da kirpilirdi.
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              height: kh,
+              child: ClipRRect(
+                borderRadius: const BorderRadius.only(
+                  bottomLeft: Radius.circular(22),
+                  bottomRight: Radius.circular(22),
+                ),
+                child: _kapak(),
+              ),
+            ),
             Positioned(
               top: kh - _tasma,
               left: 0,

@@ -65,11 +65,66 @@ class _TakipListesiState extends ConsumerState<TakipListesi> {
     }
   }
 
+  /// TURU 176 — **YEMEK EKRANIYLA AYNI HEADER** (kullanici emri:
+  /// *"takipci ve takip edilenlerde yemek gibi header olacak, aramada
+  /// oyle, daha modern gorunsun"*).
+  ///
+  /// ⚠️ `AppBar` KULLANILMADI: yemek/arama ekranlarindaki header 44 dp'lik
+  ///	bir `Stack` (geri oku solda, baslik GERCEK ortada). `AppBar`
+  ///	in kendi yuksekligi 56 ve basligi `centerTitle`a bagli —
+  ///	yan yana konunca iki ekran AYNI GORUNMEZDI.
+  Widget _header(BuildContext context) => SizedBox(
+        height: 44,
+        child: Stack(
+          children: [
+            Center(
+              child: Text(
+                widget.baslik,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  height: 1.0,
+                  leadingDistribution: TextLeadingDistribution.even,
+                ),
+              ),
+            ),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => Navigator.of(context).maybePop(),
+                child: const SizedBox(
+                  width: 44,
+                  height: 44,
+                  child: Icon(LucideIcons.arrowLeft, size: 24),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(widget.baslik)),
-      body: _yukleniyor
+      body: SafeArea(
+        bottom: false,
+        child: Column(
+          children: [
+            _header(context),
+            Expanded(
+              child: _govde(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _govde() {
+    return _yukleniyor
           ? const Center(child: CircularProgressIndicator())
           : _hata != null
           ? Center(
@@ -109,8 +164,7 @@ class _TakipListesiState extends ConsumerState<TakipListesi> {
                   ),
                 );
               },
-            ),
-    );
+            );
   }
 }
 

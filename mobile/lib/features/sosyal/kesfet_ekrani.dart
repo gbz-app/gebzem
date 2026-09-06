@@ -1,4 +1,5 @@
 import 'dart:async';
+import '../../core/tercihler.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -33,7 +34,14 @@ import 'sosyal_servisi.dart';
 ///    ATILIR.
 /// ⚠️ YAPMA: debounce'u kaldirma; jeton kapisini kaldirma.
 class KesfetEkrani extends ConsumerStatefulWidget {
-  const KesfetEkrani({super.key});
+  const KesfetEkrani({super.key, this.sekmeModu = false});
+
+  /// `HomeScreen` SEKMESI olarak mi cizildigi.
+  ///
+  /// ⚠️⚠️ TURU 175 — header (geri oku + baslik) YALNIZ **push edilmis**
+  ///	halde cizilir. Sekmede geri oku YANLIS OLURDU: gidilecek bir
+  ///	yer yok ve `maybePop` ana route'u kapatmaya calisirdi.
+  final bool sekmeModu;
 
   @override
   ConsumerState<KesfetEkrani> createState() => _KesfetEkraniState();
@@ -221,6 +229,44 @@ class _KesfetEkraniState extends ConsumerState<KesfetEkrani>
       bottom: false,
       child: Column(
         children: [
+          // ⚠️⚠️ TURU 175 — **YEMEK EKRANIYLA AYNI HEADER** (kullanici:
+          //	*"arama sayfasini da yemekteki header gibi yap,
+          //	sagdaki fav gerek yok"*).
+          // ⚠️ Sag kose BOS: yemek ekranindaki kalp burada anlamsiz
+          //    (favori isletme listesi bir ARAMA ekraninin isi degil).
+          //    Bosluk `SizedBox` ile korunur ki baslik GERCEK ortada
+          //    kalsin - `Stack` + `Center` deseni (turu 96g).
+          if (!widget.sekmeModu)
+            SizedBox(
+              height: 44,
+              child: Stack(
+                children: [
+                  const Center(
+                    child: Text(
+                      'Ara',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        height: 1.0,
+                        leadingDistribution: TextLeadingDistribution.even,
+                      ),
+                    ),
+                  ),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => Navigator.of(context).maybePop(),
+                      child: const SizedBox(
+                        width: 44,
+                        height: 44,
+                        child: Icon(LucideIcons.arrowLeft, size: 24),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
             child: TextField(
@@ -228,6 +274,13 @@ class _KesfetEkraniState extends ConsumerState<KesfetEkrani>
               focusNode: _odak,
               textInputAction: TextInputAction.search,
               onChanged: _degisti,
+              // ⚠️ TURU 175 — gecmise YALNIZ **tamamlanmis** arama yazilir.
+              //    `onChanged`e baglansaydi 'h','ha','ham' … her tus ayri
+              //    kayit olur ve liste ANLAMSIZLASIRDI.
+              onSubmitted: (q) async {
+                await tercihler.aramaEkle(q);
+                if (mounted) setState(() {});
+              },
               // ⚠️⚠️ TURU 133 — **BORDERSIZ + "Ne Aramıştın?"** (kullanici
               //	emri). Cerceve KALDIRILDI: ustteki baslik ve altindaki
               //	sekme ayraci zaten alani tanimliyor; ucuncu bir cerceve
@@ -383,7 +436,164 @@ class _KesfetEkraniState extends ConsumerState<KesfetEkrani>
   /// ⚠️ Sayilar EKRANDA da yazili: kullanici neye gore siralandigini
   ///    gorebilsin (gizli bir olcut "neden bu ustte" sorusunu doguruyor).
   /// ⚠️ Yeni bir uc ACILMADI: `/kesfet` zaten cagriliyordu.
+  /// TURU 175 — **ONERILEN ARAMALAR**.
+  ///
+  /// ⚠️⚠️ Baslik **"Trendler" DEGIL "Öneriler"**: projede arama sayaci
+  ///	YOK, yani bunlarin gercekten trend oldugunu gosteren HICBIR
+  ///	olcum yok. "Trendler" demek uydurma bir veri iddiasi olurdu
+  ///	(turu 135'te kur seridi TAM BU SEBEPLE silinmisti). Sabit
+  ///	bir oneri listesi olarak sunmak DURUSTTUR.
+  /// ⚠️ Icerik Gebze baglamina gore secildi ve `isletmeKategorileri`
+  ///	ile ortusuyor: dokunan kullanici BOS sonuc gormemeli.
+  static const _oneriler = <String>[
+    'yemek',
+    'hamburger',
+    'kahvaltı',
+    'kuaför',
+    'eczane',
+    'market',
+    'oto servis',
+    'spor salonu',
+  ];
+
+  /// Son arama / oneri satiri — **TEK KAYNAK**.
+  Widget _aramaSatiri({
+    required IconData ikon,
+    required String metin,
+    VoidCallback? sil,
+  }) {
+    final scheme = Theme.of(context).colorScheme;
+    return InkWell(
+      onTap: () async {
+        _kutu.text = metin;
+        _degisti(metin);
+        _odak.unfocus();
+        // ⚠️ Onerilerden secilen de bir ARAMADIR: gecmise girer ki
+        //    kullanici bir daha listenin basinda bulsun.
+        await tercihler.aramaEkle(metin);
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+        child: Row(
+          children: [
+            // ⚠️ Daire zemin: kullanici *"instagram aramasi gibi DAIRE"*
+            //    dedi; kisi sonuclarindaki avatarla ayni dil.
+            Container(
+              width: 38,
+              height: 38,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: scheme.onSurface.withValues(alpha: 0.08),
+              ),
+              child: Icon(ikon,
+                  size: 18,
+                  color: scheme.onSurface.withValues(alpha: 0.75)),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                metin,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                    fontSize: 15, fontWeight: FontWeight.w600),
+              ),
+            ),
+            // ⚠️ Silme YALNIZ son aramalarda: bir ONERIYI silmek
+            //    kullanicinin verisi degil, uygulamanin listesi olurdu.
+            if (sil != null)
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: sil,
+                child: SizedBox(
+                  width: 36,
+                  height: 36,
+                  child: Icon(LucideIcons.x,
+                      size: 16,
+                      color: scheme.onSurface.withValues(alpha: 0.5)),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _bolumBasligi(String ad, {VoidCallback? eylem, String? eylemAd}) {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 14, 8, 6),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              ad,
+              style: const TextStyle(
+                  fontSize: 15, fontWeight: FontWeight.w700),
+            ),
+          ),
+          if (eylem != null)
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: eylem,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 8, vertical: 4),
+                child: Text(
+                  eylemAd ?? '',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: scheme.onSurface.withValues(alpha: 0.6),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// ⚠️⚠️⚠️ TURU 175 — **ARAMA ONCESI ARTIK GONDERI IZGARASI DEGIL**
+  ///	(kullanici emri: *"aramada EN SON ARANANLAR ve trend
+  ///	aramalar olacak"*).
+  ///
+  /// ⚠️ Eski izgara govdesi (`_kesifIzgarasi` degil, buradaki gonderi
+  ///	listesi) `_eskiAramaOncesi` olarak DURUYOR: kesif icerigi
+  ///	geri istenirse tek satir. Bu dosyada da silme riski var.
   Widget _aramaOncesi() {
+    final son = tercihler.sonAramalar;
+    return ListView(
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+      children: [
+        if (son.isNotEmpty) ...[
+          _bolumBasligi('Son aramalar',
+              eylem: () async {
+                await tercihler.aramalariTemizle();
+                if (mounted) setState(() {});
+              },
+              eylemAd: 'Tümünü temizle'),
+          for (final q in son)
+            _aramaSatiri(
+              ikon: LucideIcons.clock,
+              metin: q,
+              sil: () async {
+                await tercihler.aramaSil(q);
+                if (mounted) setState(() {});
+              },
+            ),
+        ],
+        _bolumBasligi('Öneriler'),
+        for (final q in _oneriler)
+          _aramaSatiri(ikon: LucideIcons.search, metin: q),
+        const SizedBox(height: 24),
+      ],
+    );
+  }
+
+  // ignore: unused_element
+  Widget _eskiAramaOncesi() {
     // ⚠️ UC DURUM: yukleniyor · hata (TEKRAR DENE ile) · veri. Yalniz
     //    `_izgara.isEmpty` bakilsaydi istek PATLADIGINDA ekran SONSUZA KADAR
     //    spinner'da donerdi ve kurtarma yolu olmazdi.
