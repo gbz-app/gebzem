@@ -41,6 +41,118 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
       kaybettiriyorsun"*. **Üçüncüsü olmayacak.**
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
+- **KALDIGIMIZ YER (6 Eyl): TURU 171-173 KODU BITTI, iOS BUILD ALINIYOR.**
+  Arayuz/istemci turu: **BACKEND DEGISMEDI**, migration YOK, deploy YOK.
+  ✅ analyze **0/0** · test **86/86** · emulatorde tasma **0**.
+
+- 🌤️ ⚠️⚠️⚠️ **TURU 171 — HAVA + DOVIZ ARTIK GERCEK VERI** (kullanici emri:
+  *"aramanin soluna gunes ve derece, sagina dolar olsun; dolar euro sterlin
+  ve altin diye degissin 2 saniyede bir; tikladigimda alttan popup, hava
+  durumu 1 haftalik, dolari google piyasa gibi sol sag yapinca o gunun
+  degeri, telefon titremesi olsun"*).
+  **ONCEKI HAL UYDURMAYDI:** menudeki `24° · Gebze · Örnek` ve `43,20 Dolar
+  · Örnek` kartlari **koda gomulu sabitlerdi**; "Örnek" etiketi tam da bu
+  yuzden vardi. Turu 135'te `kur_serit.dart` (1457 satir) AYNI SEBEPLE
+  silinmisti. Yeni `mobile/lib/core/hava_doviz.dart` o boslugu kapatir.
+  📌 **KAYNAKLAR — UCU DE ANAHTARSIZ VE UCRETSIZ:**
+     · **Open-Meteo** — hava (7 gun + 168 saatlik). Kota YOK.
+     · **TCMB gunluk XML** — doviz **satis** kuru; grafik icin GECMIS var.
+     · **finans.truncgil.com/v4** — altin (13 kalem). ⚠️ Resmi DEGIL.
+  ⚠️⚠️ **TCMB'DE ALTIN YOKTUR** (olculdu): gunluk kur dosyasi yalniz doviz
+     icerir. Ceyrek/yarim/tam altin SERBEST PIYASA fiyatidir ve gram
+     altindan **HESAPLANAMAZ** (iscilik + arz/talep payi). Ayri kaynak sart.
+  ⚠️ Altin kaynagi **GECMIS VERI VERMIYOR** (tarihli adres 404) -> altin
+     GRAFIK degil **LISTE**; uydurma seri cizmek yerine gunluk DEGISIM %.
+  ⚠️ `ONS`/`BRENT`/`DBITCOIN` BILEREK DISARIDA: kaynak onlari **0**
+     donduruyor ve sifir bir fiyat degil EKSIK VERIDIR.
+
+- 📍 **TURU 171e — HAVA KONUMA DUYARLI, AMA IZIN ISTEMEDEN.**
+  Kullanici sordu: *"konuma gore verecek degil mi, yoksa Gebze genel mi"*.
+  Konum **SESSIZCE** okunur (`sessiz: true`); izin verilmemisse Gebze
+  merkez. Hava icin izin DIYALOGU acmak sert bir surtunme olurdu.
+  ⚠️⚠️ **IZGARA ONBELLEGI (0,05° ≈ 5,5 km):** ham GPS ile onbellek FIILEN
+     olur — her birkac metrede yeni anahtar. Izgara hucresi ile ayni
+     ilcedeki herkes TEK istegi paylasir. 📊 Ilceler arasi olculen fark
+     **1,2 °C** (yani konum duyarliligi anlamli).
+
+- 🕐 ⚠️⚠️ **TURU 171f — "USTTE 22°, SERITTE ŞIMDI 26°" CELISKISI.**
+  Saatlik seritte 1 saatlik TOLERANS vardi: saat **19:41** iken **19:00**
+  kaydi "Şimdi" sayiliyordu. Iki farkli buyukluk ayni etiketle yan yana
+  duruyordu — turu 168'in *"09:20 ama 7 dakika var"* hatasiyla **AYNI
+  SINIF**. FIX: gecmis saat TAMAMEN atlanir (`if (!an.isAfter(simdi))
+  continue`) ve seridin ILK kutusu **anlik deger**, saatlik tahmin DEGIL.
+
+- 🪙 **TURU 172 — ALTIN + PANELLERIN AYRILMASI** (kullanici: *"hava durumu
+  ile dolar vs AYRI olacak; dovizde altin da olmali, gram altina
+  tikladiginda ceyrek vb gorunmeli"*).
+  `havaPanelAc` / `dovizPanelAc` ayri; ortak kabuk `_sayfa`. Onceden ikisi
+  TEK sayfadaydi ve hava icin acan kur grafigini gormek zorundaydi.
+  · Cip dongusu: USD -> EUR -> GBP -> **ALTIN** (2 sn).
+  ⚠️ Altin verisi YOKSA adim ATLANIR (`_adim` dinamik): olmayan bir kalem
+     icin 2 saniye BOS cip gostermek yerine dongu yalniz dovizde doner.
+  ⚠️ Cipte altin **KURUSSUZ** (6.899): gram altin dort haneli ve kurusla
+     SABIT 88 dp kutuya SIGMIYOR (olculdu). Kutuyu buyutmek de olmaz —
+     sabit genislik tam da 2 saniyelik ZIPLAMAYI onlemek icin var (171c).
+
+- 🔎 **TURU 172 — ARAMA DAIRESI = CIP BOYU** (kullanici: *"arama dairesi
+  soldaki altin/hava durumu yuksekligi ile AYNI olsun, ikonu da ona gore"*).
+  ⚠️⚠️ `IconButton` Material'in **48 dp** dokunma tabanini DAYATIR; olcu
+     `constraints` + `minimumSize` + `padding` UCU BIRLIKTE verilmeden
+     kucultulemez (turu 157'de olculdu: yalniz `SizedBox` sarmak govdeyi
+     KIRPAR, olcuyu degistirmez).
+  ⚠️ Boy `havaCipBoy` **TEK KAYNAGINDAN** gelir ve metin olceginden
+     turetilir; ikon da ondan (yazi buyuyunce daire ve ikon birlikte buyur).
+
+- 📊 ⚠️⚠️⚠️ **TURU 173 — GRAFIK ARALIGI: Gun · Hafta · Ay · Yil** (kullanici:
+  *"para vs SAG TARAFTA gunluk haftalik aylik ve yillik gostersin"*).
+  Bunlar bir SURE degil **NOKTALARIN PERIYODU**: gunluk 14 is gunu ·
+  haftalik 13 hafta (Cuma) · aylik 14 ay (son is gunu) · yillik 7 yil.
+  ⚠️⚠️ **KAYNAK TEK: TCMB.** `frankfurter.dev` (ECB) bir yillik seriyi TEK
+     istekte veriyor ve COK cazipti; **KULLANILMADI**. Ekranin en buyuk
+     sayisi TCMB doviz satis kuru ve altinda "TCMB" yaziyor; grafik baska
+     bir kurumdan gelseydi ayni kartta **IKI FARKLI BUYUKLUK** yan yana
+     dururdu (turu 165/168'in *"saatler uymuyor"* sinifi).
+  📊 **OLCULDU: 20 nokta = 23 istek** (ort. 1,15; tatile denk gelen nokta
+     icin geriye 1-2 gun deneniyor; 2020'ye kadar calisiyor). 365 gunluk
+     dosya cekmek YAPILMADI — nokta periyodu tam da bunu onluyor.
+  ⚠️ Secici **YUKLEME SIRASINDA DA** cizilir: yalniz veri gelince
+     cizilseydi 'Yıl'a basan kullanicinin altinda secici KAYBOLUR ve
+     vazgecip geri donmenin hicbir yolu kalmazdi.
+  ⚠️ Aralik basina AYRI onbellek + aralik basina ucus kilidi + bayat yanit
+     kapisi (`_istek` nesli): 'Yıl' secilirken gec gelen 'Gun' yaniti
+     grafigi yanlis veriyle cizerdi (turu 141/144 sinifi).
+
+- ⚡ ⚠️⚠️⚠️ **TURU 173 — KOK NEDEN: HER ISTEKTE YENI `Dio` = YENI TLS.**
+  Yillik grafik emulatorde **30 SANIYEDEN UZUN** surdu. Sebep hedef sayisi
+  DEGIL: her `_tcmbGun`/`_havaCek`/`_altinCek` cagrisi `Dio(BaseOptions(
+  ...))` ile **YENI** bir istemci yaratiyordu; her istemci kendi
+  `HttpClient`ini kurar, yani **her istekte yeniden DNS + TLS el sikismasi**.
+  📊 **OLCULDU** (ayni 6 TCMB dosyasi, masaustu):
+       sirali + her seferinde yeni baglanti : **6.758 ms**
+       paralel + keep-alive                 : **1.090 ms**  (**6,2 kat**)
+  📊 **EMULATORDE SONUC:** yillik 7 nokta **506-893 ms** (once 30+ sn).
+  ⚠️ **YAPMA: cagri yerlerinde tekrar `Dio(...)` yaratma.** Istek basina
+     ayar gerekiyorsa `Options` ile ver — o havuzu BOZMAZ.
+  ⚠️⚠️ **DERS: bu hata TEK DOSYA cekilirken GORUNMUYORDU**; ancak 7-14
+     istek atan ILK ozellikte sahaya cikti. Yeni bir cok-istekli ozellik
+     yazarken once "istemci PAYLASILIYOR mu" diye sor.
+
+- 🟡 **TURU 173 — ALTIN: DIKEY LISTE -> YATAY SERIT** (kullanici: *"altin
+  dolar euro gibi altta olacak, TAM SAYFA DEGIL, altta gram vs SOL SAG
+  SCROLL olsun; ikon normal coin olsun TEK"*).
+  Gram altin USTTE buyuk, digerleri yatay kaydirilan kartlarda; panel
+  doviz sekmesiyle AYNI yukseklikte.
+  ⚠️⚠️ **KART BOYU `_altinKartBoy`, SABIT dp DEGIL.** Ilk yazimda satir
+     carpani **1.3** kullanildi ve emulatorde **"BOTTOM OVERFLOWED BY 4.0
+     PIXELS"** cikti: uygulamanin fontu Roboto DEGIL **Google Sans** ve
+     satir kutusu punto x **~1.44** geliyor (turu 121/135b/157'de olculen
+     ayni sinif). **1.45 + 2 dp pay**.
+  ⚠️ Seritte **KISA ad** ('Cumhuriyet altını' -> 'Cumhuriyet'): 132 dp
+     kartta tam ad kirpiliyordu. Bolumun basligi ZATEN 'Altın'; her kartta
+     'altın' yazmak bilgi TASIMIYOR. ⚠️ 'Gümüş' DOKUNULMAZ (altin degil).
+  ⚠️ Ikon `coins` -> **`circleDollarSign`**; `coins` IKI sikke cizer.
+     Lucide'da tek sikke icin baska aday YOK (tarandi).
+
 - **KALDIGIMIZ YER (5 Eyl 14:44): TURU 170c+170d YAYINLANDI — SADECE iOS.**
   ios **33963683229** (**28e2d9b**), R2 ipa=31097406 (md5 4e9685df),
   index=7967 (17717d50) surum.json=45 (b5b937e3), purge OK, CDN BIREBIR.
