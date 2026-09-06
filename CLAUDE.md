@@ -41,6 +41,21 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
       kaybettiriyorsun"*. **Üçüncüsü olmayacak.**
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
+- **KALDIGIMIZ YER (6 Eyl 18:16): TURU 180d+180e YAYINLANDI — SADECE iOS.**
+  ios **34041313257** (**e856fb8**), R2 ipa=**31928388** (md5 4fa0be0d),
+  index=7967 (445c9e3f) surum.json=45 (6bd603f9), purge OK, **CDN BIREBIR**
+  (ucu de), `get-task-allow: false`, `MapsApiKey` VAR.
+  ✅ **GOOGLE SANS GERI**: IPA 28,9 -> **31,9 MB**, paketde
+  `flutter_assets/assets/fonts/` **4 ttf VAR**; `assets/marka` 8/8 VAR.
+  IPAda dizeler VAR: `Yapay zekâ yorumu` · `Henüz gönderi yok` ·
+  `Deneyimini paylaş` · `Özellikler` · `Ödeme seçenekleri` · `İş İlanları` ·
+  `Yorumunu yaz` · `Hangi gün?` · `Saat seç`. Kontrol dizesi `Yakınımda` VAR.
+  ⚠️ **ADRES:** https://indir.gebzem.app/index.html?v=20260906-1816
+  Arayuz turu: **BACKEND DEGISMEDI** (899201c canlida), migration YOK,
+  deploy YOK, **DB TRUNCATE EDILMEDI** (McDonald's `onayli` bayragi duruyor).
+  ✅ analyze **0/0** · test **86/86** · emulatorde profil + yorumlar +
+     rezervasyon (adim 1 ve 2) **gozle dogrulandi**.
+
 - ⚠️⚠️⚠️ **TURU 180d — EN AGIR HATAM: GOOGLE SANS'I KALDIRDIM.**
   Kullanici turu 179'da *"yazilarda hic bir sekilde OZEL BIRSEY
   kullanilmasin, DEFAULT olarak yazi tipleri vs olsun"* dedi; ben bunu
