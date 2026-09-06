@@ -269,10 +269,7 @@ class _UrunKatalogEkraniState extends ConsumerState<UrunKatalogEkrani> {
                         style: TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w800,
-                          color: Theme.of(context)
-                              .colorScheme
-                              .onSurface
-                              .withValues(alpha: 0.75),
+                          color: _ks.onSurface.withValues(alpha: 0.75),
                         ),
                       ),
                     ),
@@ -296,10 +293,7 @@ class _UrunKatalogEkraniState extends ConsumerState<UrunKatalogEkrani> {
           decoration: InputDecoration(
             hintText: '${widget.modul.ad} içinde ara',
             filled: true,
-            fillColor: Theme.of(context)
-                .colorScheme
-                .onSurface
-                .withValues(alpha: 0.07),
+            fillColor: _ks.onSurface.withValues(alpha: 0.07),
             prefixIcon: const Padding(
               padding: EdgeInsets.only(left: 16, right: 10),
               child: Icon(LucideIcons.search, size: 21),
