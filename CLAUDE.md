@@ -41,7 +41,71 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
       kaybettiriyorsun"*. **Üçüncüsü olmayacak.**
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
-- **KALDIGIMIZ YER (6 Eyl 20:04): TURU 180f+180g YAYINLANDI — SADECE iOS.**
+- **KALDIGIMIZ YER (7 Eyl): TURU 180j KODU BITTI, iOS BUILD ALINIYOR (34130249330).**
+  Arayuz turu: **BACKEND DEGISMEDI**, migration YOK, deploy YOK, DB TRUNCATE YOK.
+  ✅ analyze **0/0** · test **86/86** · emulatorde gozle dogrulandi.
+
+- 🔀 ⚠️⚠️⚠️ **TURU 180j — "SAYFA TAKILIYOR"UN KOK NEDENI: PROFILDE IKI
+  DIKEY KAYDIRMA ALANI VARDI.**
+  Turu 115'in `PageView`i **SABIT yukseklikli** (`ekran * 0.62`) bir kutuydu ve
+  her sayfasi KENDI `ListView`iydi (`_sekmeSayfasi`). Yani dis liste (kapak +
+  baslik + sayaclar + AI karti + dugmeler + serit) ile ic liste (gonderi
+  izgarasi) AYRI AYRI kayiyordu; parmak izgaranin uzerindeyken surukleme
+  ICTEKINE gidiyor ve o kendi ucuna gelene kadar dis liste KIMILDAMIYORDU.
+  **FIX:** `PageView` · `_sayfaBoyu` · `_sayfaCtrl` · `_sekmeSayfasi` KALKTI;
+  secili sekmenin icerigi dis listenin **DOGRUDAN cocugu** (`_icerikAlani`).
+  `_izgara` (`shrinkWrap`+`NeverScrollable`) ve `_ilanListesi` (`Column`)
+  zaten kaydirilamaz -> sayfada **TEK** kaydirilabilir alan kaldi.
+  ⚠️ Yatay gecis KAYBOLMADI: turu 114'un `onHorizontalDragEnd` desenine
+     donuldu (esik 120 px/sn). Kaybedilen tek sey icerigin parmagi TAKIP
+     ETMESI.
+  ⚠️⚠️ **YAN KAZANC:** kullanicinin *"sirayla gecmesin, tikladigim direk
+     gelsin"* istegi de burada cozuldu — `animateToPage` ara sayfalari
+     cizerek geciyordu. Turu 180e/180g'nin "serit ile sayfa ayrisiyor"
+     sinifi da YAPISAL OLARAK bitti (cizilen tek sey `_sekme`).
+  ⚠️ **YAPMA:** buraya tekrar sabit yukseklikli bir `PageView` ya da kendi
+     `ListView`ini kuran bir sekme sayfasi koyma.
+  ⚠️ `_bosDurum`daki `SizedBox(height: _gorunurSerit(...))` ARTIK HAYATI:
+     blok dis `ListView`in cocugu, yani dikey kisit SINIRSIZ ve `Center`
+     orada ORTALAYAMAZ (turu 180e dersi).
+
+- 🔄 ⚠️⚠️ **TURU 180j — BOS SEKMEDE YENILEME YOLU FIILEN YOKTU.**
+  Turu 180e bos sekmede `NeverScrollableScrollPhysics` kullaniyordu; ama
+  `RefreshIndicator` bir **overscroll bildirimiyle** tetiklenir ve o fizik
+  bildirimi **HIC uretmez** -> gonderisi olmayan her profilde asagi-cek
+  yenileme calismiyordu (turu 82b/83b'de dort kardes ekranda kapatilan
+  sinifin bu ekranda geri gelmis hali).
+  ⚠️ Turu 180e'nin gerekcesi ("cekince bos alan gorunuyordu")
+     `ClampingScrollPhysics` sayesinde ZATEN gecersiz: icerik YERINDE kalir,
+     yalnizca yenileme dairesi iner.
+  · `core/yenile.dart`: uc nokta `top: 18` SABITTI ve
+    `extendBodyBehindAppBar` kullanan profilde **durum cubugunun arkasina**
+    dusuyordu -> `MediaQuery.paddingOf(context).top + 14`.
+
+- 🍔 **TURU 180j — MENU MESAJIN SAGINDA, REZERVASYON PROFILDEN CIKTI.**
+  Turu 180h'te rezervasyon Mesaj'in sagindaydi, Menü alttaki YUZEN HAPTA.
+  Simdi Menü o satira gecti, rezervasyon CIKARILDI ve **hap tamamen kalkti**
+  (tasidigi tek dugme Menü idi). Bu ayni zamanda `_gorunurSerit`teki "hap
+  kadar yukari it" hesabini da gereksiz kildi.
+  ⚠️ Etiket SUNUCUDAN (`i.modul.ad` -> Menü / Odalar / Hizmetler).
+  ⚠️ `_menuRezervasyon` + `_gecisDugmesi` govdeleri `ignore: unused_element`
+     ile DURUYOR (bu dosyada uye silmek BES kez komsu uyeyi goturdu).
+  ⚠️ `body: Stack` TEK COCUKLU kaldi — BILEREK: kaldirmak 230 satirlik
+     yeniden girintileme demek ve bu repoda `dart format` KOSTURULMAZ.
+
+- 📋 **TURU 180j — ILAN KARTI:** medyasi olmayan ilanda **ISLETMENIN LOGOSU**
+  cizilir (sira: ilanin kendi medyasi > isletme avatari > notr ikon;
+  `BoxFit.contain` cunku logo cogu zaman KARE DEGIL, `kucuk: true` cunku ham
+  avatar 1600x1600 olabiliyor) · konum ikonu `mapPin` -> **`navigation`** ·
+  liste basina **9 dp** ust bosluk (ilk ilan serit ayiricisina yapisiyordu).
+
+- ✅ **TURU 180j — `Beğeniler` ZATEN REELS'IN SAGINDAYDI** (kullanici
+  "ekle" dedi). Enum sirasi `... reels, begeni, ...` ve `_sekmeler` onu
+  `_benimMi` ise cizer; emulatorde dogrulandi. **ISLETME profilinde
+  GORUNMEZ ve bu BILINCLI**: uc `/users/me/begeniler`, baskasinin neyi
+  begendigi GIZLIDIR.
+
+- **ONCEKI (6 Eyl 20:04): TURU 180f+180g YAYINLANDI — SADECE iOS.**
   ios **34046901124** (**0164911**), R2 ipa=**31929742** (md5 3441e758),
   index=7967 (bb6625ed) surum.json=45 (eefbc01a), purge OK, **CDN BIREBIR**
   (ucu de), `get-task-allow: false`, `MapsApiKey` VAR, 4 ttf + 8 marka pakette.
