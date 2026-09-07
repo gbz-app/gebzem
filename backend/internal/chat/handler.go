@@ -913,7 +913,9 @@ func (h *Handler) medyayiKopar(ctx context.Context, mediaID string) {
 		SELECT (SELECT count(*) FROM messages WHERE media_id=$1)
 		     + (SELECT count(*) FROM users WHERE avatar_media_id=$1
 		                                      OR kapak_media_id=$1)
-		     + (SELECT count(*) FROM chats WHERE avatar_media_id=$1)`,
+		     + (SELECT count(*) FROM chats WHERE avatar_media_id=$1)
+		     + (SELECT count(*) FROM isletmeler
+		         WHERE $1 = ANY(kapak_medyalari))`,
 		mediaID).Scan(&kalan); err != nil {
 		return
 	}

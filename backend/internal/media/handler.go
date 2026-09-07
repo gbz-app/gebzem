@@ -504,6 +504,32 @@ func (h *Handler) erisebilir(ctx context.Context, userID, mediaID string) bool {
 		return true
 	}
 
+	// ⚠️⚠️⚠️ TURU 180k — (b2) **ISLETME KAPAK SLIDERI** (migration 051).
+	//
+	//	Bu dal ILK YAZIMDA UNUTULDU ve sonucu EMULATORDE ANINDA gorundu:
+	//	kapak videosu **"Video açılamadı"** diye cizildi. Sebep tam olarak
+	//	yukaridaki (b) dalinin serhinde anlatilan sey: cagiran kapi
+	//	`if sahip != userID && !erisebilir(...)` seklinde, yani YUKLEYEN
+	//	kisa devreyle gorur; **baska HERKESE 403**. McDonald's hesabiyla
+	//	bakilsa SORUN GORUNMEZDI.
+	//	Bu, CLAUDE.md'de yazili "YENI BIR MEDYA SUTUNU EKLERKEN
+	//	`erisebilir()` dalini da guncelle" kuralinin DORDUNCU tekrari
+	//	(turu 75b akis · 77 hikaye · 78 kapak · 78b grup avatari).
+	//
+	// ⚠️ `= ANY(kapak_medyalari)` — sutun `TEXT[]` ve `mediaID` de metin,
+	//	yani CAST GEREKMEZ. `::uuid` eklemek turu 113'teki `favorim`
+	//	hatasinin aynisini uretirdi (uuid = text -> TUM SORGU 500).
+	// ⚠️ Gizlilik/engel kapisi YOK — (b) dalinin AYNISI: bu bir isletme
+	//	PROFIL gorseli ve isletme profilleri herkese acik.
+	h.db.QueryRow(ctx, `
+		SELECT EXISTS(
+		  SELECT 1 FROM isletmeler
+		   WHERE $1 = ANY(kapak_medyalari))`,
+		mediaID).Scan(&varMi)
+	if varMi {
+		return true
+	}
+
 	// ⚠️⚠️⚠️ TURU 75b (DENETIM BULGUSU — SEVK ENGELIYDI): (c) GONDERI MEDYASI.
 	//
 	// Bu dal EKSIKTI ve sonucu sinsiydi: akis SADECE `media_ids` donduruyor,

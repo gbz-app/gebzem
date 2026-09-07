@@ -816,7 +816,9 @@ func (h *Handler) medyayiKopar(ctx context.Context, mediaID string) {
 		         WHERE $1 = ANY(media_ids) AND durum='yayinda')
 		     + (SELECT count(*) FROM channel_posts
 		         WHERE $1 = ANY(media_ids) AND durum='yayinda')
-		     + (SELECT count(*) FROM channels WHERE avatar_media_id=$1)`,
+		     + (SELECT count(*) FROM channels WHERE avatar_media_id=$1)
+		     + (SELECT count(*) FROM isletmeler
+		         WHERE $1 = ANY(kapak_medyalari))`,
 		mediaID).Scan(&kalan); err != nil || kalan > 0 {
 		return
 	}

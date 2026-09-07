@@ -175,7 +175,8 @@ async function medyaYukle(token, yol, tur) {
     process.exit(1);
   }
   const token = giris.d.token;
-  const benim = giris.d.user?.id;
+  // ⚠️ Login yaniti `{token, user_id}` doner (`user:{id}` DEGIL — olculdu).
+  const benim = giris.d.user_id;
   console.log(`giris OK (${benim})`);
 
   // ⚠️⚠️ MEVCUT ISLETME BILGISI **ONCE OKUNUR** ve PUT'a AYNEN geri gonderilir.
