@@ -10083,3 +10083,82 @@ Adres: https://indir.gebzem.app/index.html?v=20260906-2108
 ### ✅ Dogrulama
 `flutter analyze` **0/0** · `flutter test` **86/86** · emulatorde anasayfa ·
 Yemek · isletme profili gozle dogrulandi, logcat tasma **0**.
+
+---
+
+## Oturum — Turu 180j (7 Eylul 2026)
+
+Kullanici emri (tek mesaj): *"isletme profilinde menuyu mesaj butonun saginda
+koy, rezervasyonu kaldir; birde sayfa yukari asagi TAKILIYOR, gonderi alaninda
+yukari asagi cekme var bunu kaldir, yukari asagi NORMAL bir sekilde olsun;
+yukaridan asagi cekme olsun, LOADING ekranda olsun, yenilesin"* + ikinci mesaj:
+*"is ilanlarinda ilk ilan yukari cok dayanmis boslugu ayarla; ilanlardaki
+resimler markanin logosu olacak; konumlar navigator konum olacak; begenilenler
+alani olsun reels ikonunun saginda; gonderi resim gecislerinde patlamalar var,
+sirayla gecmesin tikladigim direk gelsin"*.
+
+### ⚠️⚠️⚠️ "TAKILIYOR"UN KOK NEDENI: SAYFADA IKI DIKEY KAYDIRMA ALANI VARDI
+Turu 115'te eklenen `PageView` **sabit yukseklikli** bir kutuydu
+(`ekran * 0.62`) ve her sayfasi KENDI `ListView`iydi (`_sekmeSayfasi`). Yani:
+- dis liste: kapak + baslik + sayaclar + AI karti + dugmeler + sekme seridi
+- ic liste: gonderi izgarasi
+
+Parmak izgaranin uzerindeyken surukleme **ICTEKINE** gidiyor; ic liste kendi
+ucuna gelene kadar dis liste KIMILDAMIYORDU. Kullanicinin "takiliyor" dedigi
+sey tam olarak bu ic ice kaydirma catismasi.
+**FIX:** `PageView` + `_sayfaBoyu` + `_sayfaCtrl` + `_sekmeSayfasi` KALKTI;
+secili sekmenin icerigi dis listenin **DOGRUDAN cocugu** (`_icerikAlani`).
+`_izgara` (`shrinkWrap` + `NeverScrollable`) ve `_ilanListesi` (`Column`)
+zaten kaydirilamaz -> sayfada TEK kaydirilabilir alan kaldi.
+⚠️ Yatay gecis KAYBOLMADI: turu 114'un `onHorizontalDragEnd` desenine donuldu
+(hiz esigi 120 px/sn). Kaybedilen tek sey icerigin parmagi TAKIP ETMESI.
+⚠️ **YAN KAZANC:** kullanicinin *"sirayla gecmesin, tikladigim direk gelsin"*
+istegi de burada cozuldu — `animateToPage` ara sayfalari cizerek geciyordu.
+⚠️ Turu 180e/180g'nin "serit ile sayfa ayrisiyor" sinifi da YAPISAL OLARAK
+bitti: cizilen tek sey `_sekme`.
+⚠️ YAPMA: buraya tekrar sabit yukseklikli bir `PageView` ya da kendi
+`ListView`ini kuran bir sekme sayfasi koyma.
+
+### ⚠️⚠️ BOS SEKMEDE YENILEME YOLU FIILEN YOKTU
+Turu 180e bos sekmede `NeverScrollableScrollPhysics` kullaniyordu. Ama
+`RefreshIndicator` bir **overscroll bildirimiyle** tetiklenir ve o fizik
+bildirimi **HIC uretmez** -> gonderisi olmayan her profilde asagi-cek
+yenileme calismiyordu (turu 82b/83b'de dort kardes ekranda kapatilan sinifin
+bu ekranda geri gelmis hali). Turu 180e'nin gerekcesi ("cekince bos alan
+gorunuyordu") `ClampingScrollPhysics` sayesinde ZATEN gecersizdi: icerik
+YERINDE kalir, yalnizca yenileme dairesi iner.
+
+### 🔄 YENILEME GOSTERGESI GUVENLI ALANDAN
+`core/yenile.dart` uc noktayi `top: 18` ile SABIT konumluyordu ve
+`extendBodyBehindAppBar` kullanan profil ekraninda **durum cubugunun
+(saat/pil) arkasina** dusuyordu. Artik `MediaQuery.paddingOf(context).top + 14`.
+
+### 🍔 MENU MESAJIN SAGINDA, REZERVASYON YOK
+Turu 180h'te REZERVASYON Mesaj'in sagindaydi, Menü alttaki yuzen haptaydi.
+Simdi Menü o satira gecti, rezervasyon profilden TAMAMEN cikti ve **yuzen hap
+kalkti** (tasidigi tek dugme Menü idi). Bu ayni zamanda `_gorunurSerit`teki
+"hap kadar yukari it" hesabini da gereksiz kildi.
+⚠️ Etiket SUNUCUDAN (`i.modul.ad` -> Menü / Odalar / Hizmetler).
+⚠️ `_menuRezervasyon` + `_gecisDugmesi` govdeleri `ignore: unused_element` ile
+DURUYOR (bu dosyada uye silmek BES kez komsu uyeyi goturdu).
+
+### 📋 ILAN KARTI
+- **Medyasi olmayan ilanda ISLETMENIN LOGOSU** cizilir (sira: ilanin kendi
+  medyasi > isletme avatari > notr ikon). `BoxFit.contain` + `kucuk: true`
+  (logo cogu zaman kare DEGIL; ham avatar 1600x1600 olabiliyor).
+- Konum ikonu `mapPin` -> **`navigation`** (kullanici emri).
+- Liste basina **9 dp** ust bosluk (ilk ilan serit ayiricisina yapisiyordu).
+
+### ✅ Begeniler sekmesi ZATEN dogru yerdeydi
+`ProfilSekmesi` enum sirasi `... reels, begeni, ...` ve `_sekmeler` onu
+`_benimMi` ise cizer. Emulatorde dogrulandi: kendi profilde serit
+**Gonderiler · Fotograf · Reels · ❤️ Begeniler · 🏷️ Ilanlarim**.
+Kullanici muhtemelen ISLETME profiline bakiyordu — orada gorunmez ve bu
+BILINCLI: uc `/users/me/begeniler`, baskasinin neyi begendigi GIZLIDIR.
+
+### ✅ Dogrulama
+`flutter analyze` **0 hata 0 uyari** · `flutter test` **86/86** · emulatorde
+gozle: isletme profilinde tek parca kaydirma (takilma YOK), Menü Mesaj'in
+saginda, rezervasyon yok, yuzen hap yok, is ilaninda logo + navigator ikonu +
+ust bosluk, yenileme noktalari durum cubugunun ALTINDA, kendi profilinde bos
+durum ORTALANMIS ve alt menunun arkasinda DEGIL.
