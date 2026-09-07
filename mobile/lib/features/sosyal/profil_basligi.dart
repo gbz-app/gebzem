@@ -178,7 +178,14 @@ class ProfilBasligi extends StatelessWidget {
     //    Bos ise (kisisel hesap ya da slideri doldurulmamis isletme) asagidaki
     //    ESKI davranis aynen kosar — sahadaki hicbir profil bozulmaz.
     if (kapakMedyalari.isNotEmpty) {
-      return KapakSlider(medyaIds: kapakMedyalari, turler: kapakTurleri);
+      // ⚠️ `altPay`: kapagin alt `_tasma` kadari avatar + koyu sayfa
+      //    tarafindan ORTULUYOR; noktalar orada cizilirse GORUNMEZ
+      //    (emulatorde olculdu).
+      return KapakSlider(
+        medyaIds: kapakMedyalari,
+        turler: kapakTurleri,
+        altPay: _tasma + 10,
+      );
     }
     final id = p.kapakMediaId;
     if (id != null && id.isNotEmpty) {

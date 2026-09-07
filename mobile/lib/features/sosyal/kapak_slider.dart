@@ -27,7 +27,18 @@ class KapakSlider extends StatefulWidget {
     super.key,
     required this.medyaIds,
     required this.turler,
+    this.altPay = 10,
   });
+
+  /// Nokta gostergesinin ALTTAN payi.
+  ///
+  /// ⚠️⚠️ TURU 180k — **SABIT 10 YETMEZ, EMULATORDE OLCULDU.** Kapagin alt
+  ///	~52 dp'si avatarin tasmasi ve KOYU SAYFANIN ust kenari tarafindan
+  ///	ORTULUYOR (`ProfilBasligi._tasma`); `bottom: 10` ile noktalar tam
+  ///	o gorunmez seride dusuyor ve ekranda **HIC gorunmuyorlardi**.
+  /// ⚠️ Deger cagri yerinden gelir (`_tasma + 10`): burada sabit yazilsaydi
+  ///	`_tasma` degistiginde sessizce yine kaybolurlardi.
+  final double altPay;
 
   /// Sunucudan gelen medya id listesi (`isletmeler.kapak_medyalari`).
   final List<String> medyaIds;
@@ -127,11 +138,16 @@ class _KapakSliderState extends State<KapakSlider> {
             child: _slayt(i),
           ),
         ),
+        // ⚠️⚠️ TURU 180k — **SAGA HIZALI, ORTADA DEGIL** (emulatorde IKI KEZ
+        //	olculdu). Ortalandiginda noktalar AVATARIN TAM ARKASINDA
+        //	kaliyordu: avatar da yatayda ortali ve dikeyde tam kapagin alt
+        //	kenarina oturuyor, yani "alttan pay ver" duzeltmesi onlari
+        //	avatarin merkezine tasidi. Sagda hicbir sey yok — geri oku
+        //	SOLDA, yardim/hamburger YUKARIDA.
         if (ids.length > 1)
           Positioned(
-            left: 0,
-            right: 0,
-            bottom: 10,
+            right: 16,
+            bottom: widget.altPay,
             // ⚠️ `IgnorePointer`: noktalar SUS, dokunulabilir degil. Aksi
             //    halde kapaga dokunmak isteyen kullanicinin dokunusunu
             //    yutarlardi.
@@ -174,7 +190,9 @@ class _KapakSliderState extends State<KapakSlider> {
   }
 
   Widget _noktalar(int aktif, int adet) => Row(
-        mainAxisAlignment: MainAxisAlignment.center,
+        // ⚠️ `min` ZORUNLU: `Positioned(right:)` ile konumlandiginda `Row`
+        //    genislik kisiti almaz; `max` olsaydi sinirsiz kisitta PATLARDI.
+        mainAxisSize: MainAxisSize.min,
         children: [
           for (var k = 0; k < adet; k++)
             AnimatedContainer(
