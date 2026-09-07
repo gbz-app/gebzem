@@ -15,6 +15,8 @@ import '../home/profil_duzenle.dart';
 // ⚠️ Konum alma TEK KAYNAK (turu 81) — izin/servis kontrolu orada.
 import '../medya/konum_servisi.dart';
 import 'isletme_servisi.dart';
+import 'kategori_kabuk.dart' show KabukAdimSeridi;
+import '../../core/theme.dart' show kKoyuTema, koyuSayfa, kAiZemin;
 
 /// ⚠️⚠️ TURU 77 — ISLETME PROFILINE GEC / BILGILERI DUZENLE.
 ///
@@ -35,6 +37,11 @@ class IsletmeDuzenleEkrani extends ConsumerStatefulWidget {
 }
 
 class _IsletmeDuzenleEkraniState extends ConsumerState<IsletmeDuzenleEkrani> {
+  /// ⚠️⚠️ TURU 180n — renkler `kKoyuTema`dan (bkz. `build` serhi): `Theme.of`
+  ///	cagiran State metotlari `koyuSayfa`nin koydugu temayi GORMEZ
+  ///	(turu 135c/138/178/180m — bu projede YEDINCI tekrari).
+  ColorScheme get _ks => kKoyuTema.colorScheme;
+
   final _adres = TextEditingController();
   final _il = TextEditingController();
   final _ilce = TextEditingController();
@@ -402,37 +409,96 @@ class _IsletmeDuzenleEkraniState extends ConsumerState<IsletmeDuzenleEkrani> {
         if (didPop) return;
         if (_sihirbaz && _adim > 0) setState(() => _adim--);
       },
-      child: Scaffold(
-      appBar: AppBar(
-        title: Text(_zatenIsletme ? 'İşletme bilgileri' : 'İşletme hesabı'),
-        // ⚠️ Sihirbazda ilerleme cubugu: kullanici KAC ADIM kaldigini
-        //    gorsun (turu 91 talep sihirbaziyla ayni dil).
-        bottom: _sihirbaz
-            ? PreferredSize(
-                preferredSize: const Size.fromHeight(4),
-                child: LinearProgressIndicator(
-                  value: (_adim + 1) / _adimSayisi,
+      // ⚠️⚠️⚠️ TURU 180n — **MEVCUT ARAYUZ DILI** (kullanici: *"isletme
+      //	profilinin tum asamalarini, STEPLERI mevcut arayuzumuz gibi
+      //	duzenle"*).
+      //
+      //	ESKI HAL: Material `AppBar` + `LinearProgressIndicator` + tema
+      //	duyarli beyaz zemin. Menuden acilan her kategori ekrani
+      //	`KategoriKabugu` dilini (44 dp sabit header, geri oku) kullanirken
+      //	bu ekran BASKA BIR UYGULAMADAN gelmis gibi duruyordu.
+      // ⚠️ Ilerleme cubugu -> `KabukAdimSeridi`: rezervasyon sihirbaziyla
+      //	AYNI dil (numarali daire + ✓ + baglayici cubuk).
+      // ⚠️ `KategoriKabugu`nun KENDISI kullanilmadi: o `CustomScrollView` +
+      //	sliver bekliyor; bu ekran duz bir `ListView` formu ve `PopScope` +
+      //	alt cubuk tasiyor. HEADER DILI taklit edildi, kabuk degil.
+      // ⚠️⚠️ TURU 180n — `DefaultTextStyle` ZORUNLU: renk BELIRTMEYEN
+      //	metinler (aciklama paragrafi, alt cubuk etiketi) rengini
+      //	ortamdaki `DefaultTextStyle`dan alir; o da State context'inden,
+      //	yani `koyuSayfa`nin USTUNDEN geliyordu ve siyah zemine KOYU GRI
+      //	ciziliyordu (turu 180m arama ekraninda birebir olculdu).
+      child: koyuSayfa(Builder(
+        builder: (bc) => DefaultTextStyle(
+          style: Theme.of(bc).textTheme.bodyMedium!,
+          child: Scaffold(
+        backgroundColor: kAiZemin,
+        bottomNavigationBar: _sihirbaz ? _adimCubugu() : null,
+        body: SafeArea(
+          bottom: false,
+          child: Column(
+            children: [
+              _header(context),
+              if (_sihirbaz)
+                KabukAdimSeridi(
+                  adlar: _adimAdlari,
+                  adim: _adim,
+                  onAdimaGit: (i) => setState(() => _adim = i),
                 ),
-              )
-            : null,
-        actions: [
-          // ⚠️ Sihirbazda ust "Kaydet" YOK: kullanici ikinci adimdayken
-          //    kaydetmesin — form YARIM giderdi ve kayit TEK istektir.
-          if (!_sihirbaz)
-            TextButton(
-              onPressed: _kaydediliyor ? null : _kaydet,
-              child: const Text('Kaydet'),
-            ),
-        ],
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                  children: _sihirbaz ? _adimGovde() : _tumGovde(),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
-      bottomNavigationBar: _sihirbaz ? _adimCubugu() : null,
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: _sihirbaz ? _adimGovde() : _tumGovde(),
-      ),
-      ),
+        ),
+      )),
     );
   }
+
+  /// 44 dp sabit header — `KategoriKabugu` ile AYNI olculer.
+  ///
+  /// ⚠️ Sag kosede sihirbaz DISINDA "Kaydet" durur; sihirbazda YOK —
+  ///	kullanici ikinci adimdayken kaydetmesin, kayit TEK ISTEKTIR ve
+  ///	form YARIM giderdi.
+  /// ⚠️ Geri `maybePop`: sihirbazda `PopScope` bunu yakalayip bir ONCEKI
+  ///	ADIMA doner (ekrani kapatmaz) — doldurulmus form kaybolmasin.
+  Widget _header(BuildContext c) => SizedBox(
+        height: 44,
+        child: Stack(
+          children: [
+            Align(
+              alignment: Alignment.centerLeft,
+              child: IconButton(
+                icon: const Icon(LucideIcons.arrowLeft),
+                tooltip: 'Geri',
+                onPressed: () => Navigator.of(c).maybePop(),
+              ),
+            ),
+            Center(
+              child: Text(
+                _zatenIsletme ? 'İşletme bilgileri' : 'İşletme hesabı',
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  height: 1.0,
+                ),
+              ),
+            ),
+            if (!_sihirbaz)
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: _kaydediliyor ? null : _kaydet,
+                  child: const Text('Kaydet'),
+                ),
+              ),
+          ],
+        ),
+      );
 
   /// Sihirbazin ALT CUBUGU — geri / devam / bitir.
   ///
@@ -455,21 +521,9 @@ class _IsletmeDuzenleEkraniState extends ConsumerState<IsletmeDuzenleEkrani> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
-            '${_adim + 1}/$_adimSayisi · ${_adimAdlari[_adim]}',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            // ⚠️ TURU 114 (denetim) — alfa 0.6 acik temada **4.35:1**;
-            //    12 px normal metin icin esik 4.5:1. 0.75'e cikarildi.
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: Theme.of(
-                context,
-              ).colorScheme.onSurface.withValues(alpha: 0.75),
-            ),
-          ),
-          const SizedBox(height: 6),
+          // ⚠️ TURU 180n — '1/3 · Temel bilgiler' satiri KALDIRILDI:
+          //    ayni bilgi artik ustteki `KabukAdimSeridi`nde (numarali
+          //    daire + ad) duruyordu, yani EKRANDA IKI KEZ yaziyordu.
           Row(
         children: [
           if (_adim > 0)
@@ -571,9 +625,7 @@ class _IsletmeDuzenleEkraniState extends ConsumerState<IsletmeDuzenleEkrani> {
           // ⚠️ TURU 114 (denetim) — alfa 0.6 acik temada 4.35:1 (esik 4.5).
           style: TextStyle(
             fontSize: 13,
-            color: Theme.of(
-              context,
-            ).colorScheme.onSurface.withValues(alpha: 0.75),
+            color: _ks.onSurface.withValues(alpha: 0.75),
           ),
         ),
       ),
@@ -625,7 +677,7 @@ class _IsletmeDuzenleEkraniState extends ConsumerState<IsletmeDuzenleEkrani> {
     Set<String> secili,
   ) {
     if (ogeler.isEmpty) return const SizedBox.shrink();
-    final scheme = Theme.of(context).colorScheme;
+    final scheme = _ks;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -684,7 +736,7 @@ class _IsletmeDuzenleEkraniState extends ConsumerState<IsletmeDuzenleEkrani> {
         fontWeight: FontWeight.w700,
         // ⚠️ TURU 113 — `letterSpacing` KALDIRILDI (kullanici emri).
         // ⚠️ TURU 114 (denetim) — alfa 0.6 -> 0.75 (kontrast).
-        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.75),
+        color: _ks.onSurface.withValues(alpha: 0.75),
       ),
     ),
     const SizedBox(height: 6),
@@ -733,7 +785,7 @@ class _IsletmeDuzenleEkraniState extends ConsumerState<IsletmeDuzenleEkrani> {
             fontSize: 12.5,
             height: 1.4,
             color: belirlendi
-                ? Theme.of(context).colorScheme.primary
+                ? _ks.primary
                 : Colors.grey,
           ),
         ),

@@ -738,3 +738,126 @@ class KabukKucukSerit extends StatelessWidget {
     );
   }
 }
+
+/// ⚠️⚠️⚠️ TURU 180n — **ORTAK ADIM SERIDI** (kullanici: *"isletme profilinin
+/// tum asamalarini, STEPLERI mevcut arayuzumuz gibi duzenle"*).
+///
+/// Numarali daire + gecilmiste ✓ + aralarda baglayici cubuk. Isletme hesabi
+/// sihirbazi bugune kadar Material `LinearProgressIndicator` kullaniyordu —
+/// uygulamanin geri kalaniyla ayni dili KONUSMUYORDU.
+///
+/// ⚠️ Gecilmis adimlar TIKLANABILIR (geri donus), gelecek adimlar DEGIL:
+///	ileri atlamak, atlanan adimin alanlarini BOS gonderirdi.
+/// ⚠️⚠️ **CUBUKLAR `start` + `top` ILE HIZALANIR, `end`+`bottom` DEGIL**
+///	(turu 180e dersi): satirin yuksekligi ETIKET METNINDEN, yani YAZI
+///	OLCEGINDEN gelir; alttan hizalanan cubuklar buyuk yazida dairelerin
+///	ALTINDA kalirdi. Daire 26 dp SABIT oldugu icin `(26-3)/2 = 11,5`
+///	olcekten BAGIMSIZ.
+/// ⚠️ Baglayici `Expanded`: sabit genislik dar ekranda RenderFlex tasmasi
+///	uretirdi.
+///
+/// ⏳ **DURUST SINIR:** `randevu_al.dart` icinde bunun bir KARDESI var
+///	(`_adimSeridi`) ve o DOKUNULMADI — calisan, sinanmis bir ekran ve
+///	ayni turda iki yeri birden degistirmek bir ariza cikarsa sebebi
+///	AYIRT EDILEMEZ yapardi (turu 67 dersi). Ileride o da buraya tasinmali.
+class KabukAdimSeridi extends StatelessWidget {
+  const KabukAdimSeridi({
+    super.key,
+    required this.adlar,
+    required this.adim,
+    required this.onAdimaGit,
+  });
+
+  final List<String> adlar;
+  final int adim;
+  final ValueChanged<int> onAdimaGit;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    Widget nokta(int i) {
+      final gecildi = i < adim;
+      final aktif = i == adim;
+      return GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: gecildi ? () => onAdimaGit(i) : null,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 26,
+              height: 26,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: aktif || gecildi
+                    ? scheme.primary
+                    : scheme.onSurface.withValues(alpha: 0.10),
+              ),
+              child: gecildi
+                  ? Icon(LucideIcons.check, size: 15, color: scheme.onPrimary)
+                  : Text(
+                      '${i + 1}',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        color: aktif
+                            ? scheme.onPrimary
+                            : scheme.onSurface.withValues(alpha: 0.45),
+                      ),
+                    ),
+            ),
+            const SizedBox(height: 5),
+            // ⚠️ `FittedBox`: "Çalışma saatleri" gibi uzun bir ad dar ekranda
+            //    KIRPILMAZ, kuculur.
+            SizedBox(
+              width: 92,
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  adlar[i],
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: aktif ? FontWeight.w700 : FontWeight.w500,
+                    color: aktif
+                        ? scheme.onSurface
+                        : scheme.onSurface.withValues(alpha: 0.5),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(kYanBosluk, 4, kYanBosluk, 14),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (var i = 0; i < adlar.length; i++) ...[
+            if (i > 0)
+              Expanded(
+                child: Padding(
+                  // ⚠️ 11,5 = (26 - 3) / 2 — dairenin DIKEY MERKEZI.
+                  padding: const EdgeInsets.only(top: 11.5),
+                  child: Container(
+                    height: 3,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(2),
+                      color: i <= adim
+                          ? scheme.primary
+                          : scheme.onSurface.withValues(alpha: 0.12),
+                    ),
+                  ),
+                ),
+              ),
+            nokta(i),
+          ],
+        ],
+      ),
+    );
+  }
+}
