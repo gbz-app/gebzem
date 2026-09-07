@@ -10293,3 +10293,100 @@ IPAda dizeler VAR: `kapak_medyalari` · `kapak_turleri` · `Video açılamadı` 
 `Beğeniler` · `İş İlanları` · `Maaş belirtilmemiş`; kontrol dizesi
 `Yakınımda` VAR. Backend deploy (migration 051) + health ok.
 Adres: https://indir.gebzem.app/index.html?v=20260907-1848
+
+---
+
+## Oturum — Turu 180m (7 Eylul 2026)
+
+Kullanicinin bu turdaki maddeleri. ⚠️ Kullanici acikca *"backendi sonra yap,
+arayuzu HIZLI cikart"* dedi -> **BACKEND'E DOKUNULMADI**, migration/deploy YOK.
+
+### 1. Kapak slideri: nokta gostergesi KALDIRILDI
+*"sliderde alttaki cubuklari EKLEME"* + *"resimleri GALERI seklinde
+koymussun, ben sana galeri demedim"*. Govde `ignore: unused_element` ile duruyor.
+
+### 2. ⚠️⚠️⚠️ ALTIN GORUNMUYORDU — KOK NEDEN OLCULDU
+`_yukle` icinde UC ag istegi ARDISIK `await` ile diziliydi ve altin EN
+SONDAYDI. Ortadaki `kurGetir` TCMB'den gunluk seri cekiyor — **20 nokta =
+23 istek** (turu 173 olcumu). Yani altin, dovizler tamamen bitene kadar HIC
+istenmiyor; `_altinVar` false kaliyor, `_adim` **3'te** kaliyor ve dongu
+altin adimina **HIC GIRMIYORDU**.
+· Emulatorde once dogrulandi: 10 sn izlemede USD -> EUR -> GBP dondu, altin
+  CIKMADI. Sonra gecici `debugPrint` ile veri yolunun SAGLAM oldugu goruldu
+  (`kod=200 cozulen=13 gram=1`) — yani sorun CEKMEDE degil SIRADAYDI.
+· FIX: uc istek paralellestirildi (`unawaited(...).then`), her biri KENDI
+  yanitinda `setState` cagiriyor. `Future.wait` KULLANILMADI: en yavas istek
+  digerlerini bekletirdi.
+· ✅ Emulatorde kanit: cipte **6.872** + dusus oku.
+⚠️ Bu, turu 170d dersinin birebir tekrari: *"yerel/bagimsiz bir isi baska bir
+   ag isteginin ARKASINA dizme"*.
+⚠️ Gecici olcum satirlari `GECICI-OLCUM` isaretiyle konuldu ve commit oncesi
+   `grep` ile SIFIR dondurdu (turu 140 kurali).
+
+### 3. Isletme profilinde BEGENILER sekmesi (kullanici UC KEZ istedi)
+Turu 180g'de sekme YALNIZ kendi profilimde ciziliyordu (gizlilik gerekcesi).
+Kullanici karari bunu gecersiz kilar — ama YALNIZ isletme hesaplari icin;
+kisisel hesabin begenisi hala GIZLI.
+⚠️⚠️ **VERI HENUZ GELMIYOR — DURUSTCE SOYLENIYOR.** Uc `/users/me/begeniler`,
+   yani baskasi icin cagrilacak yol YOK. Baskasinin profilinde
+   `begenilenler()` **CAGRILMAZ**: kapi olmasaydi **KENDI begenilerim** o
+   isletmenin begenileri gibi cizilirdi (sessiz ve fark edilmesi cok zor bir
+   yanlis veri). Sekme "Beğeniler yakında" diyor.
+⏳ `GET /users/{id}/begeniler` **BACKEND TURU**.
+
+### 4. Arama ekrani: SIYAH + sekmeler kaldirildi
+⚠️⚠️ **IKI AYRI KONTRAST KATMANI GEREKTI** (ikisi de emulatorde olculdu):
+   (a) `_ks` getter'i — `Theme.of(context)` cagiran State metotlari
+       `koyuSayfa`nin koydugu `Theme`in USTUNDE kalir (turu 135c/138/178'in
+       ALTINCI tekrari). Ilk denemede siyah zemine KOYU GRI yazi cikti.
+   (b) `DefaultTextStyle` sarmali — RENK BELIRTMEYEN `Text`ler ("Ara",
+       "Öneriler", oneri satirlari) rengini ortamdaki `DefaultTextStyle`dan
+       alir; o da yine State context'inden geliyordu. (a)'dan SONRA bile
+       basliklar SILIK kaldi.
+· Sekme seridi (Kisiler · Yerler · Isletmeler · Ilanlar · Ses) KALDIRILDI;
+  `_sekme` 0'da sabit (arama zaten PROFIL ARAMASI — turu 76 karari).
+
+### 5. TUM kategorilerde ALT MENU kaldirildi
+`KategoriKabugu.bottomNavigationBar = null`. Yemek'te turu 174'te
+kapatilmisti; Ilan/Etkinlik/Talep hala ciziyordu (turu 174'te "durust sinir"
+diye yazilmis GORSEL TUTARSIZLIK). Cikis yolu geri okuyla korunuyor.
+
+### 6. ⚠️⚠️⚠️ BUYUK KART IZGARALARI -> KUCUK YATAY SERIT
+*"butun kategorilerdeki BUYUK KARTLARI kaldir, altina kucuk kartlar kalsin"*.
+⚠️⚠️ **DUZ SILINSEYDI ISLEV KAYBOLURDU**: bu izgaralar Ilan/Etkinlik'te TEK
+   tur/kategori secme yoluydu (ciplerin hepsi FILTRE), Talep'te ise
+   SIHIRBAZIN TEK GIRISI. Bu projede tekrar eden "ozellik ulasilamaz kaldi"
+   sinifi olurdu.
+Yeni ortak **`KabukKucukSerit`** (kategori_kabuk.dart) — Yemek'teki 60 dp
+yatay seridin esi. Ekranin ustunde ~200 dp aciliyor, liste yukari cikiyor.
+· Yukseklik YAZI OLCEGINDEN turetilir (sabit dp ilk kademede tasardi).
+· Ad `FittedBox(scaleDown)` — tasma YAPISAL OLARAK imkansiz.
+· Kalinlik SABIT w600: secimle degisseydi serit her dokunusta KAYARDI.
+· Talep'te `secili: ''` (kartlar filtre DEGIL EYLEM).
+· Uc izgara govdesi de `ignore: unused_element` ile DURUYOR.
+
+### 7-9. Kucuk maddeler
+· Menuden **Organizasyon** karti kaldirildi (Dugun ile AYNI dala gidiyordu,
+  ayri icerik kaybolmadi).
+· **"İlan" -> "2. El İlan"**; liste basligi TURDEN turetiliyor
+  (`_tur == 'is' ? 'İş İlanları' : '2. El İlan'`) ki is ilani listesi
+  "2. El İlan" demesin — kullanicinin ACIKCA ayirmamizi istedigi iki urun.
+· Anasayfadaki **avatar artik PROFILE gidiyor** (salt dekordu; alt menudeki
+  Profil sekmesiyle AYNI yol — ayri `push` ikinci bir profil yigardi).
+
+### ✅ Dogrulama
+`flutter analyze` **0/0** · `flutter test` **86/86** · emulatorde gozle:
+altin cipi · arama ekrani (siyah + okunur + sekmesiz) · isletme profilinde
+begeni sekmesi · alt menusuz kategori ekrani · 2. El Ilan seridi.
+Logcat tasma **0** (is ilanlarinda 3 tur kaydirma dahil).
+
+### ⏳ Durust sinirlar
+- **Kategori ekranlari HALA BEYAZ.** Kullanici *"yemek arayuzu mantigi"*
+  dedi; DUZEN yapildi (buyuk kart yok, kucuk serit, filtreler) ama ZEMIN
+  RENGI degismedi. Yemek siyah, bunlar tema duyarli. ⏳ AYRI TUR — arama
+  ekraninda olculen IKI KATMANLI kontrast isi (bkz. madde 4) her ekranda
+  tekrarlanmali.
+- **Is ilanlari "patlama"** emulatorde UREMEDI (logcat tasma 0). Gercek
+  cihazda surerse hangi anda oldugu sorulacak.
+- Kategori bazli FILTRELER (kullanici *"her kategoriye gore filtrelemeler
+  olsun"* dedi) HENUZ YAPILMADI — ⏳ AYRI TUR.
