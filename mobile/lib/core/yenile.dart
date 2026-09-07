@@ -201,9 +201,14 @@ class _YenileSarmaliState extends State<YenileSarmali> {
             child: widget.child,
           ),
         ),
+        // ⚠️⚠️ TURU 180j — **KONUM GUVENLI ALANDAN TURETILIR**, sabit 18 DEGIL.
+        //	Sabit degerle noktalar DURUM CUBUGUNUN (saat/pil) arkasina
+        //	dusuyordu; ozellikle `extendBodyBehindAppBar` kullanan
+        //	profil ekraninda gosterge saatin uzerine biniyordu
+        //	(emulatorde goruldu). ⚠️ YAPMA: sabit sayiya geri donme.
         if (_gorunur)
           Positioned(
-            top: 18,
+            top: MediaQuery.paddingOf(context).top + 14,
             left: 0,
             right: 0,
             child: IgnorePointer(

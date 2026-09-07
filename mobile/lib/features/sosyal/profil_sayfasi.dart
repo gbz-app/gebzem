@@ -252,11 +252,12 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
   bool _benimMi = false;
   String? _hata;
 
-  /// ⚠️⚠️ TURU 115 — sekmeler arasi GERCEK sayfali kaydirma.
-  ///
-  /// ⚠️ `initState`te kurulur, `build` icinde DEGIL: her cizimde yeni bir
-  ///    controller olusturmak kaydirma konumunu SIFIRLAR (turu 76b dersi).
-  late final PageController _sayfaCtrl;
+  // ⚠️⚠️⚠️ TURU 180j — **`_sayfaCtrl` (PageController) SILINDI.**
+  //	Turu 115'te sekmeler arasi "gercek sayfali kaydirma" icin
+  //	konulmustu ve dogru calisiyordu; ama sabit yukseklikli bir
+  //	`PageView`, sayfanin ICINE IKINCI bir dikey kaydirma alani
+  //	koyuyordu (bkz. `_icerikAlani`). Yatay gecis KAYBOLMADI —
+  //	`onHorizontalDragEnd` jestiyle (turu 114 deseni) suruyor.
 
   /// ⚠️ Sekme seridini secili sekmeye kaydirmak icin.
   final _seritCtrl = ScrollController();
@@ -295,17 +296,14 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
   //	yuzden metotlar rengi buradan okur.
   ColorScheme get _ks => kKoyuTema.colorScheme;
 
-  /// Acik sekmenin icerigi BOS mu (bkz. kaydirma fizigi serhi).
-  /// ⚠️ Yuklenirken `false`: cark donerken kaydirmayi kilitlemek gereksiz
-  ///	bir donma hissi verirdi.
-  /// ⚠️⚠️ TURU 180e — **OLCUT `_sekmeSayfasi` ILE BIREBIR AYNI OLMALI.**
+  /// Acik sekmenin icerigi BOS mu (yalniz `_seritiOlc` kapisinda kullanilir).
+  /// ⚠️ Yuklenirken `false`: cark donerken olcum istemek gereksiz.
+  /// ⚠️⚠️ TURU 180e — **OLCUT `_sekmeIcerigi` ILE BIREBIR AYNI OLMALI.**
   ///	Onceden `g != null && g.isEmpty` yaziyordu, yani ONBELLEK HENUZ
-  ///	YOKKEN (`null`) "bos degil" diyordu. Oysa `_sekmeSayfasi` ayni
+  ///	YOKKEN (`null`) "bos degil" diyordu. Oysa `_sekmeIcerigi` ayni
   ///	durumda `?? const []` ile BOS DURUMU CIZIYOR. Iki olcut
-  ///	ayrisinca ekranda "gonderi yok" gorunurken kaydirma fizigi ve
-  ///	sayfa yuksekligi DOLU sekme gibi davraniyordu — kullanicinin
-  ///	gordugu kusur (blok ekranin altinda kalip gorunmuyordu) tam
-  ///	buradan geliyordu.
+  ///	ayrisinca ekranda "gonderi yok" gorunurken serit ALTI HIC
+  ///	olculmuyor ve blok ekranin altinda kalip gorunmuyordu.
   bool get _bosSekme => _sekmeBos(_sekme);
 
   /// ⚠️⚠️⚠️ TURU 180g — **SAYFA YUKSEKLIGI SEKMEDEN BAGIMSIZ.**
@@ -319,57 +317,42 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
   /// ⚠️ Bos durumun ortalanmasi artik `_gorunurSerit` ile, SAYFA BOYUNA
   ///	DOKUNMADAN yapiliyor.
   /// ⚠️ YAPMA: yuksekligi tekrar `_bosSekme`ye baglama.
-  double _sayfaBoyu(BuildContext c) {
-    // ⚠️ Ikisi de bir SONRAKI karede kosar.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _sayfaSenkron();
-      _seritiOlc();
-    });
-    return MediaQuery.sizeOf(c).height * 0.62;
-  }
+  ///
+  /// ⚠️⚠️⚠️ TURU 180j — **`_sayfaBoyu` SILINDI, `PageView` KALKTI.**
+  ///	Sabit yukseklikli bir `PageView` demek, sayfanin ICINDE IKINCI
+  ///	bir dikey kaydirma alani demekti (bkz. `_icerikAlani` serhi).
+  ///	Olcum istegi artik `_olcumIste()` ile veriliyor.
 
-  /// Sekme seridinin ALTINDA kalan GORUNUR yukseklik (yuzen hap dusulmus).
+  /// Bos durum blogunun ortalanacagi GORUNUR yukseklik.
+  ///
   /// ⚠️ Olculmediyse makul bir taban doner; tek yeniden cizimle oturur.
+  /// ⚠️⚠️ TURU 180j — **YUZEN HAP DUSULMESI KALKTI**: Menü artik
+  ///	`_dugmeler` satirinda ve listenin USTUNDE cizilen hicbir sey
+  ///	kalmadi. Eski `hap` terimi burada CIFT SAYIM olurdu.
   double _gorunurSerit(BuildContext c) {
     final ekran = MediaQuery.sizeOf(c).height;
     final alt = _seritAlt;
     if (alt == null) return ekran * 0.18;
-    // ⚠️ Isletme profilinde alttaki yuzen Menü/Rezervasyon hapi listenin
-    //    USTUNDE cizilir (`Positioned`) ve onun kapladigi seridi sayfa
-    //    yuksekliginden DUSMEK gerekir; yoksa ortalanan blok hapin
-    //    ARKASINDA kalir (emulatorde goruldu).
-    // ⚠️ Olcu SABIT dp DEGIL: hapin yuksekligi etiketten, yani YAZI
-    //	OLCEGINDEN geliyor (dikey dolgu 2x13 + satir). Sabit yazilsaydi
-    //	buyuk yazi olceginde blok yine hapin altinda kalirdi.
-    final hap = _menuRezervasyon() == null
-        ? 0.0
-        : 10 + 26 + MediaQuery.textScalerOf(c).scale(14.5) * 1.35 + 12;
     // ⚠️ Liste olculemezse ekran dibine duseriz (yalniz ILK kare).
     final lb = _listeAnahtar.currentContext?.findRenderObject();
     final altSinir = (lb is RenderBox && lb.hasSize)
         ? lb.localToGlobal(Offset.zero).dy + lb.size.height
         : ekran - MediaQuery.paddingOf(c).bottom;
-    final kalan = altSinir - alt - hap;
+    final kalan = altSinir - alt;
     // ⚠️⚠️ TABAN 120 DEGIL **56**: emulatorde olculdu - serit altinda
-    //	yalnizca 60-80 dp kaliyor ve 120'lik taban kutuyu hapin ALTINA
-    //	tasirip metni ORTUYORDU. Blok zaten `FittedBox` icinde, yani
-    //	kucuk kutuda KIRPILMAZ, kuculur.
+    //	yalnizca 60-80 dp kaliyor ve 120'lik taban kutuyu ekranin ALTINA
+    //	tasirip metni gorunmez yapiyordu. Blok zaten `FittedBox` icinde,
+    //	yani kucuk kutuda KIRPILMAZ, kuculur.
     return kalan.clamp(56.0, ekran * 0.62);
   }
 
-  /// Serit ile `PageView`i UZLASTIRIR (bkz. `initState` serhi).
-  /// ⚠️ `jumpToPage` (animasyon YOK): ilk karede kullanicinin gozunde bir
-  ///	"kayma" olmasin; kullanici secimi ZATEN `_sekmeyeGec`te animasyonlu.
-  void _sayfaSenkron() {
-    if (!mounted || !_sayfaCtrl.hasClients) return;
-    final i = _sekmeler.indexOf(_sekme);
-    if (i < 0) return;
-    // ⚠️ KAYDIRMA SURERKEN DOKUNMA: parmak ekrandayken `jumpToPage` jesti
-    //	KESER ve sayfa yerinden zipilardi.
-    if (_sayfaCtrl.position.isScrollingNotifier.value) return;
-    final simdi = _sayfaCtrl.page?.round();
-    if (simdi == null || simdi == i) return;
-    _sayfaCtrl.jumpToPage(i);
+  /// Serit olcumunu bir SONRAKI kareye ister (bos durumun ortalanmasi icin).
+  ///
+  /// ⚠️ TURU 180j — eskiden bu cagri `_sayfaBoyu` icinde gizliydi; o metot
+  ///	`PageView` ile birlikte kalkinca olcum de KAYBOLUYORDU (bos durum
+  ///	ekranin tepesine yapisirdi). Artik `build`den ACIKCA isteniyor.
+  void _olcumIste() {
+    WidgetsBinding.instance.addPostFrameCallback((_) => _seritiOlc());
   }
 
   void _seritiOlc() {
@@ -404,15 +387,16 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
     //	**FOTOGRAF** sekmesini ("Henüz fotoğraf yok") ciziyordu.
     // ⚠️ `clamp(0, 9)` de KORUMA DEGILDI: sekme sayisi 9'un altina
     //	dustugunde var olmayan bir sayfa istenirdi.
-    // ⚠️ `_sekmeler` `_benimMi`ye bagli ve o HENUZ yuklenmedi; dogru
-    //	sayfaya `_sayfaSenkron` ilk karede oturur.
-    _sayfaCtrl = PageController();
+    // ⚠️⚠️ TURU 180j — **`PageController` KALKTI**: sekme icerigi artik
+    //	dis listenin dogrudan cocugu (bkz. `_icerikAlani`), yani
+    //	senkronlanacak ikinci bir kaydirma konumu YOK. Turu 180e/180g'de
+    //	yasanan "serit ile sayfa ayrisiyor" sinifi da YAPISAL OLARAK
+    //	bitti: cizilen tek sey `_sekme`.
     _yukle();
   }
 
   @override
   void dispose() {
-    _sayfaCtrl.dispose();
     _seritCtrl.dispose();
     super.dispose();
   }
@@ -786,29 +770,24 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
           ),
         ],
       ),
-      // ⚠️⚠️⚠️ TURU 176 — **MENÜ / REZERVASYON ALTTAN 10 dp YUKARIDA,
-      //	ORTADA** (kullanici emri). Onceden bilgi kartinin
-      //	icindeydiler ve o kart kaldirildi.
+      // ⚠️⚠️⚠️ TURU 180j — **ALTTAKI YUZEN HAP TAMAMEN KALKTI.**
+      //	Menü artik `_dugmeler` satirinda (Mesaj'in saginda),
+      //	rezervasyon ise profilden CIKARILDI (kullanici emri).
+      //	Yigin TEK COCUKLU kaldi; `Stack` sarmali BILEREK duruyor —
+      //	kaldirmak 230 satirlik bir yeniden girintileme demek ve bu
+      //	dosyada biciimlendirme gurultusu incelemeyi imkansiz kilar
+      //	(turu 157 dersi: bu repoda `dart format` KOSTURULMAZ).
       //
-      // ⚠️ `floatingActionButtonLocation: centerFloat` + `Padding`:
-      //	Flutter FAB'i guvenli alanin hemen ustune koyar; 10 dp
-      //	ek bosluk kullanicinin verdigi olcu.
-      // ⚠️ Yalniz ISLETME profilinde ve YALNIZ ilgili yetenek aciksa
-      //	cizilir: `randevuAcik` SUNUCUDAN gelir. Kategoriden
-      //	tahmin edilseydi ayari acmamis isletmede dugme cizilir
-      //	ve kullanici 404 alirdi (turu 80 dersi).
-      // ⚠️⚠️⚠️ TURU 178 — **FAB DEGIL, SABIT KATMAN** (kullanici:
-      //	*"profile girdiginde menu ve rezervasyon ANIMASYONLA
-      //	geliyor, gelmesin, gereksiz"*).
-      //
-      //	`Scaffold.floatingActionButton` cocugunu HER ZAMAN bir
-      //	olcek gecisiyle gosterir ve `null`dan widget'a gecisi de
-      //	animasyon sayar. Isletme detayi AG ISTEGIYLE sonradan
-      //	geldigi icin cubuk her profil acilisinda "buyuyerek"
-      //	giriyordu.
-      // ⚠️ `FloatingActionButtonAnimator.noAnimation` YETMEZDI: o yalniz
-      //	KONUM animatoru; null->widget gecisi yine olcekten gecer.
-      //	Yapisal cozum FAB'i HIC kullanmamak.
+      // 📌 TARIHSEL (turu 176-178): hap once `floatingActionButton` idi;
+      //	`Scaffold` FAB'i HER ZAMAN bir olcek gecisiyle gosterdigi ve
+      //	isletme detayi AG ISTEGIYLE sonradan geldigi icin cubuk her
+      //	profil acilisinda "buyuyerek" giriyordu. `FloatingAction
+      //	ButtonAnimator.noAnimation` YETMEZDI (o yalniz KONUM
+      //	animatoru) — cozum FAB'i HIC kullanmamak olmustu.
+      // ⚠️ YAPMA: alta yeniden yuzen bir cubuk koyacaksan FAB DEGIL,
+      //	bu yigina `Positioned` olarak ekle ve `_gorunurSerit`teki
+      //	"kalan alan" hesabindan boyunu DUS (yoksa bos durum blogu
+      //	cubugun ARKASINDA kalir — turu 180e'de emulatorde goruldu).
       body: Stack(
         children: [
           YenileSarmali(
@@ -835,14 +814,22 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
           // ⚠️ `AlwaysScrollable` SARMALI KALIR: bos listede de asagi-cek
           //	calismali (turu 83b'de dort kardes ekranda ayni sinif).
           //
-          // ⚠️⚠️ **BOS SEKMEDE KAYDIRMA KAPALI** (kullanici: *"gonderi yok
-          //	vs orada asagi cekme OLMAYACAK"*): icerik zaten ekrana
-          //	sigiyor ve cekmek yalnizca bosluk gosteriyordu.
-          physics: _bosSekme
-              ? const NeverScrollableScrollPhysics()
-              : const AlwaysScrollableScrollPhysics(
-                  parent: ClampingScrollPhysics(),
-                ),
+          // ⚠️⚠️⚠️ TURU 180j — **BOS SEKMEDEKI `NeverScrollable` KALDIRILDI**
+          //	(kullanici: *"yukaridan asagi cekme olsun, LOADING ekranda
+          //	olsun, YENILESIN"*).
+          //
+          //	Turu 180e'de bos sekmede kaydirma tamamen kapatilmisti;
+          //	ama `RefreshIndicator` bir OVERSCROLL bildirimiyle
+          //	tetiklenir ve `NeverScrollableScrollPhysics` o bildirimi
+          //	HIC uretmez -> gonderisi olmayan her profilde YENILEME
+          //	YOLU FIILEN YOKTU (turu 82b/83b'de dort kardes ekranda
+          //	kapatilan sinifin bu ekranda geri gelmis hali).
+          // ⚠️ Turu 180e'nin gerekcesi ("cekince bos alan gorunuyordu")
+          //	`ClampingScrollPhysics` sayesinde ZATEN gecersiz: icerik
+          //	YERINDE kalir, yalnizca yenileme dairesi iner.
+          physics: const AlwaysScrollableScrollPhysics(
+            parent: ClampingScrollPhysics(),
+          ),
           // ⚠️ Bkz. `extendBodyBehindAppBar` serhi: padding ACIKCA verilmezse
           //    `BoxScrollView` MediaQuery dikey dolgusunu otomatik uygular ve
           //    kapak AppBar'in ARKASINA GECMEZ.
@@ -992,52 +979,37 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
               // ⚠️ `HitTestBehavior.opaque`: bos/hata durumlarinda cizilen
               //    alan da jesti ALIR (aksi halde tam o durumda kaydirma
               //    calismazdi — kullanici "bazen oluyor" derdi).
-              // ⚠️⚠️⚠️ TURU 115 — **GERCEK SAYFALI KAYDIRMA** (kullanici:
-              //	*"profilde gonderi fotograf scroll SOL SAG gibi olacak dedim,
-              //	onu da yapmadin"*).
+              // ⚠️⚠️⚠️ TURU 180j — **`PageView` KALDIRILDI, TEK KAYDIRMA**
+              //	(kullanici: *"sayfa yukari asagi TAKILIYOR, gonderi
+              //	alaninda yukari asagi cekme var, bunu kaldir; yukari
+              //	asagi NORMAL bir sekilde olsun"*).
               //
-              //	Turu 114 yalnizca bir JEST eklemisti (`onHorizontalDragEnd`):
-              //	icerik parmakla KAYMIYOR, aninda degisiyordu. Artik `PageView`
-              //	var — icerik parmagi TAKIP EDER ve yaslanir.
+              //	KOK NEDEN: turu 115'in `PageView`i SABIT yukseklikli
+              //	bir kutuydu ve her sayfasi KENDI `ListView`iydi
+              //	(`_sekmeSayfasi`). Yani sayfada IKI dikey kaydirma
+              //	alani vardi: dis liste (baslik+sekmeler) ve ic liste
+              //	(gonderiler). Parmak izgaranin uzerindeyken surukleme
+              //	ICTEKINE gidiyor, o kendi ucuna gelene kadar dis liste
+              //	KIMILDAMIYORDU — kullanicinin "takiliyor" dedigi sey
+              //	tam olarak bu ic ice kaydirma catismasi.
               //
-              // ⚠️⚠️ SABIT YUKSEKLIK ZORUNLU: `PageView` cocuklarina SINIRSIZ
-              //	yukseklik VERILEMEZ ve bu blok dis `ListView`in cocugu.
-              //	Yukseklik EKRANDAN turetilir (sabit px DEGIL, yazi olcegi
-              //	buyudugunde de oranli kalir).
-              // ⚠️ `PageView` komsu sayfayi ONCEDEN KURMAZ
-              //    (`allowImplicitScrolling` varsayilan false), yani on
-              //    sekmenin izgarasi AYNI ANDA medya cozmez (turu 76b dersi).
-              SizedBox(
-                // ⚠️ Bkz. `_seritAlt` serhi: bos sekmede yukseklik EKRANDA
-                //    KALAN alan kadar; dolu sekmede eski davranis (0,62).
-                height: _sayfaBoyu(context),
-                child: PageView.builder(
-                  controller: _sayfaCtrl,
-                  itemCount: _sekmeler.length,
-                  // ⚠️ Secici ile sayfa SENKRON: kaydirinca ustteki etiket de
-                  //    degisir ve gerekiyorsa veri CEKILIR.
-                  onPageChanged: (i) {
-                    final x = _sekmeler[i];
-                    if (x == _sekme) return;
-                    setState(() => _sekme = x);
-                    unawaited(_sekmeYukle(x));
-                  },
-                  itemBuilder: (_, i) => _sekmeSayfasi(_sekmeler[i]),
-                ),
-              ),
+              //	Artik secili sekmenin icerigi dis listenin DOGRUDAN
+              //	cocugu: `_izgara` (`shrinkWrap` + `NeverScrollable`)
+              //	ve `_ilanListesi` (`Column`) zaten kaydirilamaz, yani
+              //	sayfada TEK kaydirilabilir alan kaliyor.
+              // ⚠️⚠️ YATAY GECIS KAYBOLMADI: turu 114'un jest desenine
+              //	donuldu (`onHorizontalDragEnd`). Dikey kaydirmayi
+              //	ETKILEMEZ — jest arenasinda yatay ve dikey taniyicilar
+              //	AYRI eksenlerde yarisir. Kaybedilen tek sey icerigin
+              //	parmagi TAKIP ETMESI; kazanilan sey sayfanin tek parca
+              //	kaymasi.
+              // ⚠️ YAPMA: buraya tekrar sabit yukseklikli bir `PageView`
+              //	ya da kendi `ListView`ini kuran bir sekme sayfasi koyma.
+              _icerikAlani(),
             ],
           ],
         ),
           ),
-          // ⚠️ `Positioned` yalniz ALTTA yer kaplar; listenin geri kalani
-          //    normal kaydirilir. `IgnorePointer` YOK - cubuk tiklanabilir.
-          if (_menuRezervasyon() != null)
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: MediaQuery.paddingOf(context).bottom + 10,
-              child: Center(child: _menuRezervasyon()!),
-            ),
         ],
       ),
     ));
@@ -1388,29 +1360,40 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
               ),
             ),
           ),
-          // ⚠️⚠️ TURU 180h — **REZERVASYON MESAJIN SAGINDA** (kullanici:
-          //	*"sadece rezervasyon butonu mesajin saginda olsun,
-          //	MENU ORADA KALSIN"*). Yani alttaki yuzen gecis
-          //	DURUYOR ama artik yalniz **Menü** tasiyor.
-          // ⚠️ YALNIZ randevu ACIK bir isletmede cizilir: kapaliyken
-          //	dugme her dokunusta bos bir sayfa acardi ("olu dugme"
-          //	sinifi).
-          if (_isletme?.randevuAcik ?? false) ...[
+          // ⚠️⚠️⚠️ TURU 180j — **MENU MESAJIN SAGINDA, REZERVASYON YOK**
+          //	(kullanici: *"isletme profilinde menuyu mesaj butonun
+          //	saginda koy, rezervasyonu kaldir"*).
+          //
+          //	Onceden burada REZERVASYON vardi (turu 180h) ve Menü
+          //	alttaki YUZEN HAPTA duruyordu. Ikisi de yer degistirmedi,
+          //	biri KALDIRILDI: rezervasyon girisi artik profilde HIC
+          //	cizilmiyor, Menü ise hapin yerine bu satira gecti.
+          // ⚠️⚠️ **YUZEN HAP TAMAMEN KALKTI** — hapin tasidigi TEK dugme
+          //	Menü idi; bos bir kabuk birakmak ekranin dibinde anlamsiz
+          //	bir golge olurdu. Bu ayni zamanda `_gorunurSerit`teki
+          //	"hap kadar yukari it" hesabini da gereksiz kildi.
+          // ⚠️ YALNIZ ISLETME hesabinda cizilir (`_isletme != null`):
+          //	kisisel hesabin menusu/katalogu YOKTUR ve dugme her
+          //	dokunusta bos bir sayfa acardi ("olu dugme" sinifi).
+          // ⚠️ Etiket SUNUCUDAN (`i.modul.ad` -> Menü / Odalar /
+          //	Hizmetler); istemcide TAHMIN EDILMEZ (turu 89).
+          if (_isletme != null) ...[
             const SizedBox(width: 8),
             Expanded(
               child: FilledButton(
-                onPressed: () => randevuAlAc(
-                  context,
-                  isletmeId: widget.userId,
-                  isletmeAd: p.ad,
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => UrunKatalogEkrani(
+                      isletmeId: widget.userId,
+                      isletmeAd: p.ad,
+                      benimMi: _benimMi,
+                      modul: _isletme!.modul,
+                    ),
+                  ),
                 ),
                 child: FittedBox(
                   fit: BoxFit.scaleDown,
-                  child: Text(
-                    _isletme!.randevuTuru == 'rezervasyon'
-                        ? 'Rezervasyon'
-                        : 'Randevu',
-                  ),
+                  child: Text(_isletme!.modul.ad),
                 ),
               ),
             ),
@@ -1571,9 +1554,17 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
 
   /// TURU 176 — alttaki yuzen **Menü / Rezervasyon** geçisi.
   ///
+  /// ⚠️⚠️⚠️ TURU 180j — **CAGRI YERI KALDIRILDI, GOVDE DURUYOR.**
+  ///	Menü artik `_dugmeler` satirinda (Mesaj'in saginda), rezervasyon
+  ///	ise profilden TAMAMEN cikarildi (kullanici emri) — hapin
+  ///	tasiyacagi hicbir sey kalmadi.
+  ///	Govde SILINMEDI: bu dosyada uye silmek BES kez komsu uyeyi de
+  ///	goturdu (turu 127/138/140/141/143) ve karar tek satirla geri
+  ///	alinabilsin isteniyor.
   /// ⚠️ Isletme degilse ya da hicbir yetenek yoksa **null** doner ve
   ///	Scaffold hicbir sey cizmez (bos bir kabuk birakmak ekranin
   ///	dibinde anlamsiz bir golge birakirdi).
+  // ignore: unused_element
   Widget? _menuRezervasyon() {
     final i = _isletme;
     if (i == null) return null;
@@ -1927,33 +1918,52 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
 
   // ⚠️ TURU 115 — `_sekmeKaydir` SILINDI: yerini GERCEK `PageView` aldi;
   //    jest artik sayfayi PARMAKLA tasiyor, aninda atlamiyor.
+  // ⚠️⚠️ TURU 180j — `PageView` de KALKTI (bkz. `_icerikAlani`); yatay gecis
+  //    yeniden JESTLE yapiliyor, yani turu 114 desenine donuldu.
 
-  /// Tek bir sekmenin sayfasi (`PageView` cocugu).
+  /// SECILI sekmenin icerigi — dis listenin DOGRUDAN cocugu.
   ///
-  /// ⚠️ Her sayfa KENDI dikey kaydirmasina sahiptir: dis liste basligi
-  ///    kaydirir, ic liste icerigi. `PageStorageKey` ile her sekmenin
-  ///    kaydirma konumu KORUNUR.
-  /// ⚠️ Yukleme/hata/bos dallari SAYFANIN KENDISINDE: eskiden `_sekme`ye
-  ///    bakiyorlardi ve `PageView`de komsu sayfa da cizildigi icin YANLIS
-  ///    sayfada spinner gorunurdu.
-  /// ⚠️⚠️⚠️ TURU 180e — **BOS SEKME `ListView`E SARILMAZ.**
+  /// ⚠️⚠️⚠️ TURU 180j — **SAYFADA TEK DIKEY KAYDIRMA ALANI VAR.**
+  ///	Buradan donen agacin KENDI dikey kaydirmasi OLMAMALIDIR;
+  ///	`_izgara` (`shrinkWrap` + `NeverScrollableScrollPhysics`),
+  ///	`_ilanListesi` (`Column`) ve bos/hata/yukleme dallari bu
+  ///	sozlesmeye uyar. Buraya bir `ListView`/`GridView` (kaydirmasi
+  ///	acik) koyulursa ic ice kaydirma catismasi GERI GELIR.
   ///
-  ///	Kok neden buydu: icerik her durumda bir `ListView`in cocugu
-  ///	olarak veriliyordu ve orada DIKEY KISIT SINIRSIZDIR. `Center`
-  ///	sinirsiz kisitta ORTALAYAMAZ — cocugunun kendi boyuna buzulur,
-  ///	yani blok sayfanin TEPESINDE kalir. Sayfa yuksekligini ya da
-  ///	dolguyu degistirmek bu yuzden HICBIR SEY YAPMIYORDU
-  ///	(emulatorde uc kez olculdu: blok her seferinde ayni yerde).
+  /// ⚠️⚠️ **BOS DAL `Center` ILE ORTALANIR AMA SARMALSIZ DEGIL:**
+  ///	`_bosDurum` kendi `SizedBox(height: _gorunurSerit(...))`unu
+  ///	tasiyor, yani sinirsiz dikey kisitta da ortalanabiliyor
+  ///	(turu 180e/180g dersi: `ListView` icindeki `Center` ORTALAMAZ).
   ///
-  ///	Bos dalda icerik DOGRUDAN donuluyor; `PageView` ona TIGHT
-  ///	kisit verir ve `Center` gercekten ortalar.
-  /// ⚠️ Kaydirma kaybi YOK: bos sayfada kaydirilacak icerik ZATEN yok.
-  Widget _sekmeSayfasi(ProfilSekmesi x) {
-    if (_sekmeBos(x)) return _sekmeIcerigi(x);
-    return ListView(
-      key: PageStorageKey<String>('sekme-${x.name}'),
-      padding: EdgeInsets.zero,
-      children: [_sekmeIcerigi(x)],
+  /// ⚠️ Yatay jest: **`onHorizontalDragEnd`** — hiz esigi 120 px/sn
+  ///	(turu 114'te olculdu; daha dusuk esik dikey kaydirmanin hafif
+  ///	yatay bilesenini de sekme degisimi sanardi).
+  /// ⚠️ `HitTestBehavior.opaque` ZORUNLU: bos/hata durumlarinda cizilen
+  ///	alan da jesti ALMALI, yoksa tam o durumda gecis calismazdi.
+  Widget _icerikAlani() {
+    // ⚠️ Bos durumun ortalanmasi icin serit alt kenari OLCULMELI.
+    _olcumIste();
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onHorizontalDragEnd: (d) {
+        final v = d.primaryVelocity ?? 0;
+        if (v.abs() < 120) return;
+        final l = _sekmeler;
+        final i = l.indexOf(_sekme);
+        if (i < 0) return;
+        // ⚠️ Sola cekmek (negatif hiz) SONRAKI sekme.
+        final j = v < 0 ? i + 1 : i - 1;
+        if (j < 0 || j >= l.length) return;
+        _sekmeyeGec(l[j]);
+      },
+      child: KeyedSubtree(
+        // ⚠️ Anahtar SEKMEYE bagli: sekme degisince eski icerigin element
+        //	agaci YENIDEN KULLANILMAZ. Aksi halde izgara -> ilan listesi
+        //	gecisinde Flutter ayni elemanlari eslestirmeye calisir ve
+        //	medya cozucusu bir kare boyunca ESKI gonderiyi cizerdi.
+        key: ValueKey<String>('sekme-${_sekme.name}'),
+        child: _sekmeIcerigi(_sekme),
+      ),
     );
   }
 
@@ -2049,22 +2059,20 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
   ///
   /// ⚠️ Ikon SEKMEDEN gelir (`x.ikon`): her sekme kendi simgesini alir,
   ///	ayri bir tablo yazilsaydi sekme eklendiginde geride kalirdi.
-  /// ⚠️⚠️ **YUKSEKLIK SABIT DEGIL**: blok, sekme sayfasinin (`PageView`,
-  ///	ekranin %62'si) TAMAMINI kaplar ve icerik DIKEYDE ORTALANIR.
+  /// ⚠️⚠️ **YUKSEKLIK SABIT DEGIL**: blok, seridin ALTINDA EKRANDA KALAN
+  ///	alani (`_gorunurSerit`) kaplar ve icerik DIKEYDE ORTALANIR.
   ///	Onceden `vertical: 60` dolgusu vardi ve metin blogun
   ///	TEPESINDE duruyordu — kullanicinin gordugu buydu.
-  /// ⚠️⚠️ TURU 180e — **YUZEN GECIS BLOGU ORTMESIN** (emulatorde goruldu):
-  ///	isletme profilinde alttaki Menü/Rezervasyon hapi `Positioned`
-  ///	ile listenin USTUNDE cizilir ve dikeyde ortalanan metni
-  ///	KAPATIYORDU. Blok, hapin kapladigi kadar (52 + 10 + 12 pay)
-  ///	YUKARI itilir; hap yoksa dolgu SIFIR olur.
-  /// ⚠️⚠️ TURU 180g — Blok, sayfanin TAMAMINDA degil **GORUNUR SERITTE**
-  ///	ortalanir. Sayfa `ekran * 0.62` kadar uzun ve buyuk kismi
-  ///	ekranin ALTINDA kaliyor; orada ortalamak blogu GORUNMEZ
-  ///	yapardi (turu 180e'de bu yuzden yukseklik oynanmisti ve
-  ///	gecislerde tasma cikmisti).
-  /// ⚠️ Hapin kapladigi serit `_gorunurSerit` icinde dusuluyor — burada
-  ///	TEKRAR dusme, CIFT SAYIM olur.
+  /// ⚠️⚠️⚠️ TURU 180j — **`SizedBox` SARMALI ARTIK HAYATI**: bu blok dis
+  ///	`ListView`in dogrudan cocugu, yani dikey kisit SINIRSIZ.
+  ///	`Center` sinirsiz kisitta ORTALAYAMAZ (turu 180e dersi) —
+  ///	`_gorunurSerit` ile verilen ACIK yukseklik olmasa blok yine
+  ///	sayfanin tepesine yapisirdi. ⚠️ YAPMA: bu `SizedBox`i kaldirma.
+  /// ⚠️ TURU 180j — eski "yuzen hap kadar yukari it" terimi KALKTI: hap
+  ///	artik cizilmiyor (Menü, `_dugmeler` satirinda).
+  /// ⚠️⚠️ TURU 180g — Blok, seridin ALTINDA **EKRANDA GERCEKTEN KALAN**
+  ///	alanda ortalanir; ekranin altina tasan bir kutuda ortalamak
+  ///	blogu GORUNMEZ yapardi.
   Widget _bosDurum(ProfilSekmesi x, Color soluk) => Align(
         alignment: Alignment.topCenter,
         child: SizedBox(
@@ -2276,16 +2284,10 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
     if (x == _sekme) return;
     setState(() => _sekme = x);
     unawaited(_sekmeYukle(x));
-    // ⚠️ TURU 115 — menuden secim SAYFAYI da tasir; aksi halde etiket
-    //    degisir ama icerik ESKI sayfada kalirdi.
-    final i = _sekmeler.indexOf(x);
-    if (i >= 0 && _sayfaCtrl.hasClients) {
-      _sayfaCtrl.animateToPage(
-        i,
-        duration: const Duration(milliseconds: 260),
-        curve: Curves.easeOutCubic,
-      );
-    }
+    // ⚠️⚠️ TURU 180j — `PageController` KALKTI: cizilen icerik dogrudan
+    //	`_sekme`den turetildigi icin (`_icerikAlani`) senkronlanacak
+    //	ikinci bir kaydirma konumu YOK. Turu 115'in `animateToPage`
+    //	cagrisi burada OLU KOD olurdu.
     _seridiKaydir();
   }
 
@@ -2301,7 +2303,56 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
     if (l.isEmpty) {
       return _bosDurum(_sekme, _ks.onSurface.withValues(alpha: 0.6));
     }
-    return Column(children: [for (final i in l) _ilanKarti(i)]);
+    // ⚠️ TURU 180j — **UST BOSLUK** (kullanici: *"is ilanlarinda ILK ILAN
+    //	yukari cok dayanmis, boslugu ayarla"*). Kartin kendi dolgusu
+    //	5 dp ve sekme seridinin ayiricisina yapisiyordu; 14 dp ek pay
+    //	ile ilk kart nefes aliyor. Alt pay da simetrik (son kart
+    //	ekranin dibine yapismasin).
+    return Padding(
+      padding: const EdgeInsets.only(top: 9, bottom: 14),
+      child: Column(children: [for (final i in l) _ilanKarti(i)]),
+    );
+  }
+
+  /// Ilan kartinin sol karesi.
+  ///
+  /// ⚠️⚠️ TURU 180j — **MEDYASI OLMAYAN ILANDA ISLETMENIN LOGOSU CIZILIR**
+  ///	(kullanici: *"ilanlardaki resimler MARKANIN LOGOSU olacak"*).
+  ///	Is ilanlarinin neredeyse hicbirinin gorseli yok ve eski hal
+  ///	gri bir valiz ikonuydu — liste kimliksiz gorunuyordu.
+  /// ⚠️ SIRA: ilanin KENDI medyasi > isletmenin avatari > notr ikon.
+  ///	Ilanin gorseli varsa o KAZANIR; logo yalnizca BOSLUGU doldurur,
+  ///	gercek ilan fotografinin yerine GECMEZ.
+  /// ⚠️ `BoxFit.contain` + hafif zemin: logo cogu zaman KARE DEGIL
+  ///	(turu 140'ta olculdu, burgerking 500x545) ve `cover` onu
+  ///	ustten/alttan KIRPARDI.
+  /// ⚠️ `kucuk: true` (thumb): kare 88 dp ve ham avatar 1600x1600
+  ///	olabiliyor — tam cozunurluk liste basina ~10 MB gecici RAM
+  ///	demekti (turu 91 dersi).
+  Widget _ilanGorseli(Ilan i, ColorScheme scheme) {
+    if (i.mediaIds.isNotEmpty) {
+      return KapakGorseli(mediaIds: i.mediaIds, mediaKinds: i.mediaKinds);
+    }
+    final logo = _p?.avatarMediaId ?? '';
+    if (logo.isNotEmpty) {
+      return ColoredBox(
+        color: scheme.onSurface.withValues(alpha: 0.06),
+        child: Padding(
+          padding: const EdgeInsets.all(8),
+          child: MedyaGorsel(mediaId: logo, kucuk: true, fit: BoxFit.contain),
+        ),
+      );
+    }
+    return ColoredBox(
+      color: scheme.onSurface.withValues(alpha: 0.11),
+      child: Icon(
+        _sekme == ProfilSekmesi.isIlani
+            ? LucideIcons.briefcase
+            : LucideIcons.image,
+        size: 26,
+        color: scheme.onSurface.withValues(alpha: 0.3),
+      ),
+    );
   }
 
   /// ⚠️⚠️ TURU 180 — **ILAN KARTI** (kullanici: *"is ilanini da ekle, is
@@ -2337,21 +2388,7 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
                   child: SizedBox(
                     width: 88,
                     height: 88,
-                    child: i.mediaIds.isEmpty
-                        ? ColoredBox(
-                            color: scheme.onSurface.withValues(alpha: 0.11),
-                            child: Icon(
-                              _sekme == ProfilSekmesi.isIlani
-                                  ? LucideIcons.briefcase
-                                  : LucideIcons.image,
-                              size: 26,
-                              color: scheme.onSurface.withValues(alpha: 0.3),
-                            ),
-                          )
-                        : KapakGorseli(
-                            mediaIds: i.mediaIds,
-                            mediaKinds: i.mediaKinds,
-                          ),
+                    child: _ilanGorseli(i, scheme),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -2384,8 +2421,13 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
                       if (i.ilce.isNotEmpty || i.il.isNotEmpty)
                         Row(
                           children: [
+                            // ⚠️ TURU 180j — `mapPin` -> **`navigation`**
+                            //	(kullanici: *"konumlar NAVIGATOR KONUM
+                            //	olacak"*). Ayni ikon haritadaki kendi
+                            //	konum gostergemizde de kullaniliyor,
+                            //	yani uygulama genelinde TEK dil.
                             Icon(
-                              LucideIcons.mapPin,
+                              LucideIcons.navigation,
                               size: 13,
                               color: scheme.onSurface.withValues(alpha: 0.5),
                             ),
