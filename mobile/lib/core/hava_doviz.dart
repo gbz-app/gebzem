@@ -769,15 +769,38 @@ class _HavaDovizCipleriDurumu extends State<HavaDovizCipleri> {
         ? (enlem: widget.enlem!, boylam: widget.boylam!)
         : await KonumServisi.konumAl(sessiz: true);
     if (!mounted) return;
-    final h = await HavaDoviz.i
-        .havaGetir(enlem: _konum?.enlem, boylam: _konum?.boylam);
-    if (mounted && h != null) setState(() => _hava = h);
-    await HavaDoviz.i.kurGetir(kDovizler[0]);
-    if (mounted) setState(() {});
-    // TURU 172 - altin AYRI kaynaktan; kur beklenmeden istenir ki
-    //	dovizler cizilirken altin arka planda hazirlansin.
-    await HavaDoviz.i.altinGetir();
-    if (mounted) setState(() {});
+    // ⚠️⚠️⚠️ TURU 180m — **ALTIN KURDAN BAGIMSIZ VE PARALEL** (kullanici:
+    //	*"anasayfadaki altini kaldirmissin, dolar vs gecerken altin
+    //	GORUNMUYOR"*).
+    //
+    //	KOK NEDEN: uc istek ARDISIK `await` ile diziliydi ve altin EN
+    //	SONDAYDI. Ortadaki `kurGetir` TCMB'den gunluk seri cekiyor —
+    //	turu 173'te olculdu: **20 nokta = 23 istek**. Yani altin,
+    //	dovizler tamamen bitene kadar HIC istenmiyordu; yavas bir agda
+    //	cip donmeye USD/EUR/GBP ile basliyor ve altin adimi (`_adim`
+    //	3'te kaldigi icin) **DONGUYE HIC GIRMIYORDU**.
+    //	Emulatorde dogrulandi: 10 saniyelik izlemede USD -> EUR -> GBP
+    //	dondu, altin CIKMADI.
+    //
+    // ⚠️ Bu, turu 170d dersinin birebir tekrari: *"bir ozelligi baska bir
+    //	ag isteginin ARKASINA dizme"*. Ucu de AYRI kaynak (Open-Meteo ·
+    //	TCMB · truncgil) ve birbirini BEKLEMEK zorunda DEGIL.
+    // ⚠️ `unawaited` DEGIL, ayri `then`: her istek KENDI yanitinda
+    //	`setState` cagirir, yani hangi veri once gelirse ekran ONU
+    //	cizer. `Future.wait` kullanilsaydi en yavas istek digerlerini
+    //	de bekletirdi.
+    // ⚠️ YAPMA: `altinGetir`i tekrar `kurGetir`in ARKASINA dizme.
+    unawaited(HavaDoviz.i
+        .havaGetir(enlem: _konum?.enlem, boylam: _konum?.boylam)
+        .then((h) {
+      if (mounted && h != null) setState(() => _hava = h);
+    }));
+    unawaited(HavaDoviz.i.kurGetir(kDovizler[0]).then((_) {
+      if (mounted) setState(() {});
+    }));
+    unawaited(HavaDoviz.i.altinGetir().then((_) {
+      if (mounted) setState(() {});
+    }));
   }
 
   /// Bir onceki gune gore yon: +1 yukseldi, -1 dustu, 0 ayni/bilinmiyor.

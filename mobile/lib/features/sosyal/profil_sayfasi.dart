@@ -1551,10 +1551,26 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
       //	sacma olurdu.
       // ⚠️ Bir isletmenin IS ILANI ise MUSTERIYI ilgilendirir — zaten
       //	herkese acik bir liste (`/ilanlar?tur=is&user_id=`).
-      // ⚠️ TURU 180g — `begeni` YALNIZ kendi profilimde (uc `/users/me/`).
+      // ⚠️⚠️⚠️ TURU 180m — **`begeni` ISLETME PROFILINDE DE CIZILIR**
+      //	(kullanici UC KEZ istedi: *"isletme sayfasinda begeni yeri koy
+      //	dedim 3 defa, halen koymamissin"*).
+      //
+      //	Turu 180g'de sekme YALNIZ kendi profilimde cizilyordu ve
+      //	gerekcesi gizlilikti ("baskasinin neyi begendigi gizlidir").
+      //	Kullanici karari BUNU GECERSIZ KILAR — ustelik yalnizca
+      //	ISLETME hesaplari icin: bir isletmenin begendigi icerik
+      //	musteriye ilgi alanini gosterir, kisisel hesabin begenisi
+      //	hala GIZLI kalir.
+      // ⚠️⚠️ **VERI HENUZ GELMIYOR — DURUST SINIR.** Sunucudaki uc
+      //	`/users/me/begeniler`, yani BASKASI icin cagrilacak bir yol
+      //	YOK. Sekme cizilir ve icerik "yakinda" der; gercek liste
+      //	`GET /users/{id}/begeniler` acildiginda gelir (BACKEND TURU —
+      //	kullanici emri: *"backendi sonra yap, arayuzu hizli cikart"*).
+      // ⚠️ YAPMA: sekmeyi bos liste ile cizme — "bu isletme hicbir sey
+      //	begenmemis" YALANI olurdu (turu 176/179 dersi).
       if (x != ProfilSekmesi.genel &&
           x != ProfilSekmesi.video &&
-          (x != ProfilSekmesi.begeni || _benimMi) &&
+          (x != ProfilSekmesi.begeni || _benimMi || _isletme != null) &&
           (x == ProfilSekmesi.isIlani || !x.ilanMi || _benimMi))
         x,
   ];
@@ -1903,6 +1919,19 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
       } else if (x == ProfilSekmesi.begeni) {
         // ⚠️ TURU 180g — AYRI UC: `/users/me/begeniler`. `kullaniciGonderileri`
         //    ile getirilemez (o `?tur=` suzgeci alir, KAYNAK tabloyu degil).
+        // ⚠️⚠️⚠️ TURU 180m — **YALNIZ KENDI PROFILIMDE CAGRILIR.**
+        //	Uc `/users/me/begeniler`, yani DAIMA OKUYANIN begenilerini
+        //	dondurur. Kapi olmasaydi baskasinin (isletmenin) profilinde
+        //	**KENDI BEGENILERIM** o isletmenin begenileri gibi
+        //	cizilirdi — sessiz ve fark edilmesi cok zor bir YANLIS VERI.
+        //	Isletme profilinde sekme CIZILIR ama icerik durustce
+        //	"yakinda" der (bkz. `_sekmeIcerigi`).
+        // ⚠️ YAPMA: bu kapiyi kaldirip listeyi baskasinin profiline basma.
+        if (!_benimMi) {
+          if (!mounted) return;
+          setState(() => _gonderiOnbellek[x] = const <Gonderi>[]);
+          return;
+        }
         final l = await ref.read(sosyalServisiProvider).begenilenler();
         if (!mounted) return;
         setState(() => _gonderiOnbellek[x] = l);
@@ -2020,6 +2049,13 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
       );
     }
     if (x.ilanMi) return _ilanListesi();
+    // ⚠️⚠️ TURU 180m — BASKASININ profilinde `begeni` sekmesi cizilir ama
+    //	VERI HENUZ YOK (uc `/users/me/begeniler`). Bos liste basmak
+    //	"bu isletme hicbir sey begenmemis" YALANI olurdu; durustce
+    //	soyleniyor. ⏳ `GET /users/{id}/begeniler` BACKEND TURUNDA.
+    if (x == ProfilSekmesi.begeni && !_benimMi) {
+      return _yakindaDurum(x, soluk);
+    }
     final l = _gonderiOnbellek[x] ?? const <Gonderi>[];
     if (l.isEmpty) return _bosDurum(x, soluk);
     return _izgara();
@@ -2080,6 +2116,48 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
   /// ⚠️⚠️ TURU 180g — Blok, seridin ALTINDA **EKRANDA GERCEKTEN KALAN**
   ///	alanda ortalanir; ekranin altina tasan bir kutuda ortalamak
   ///	blogu GORUNMEZ yapardi.
+  /// ⚠️ TURU 180m — "veri yok" DEGIL "henuz baglanmadi" durumu.
+  ///	`_bosDurum` ile ayni gorsel dil; degisen YALNIZ metin.
+  Widget _yakindaDurum(ProfilSekmesi x, Color soluk) => Align(
+        alignment: Alignment.topCenter,
+        child: SizedBox(
+          height: _gorunurSerit(context),
+          child: Center(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 52,
+                    height: 52,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: _ks.onSurface.withValues(alpha: 0.35),
+                        width: 1.6,
+                      ),
+                    ),
+                    child: Icon(x.ikon, size: 23, color: soluk),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    "Beğeniler yakında",
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w600,
+                      color: soluk,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+
   Widget _bosDurum(ProfilSekmesi x, Color soluk) => Align(
         alignment: Alignment.topCenter,
         child: SizedBox(

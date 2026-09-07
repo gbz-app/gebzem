@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/api.dart';
+import '../../core/theme.dart' show koyuSayfa, kAiZemin, kKoyuTema;
 import '../medya/medya_gorsel.dart';
 import '../ilan/ilan_ekranlari.dart' show IlanDetayEkrani;
 import '../ilan/ilan_servisi.dart' show Ilan;
@@ -49,6 +50,17 @@ class KesfetEkrani extends ConsumerStatefulWidget {
 
 class _KesfetEkraniState extends ConsumerState<KesfetEkrani>
     with AutomaticKeepAliveClientMixin {
+  /// ⚠️⚠️⚠️ TURU 180m — **RENKLER TEMADAN DEGIL `kKoyuTema`DAN OKUNUR.**
+  ///
+  ///	Ekran `koyuSayfa` ile sarildi ama `Theme.of(context)` cagiran
+  ///	metotlar `State`in KENDI context'ini kullaniyor ve o context,
+  ///	`build`in DONDURDUGU agaca konan `Theme`in **USTUNDE** kalir
+  ///	(turu 135c/138/178 dersi — bu projede ALTINCI tekrari).
+  ///	Sonuc emulatorde goruldu: siyah zemine KOYU GRI yazi; "Ara",
+  ///	"Öneriler" ve tum oneri satirlari OKUNMUYORDU.
+  /// ⚠️ YAPMA: bu getter'i `Theme.of(context)`e geri dondurme.
+  ColorScheme get _ks => kKoyuTema.colorScheme;
+
   final _kutu = TextEditingController();
   final _odak = FocusNode();
   Timer? _gecikme;
@@ -225,7 +237,32 @@ class _KesfetEkraniState extends ConsumerState<KesfetEkrani>
     //    ustte baslik degil ARAMA KUTUSU olur). Bu yuzden `SafeArea` BURADA
     //    ZORUNLU; olmazsa arama kutusu durum cubugunun ALTINA girer.
     // ⚠️ `bottom: false` — alt guvenli alani NavigationBar zaten hallediyor.
-    return SafeArea(
+    // ⚠️⚠️⚠️ TURU 180m — **ZEMIN SIYAH** (kullanici: *"arama sayfasinin arka
+    //	rengi siyah degil, YEMEK vs kategorisi gibi olsun"*).
+    //
+    // ⚠️ `koyuSayfa` TEK KAYNAK (turu 178): tema + durum cubugu ikonlari
+    //	BIRLIKTE ayarlanir. Yalniz zemini boyamak ACIK temada siyah
+    //	uzerine SIYAH yazi verirdi (turu 135c/138/174te olculen sinif).
+    // ⚠️ `ColoredBox` ZORUNLU: bu ekran `Scaffold` DONDURMEZ (biri
+    //	`HomeScreen`in `IndexedStack`inde, digeri menuden
+    //	`Scaffold(body:)` ile aciliyor), yani zemini kendi cizmeli.
+    return koyuSayfa(ColoredBox(
+      color: kAiZemin,
+      // ⚠️⚠️⚠️ TURU 180m — **`DefaultTextStyle` ZORUNLU** (emulatorde IKINCI
+      //	olcumde goruldu). `_ks` getter'i `Theme.of` cagiran metotlari
+      //	kurtardi ama RENK BELIRTMEYEN metinler (baslik "Ara",
+      //	"Öneriler", oneri satirlari) rengini ortamdaki
+      //	`DefaultTextStyle`dan alir — o da `State` context'inden, yani
+      //	yine `koyuSayfa`nin USTUNDEN geliyordu ve siyah zemine KOYU
+      //	GRI ciziliyordu.
+      // ⚠️ `Builder` ZORUNLU: stili `koyuSayfa`nin koydugu `Theme`in
+      //	ALTINDAKI context'ten okumak icin (turu 135c dersi).
+      // ⚠️ YAPMA: bu sarmali kaldirip metinlere tek tek renk yazma —
+      //	sonradan eklenen her `Text` yine silik cikardi.
+      child: Builder(
+        builder: (c) => DefaultTextStyle(
+          style: Theme.of(c).textTheme.bodyMedium!,
+          child: SafeArea(
       bottom: false,
       child: Column(
         children: [
@@ -299,8 +336,7 @@ class _KesfetEkraniState extends ConsumerState<KesfetEkrani>
               decoration: InputDecoration(
                 hintText: 'Ne Aramıştın?',
                 filled: true,
-                fillColor: Theme.of(context)
-                    .colorScheme
+                fillColor: _ks
                     .onSurface
                     .withValues(alpha: 0.07),
                 prefixIcon: const Padding(
@@ -342,11 +378,23 @@ class _KesfetEkraniState extends ConsumerState<KesfetEkrani>
           //	Ilk yazimda serit YALNIZ metin girilince ciziliyordu; kullanici
           //	arama ekranini acinca hicbir sekme GORMUYOR ve ozelligin
           //	yapilmadigini saniyordu. TikTok'ta da sekmeler ekranda durur.
-          _sekmeSeridi(),
+          // ⚠️⚠️⚠️ TURU 180m — **SEKME SERIDI KALDIRILDI** (kullanici:
+          //	*"aramada kisiler, yerler, isletme vs var; onlari KALDIR,
+          //	gerek yok"*).
+          //
+          //	Arama zaten PROFIL ARAMASI icin var (turu 76 kullanici
+          //	karari: *"aramadan kastim normal profil arama, Instagram
+          //	gibi"*). Sekmeler o kararin uzerine turu 115te eklenmisti.
+          // ⚠️ `_sekme` 0da SABIT kalir (Kisiler); serit govdesi ve diger
+          //	turlerin kodu `ignore: unused_element` ile DURUYOR ki karar
+          //	tek satirla geri alinabilsin.
           Expanded(child: aramaModu ? _sonucGovde() : _aramaOncesi()),
         ],
       ),
-    );
+          ),
+        ),
+      ),
+    ));
   }
 
   /// ⚠️⚠️⚠️ TURU 133 — **SEKMELER BUTON DEGIL, ALTI CIZGILI** (kullanici
@@ -367,8 +415,10 @@ class _KesfetEkraniState extends ConsumerState<KesfetEkrani>
   /// ⚠️ Alt cizgi genisligi YAZIYLA AYNI (`IntrinsicWidth` degil, kolon
   ///    `min` genisligi): sabit bir genislik kisa/uzun etiketlerde
   ///    ortasiz dururdu.
+  // ⚠️ TURU 180m — cagri yeri kaldirildi (bkz. build serhi).
+  // ignore: unused_element
   Widget _sekmeSeridi() {
-    final scheme = Theme.of(context).colorScheme;
+    final scheme = _ks;
     return SizedBox(
       height: 44,
       child: Stack(
@@ -488,7 +538,7 @@ class _KesfetEkraniState extends ConsumerState<KesfetEkrani>
     required String metin,
     VoidCallback? sil,
   }) {
-    final scheme = Theme.of(context).colorScheme;
+    final scheme = _ks;
     return InkWell(
       onTap: () async {
         _kutu.text = metin;
@@ -547,7 +597,7 @@ class _KesfetEkraniState extends ConsumerState<KesfetEkrani>
   }
 
   Widget _bolumBasligi(String ad, {VoidCallback? eylem, String? eylemAd}) {
-    final scheme = Theme.of(context).colorScheme;
+    final scheme = _ks;
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 14, 8, 6),
       child: Row(
@@ -715,7 +765,7 @@ class _KesfetEkraniState extends ConsumerState<KesfetEkrani>
   /// ⚠️ Ilk uc sira MARKA RENGINDE — ama fark yalniz renkle degil KONUMLA
   ///    da veriliyor (renk korlugu).
   Widget _trendSatiri(Gonderi g, int sira) {
-    final scheme = Theme.of(context).colorScheme;
+    final scheme = _ks;
     final soluk = scheme.onSurface.withValues(alpha: 0.6);
     final metin = g.metin.trim();
     return InkWell(
@@ -873,7 +923,7 @@ class _KesfetEkraniState extends ConsumerState<KesfetEkrani>
           ? Icon(
               LucideIcons.badgeCheck,
               size: 17,
-              color: Theme.of(context).colorScheme.primary,
+              color: _ks.primary,
             )
           : null,
       onTap: () => _profileGit((i['id'] ?? '').toString()),

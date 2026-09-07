@@ -123,13 +123,23 @@ class KategoriKabugu extends StatelessWidget {
       slivers: slivers,
     );
     return Scaffold(
-      bottomNavigationBar: AltMenu(
-        secili: null,
-        onSec: (sira) {
-          aktifSekme.value = sira;
-          Navigator.of(context).popUntil((r) => r.isFirst);
-        },
-      ),
+      // ⚠️⚠️⚠️ TURU 180m — **ALT MENU KALDIRILDI** (kullanici: *"kategorilerin
+      //	alt menusunu kaldir; TUM KATEGORILERDEKI alt menuyu
+      //	kaldirmayi unutma"*).
+      //
+      //	Yemek ekraninda (`isletme_listesi.dart`) turu 174'te
+      //	`kAltMenuAcik = false` ile kapatilmisti; bu kabuk ise Ilan ·
+      //	Etkinlik · Talep ekranlarini besliyor ve alt menuyu HALA
+      //	ciziyordu — yani ekranlar arasinda GORSEL TUTARSIZLIK vardi
+      //	(turu 174'te "durust sinir" olarak yazilmisti).
+      // ⚠️⚠️ **CIKIS YOLU KAYBOLMUYOR**: `KategoriKabugu` sol kose bosken
+      //	GERI OKU ciziyor (turu 174'te Yemek icin de ayni cozum
+      //	uygulanmisti — o gun konum secici + alt menu birlikte
+      //	kalkinca ekranda gorunur hicbir cikis kalmamisti).
+      // ⚠️ Govde SILINMEDI, cagri yeri kapatildi: `AltMenu` ve
+      //	`aktifSekme` bu dosyada baska yerde kullanilmiyor ama karar
+      //	tek satirla geri alinabilsin.
+      bottomNavigationBar: null,
       // ⚠️⚠️ TURU 121 — FAB **YUKARI KALDIRILDI** (emulatorde goruldu).
       //	 varken Flutter FABi cubugun hemen ustune
       //	koyuyor; alt menunun ortadan TASAN logo dairesiyle ayni bantta

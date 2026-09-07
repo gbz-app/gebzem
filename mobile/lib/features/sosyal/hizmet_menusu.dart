@@ -225,15 +225,20 @@ class _HizmetMenusuState extends ConsumerState<HizmetMenusu> {
         const Color(0xFFFF6B9D),
         const Color(0xFFC2185B),
       ], (c) => const TalepAkisiEkrani(dal: 'dugun')),
-      _Bolum('Organizasyon', [
-        const Color(0xFFFF9A6B),
-        const Color(0xFFC24A18),
-      ], (c) => const TalepAkisiEkrani(dal: 'dugun')),
+      // ⚠️ TURU 180m — **ORGANIZASYON KALDIRILDI** (kullanici: *"kategorilerdeki
+      //	organizasyonu kaldir, gerek yok"*). Kart zaten Düğün ile AYNI
+      //	ekrana ve AYNI dala gidiyordu, yani ayri bir icerik KAYBOLMADI.
       _Bolum('Etkinlikler', [
         const Color(0xFF8B3FFF),
         const Color(0xFF5A1EBE),
       ], (c) => const EtkinlikListesiEkrani()),
-      _Bolum('İlan', [
+      // ⚠️⚠️ TURU 180m — **'İlan' -> '2. El İlan'** (kullanici: *"ilanlarda
+      //	2. El Ilan olarak degistir, IS ILANLARI ile KARISTIRMA"*).
+      //	Iki ayri urun: bu kart `ilanlar` tablosunun `tur=''` dalini
+      //	(esya/arac/emlak), 'İş İlanları' ise `tur='is'` dalini acar.
+      // ⚠️ Degisen YALNIZ GORUNEN ETIKET; sunucudaki `tur` degeri ve
+      //	sorgular DOKUNULMADI.
+      _Bolum('2. El İlan', [
         const Color(0xFF2BB673),
         const Color(0xFF12805A),
       ], (c) => const IlanListesiEkrani()),
@@ -344,7 +349,7 @@ class _HizmetMenusuState extends ConsumerState<HizmetMenusu> {
       'Cafe',
       // ⚠️ TURU 143 — 'Alışveriş' CIKARILDI (kart da kaldirildi).
       'Hizmet',
-      'İlan',
+      '2. El İlan',
       'Düğün',
       'Eğitim',
       'Sağlık',
@@ -1181,14 +1186,33 @@ class _HizmetMenusuState extends ConsumerState<HizmetMenusu> {
       padding: const EdgeInsets.fromLTRB(kYanBosluk, 0, 6, 0),
       child: Row(
         children: [
-          Avatar(
-            ad: tamAd,
-            mediaId: profil?['avatar_media_id'] as String?,
-            avatarUrl: (profil?['avatar_url'] ?? '').toString(),
-            cap: 42,
-            // TURU 171d - fotograf yoksa harf/soru isareti DEGIL,
-            //    ciplerle ayni notr daire (kullanici emri).
-            sade: true,
+          // ⚠️⚠️⚠️ TURU 180m — **AVATAR ARTIK PROFILE GIDER** (kullanici:
+          //	*"anasayfada SOL USTEKI profile tikladigimda profile
+          //	gitsin, GITMIYOR"*).
+          //
+          //	Avatar bugune kadar SALT DEKORDU: ciziliyor ama hicbir
+          //	dokunus yolu yoktu — bu projede tekrar eden "ekranda duran
+          //	ama is yapmayan oge" sinifi.
+          // ⚠️ Alt menudeki Profil sekmesiyle **AYNI YOL**: ayri bir `push`
+          //	ikinci bir profil ekrani yigar ve geri tusu kullaniciyi
+          //	menuye degil o kopyaya dondururdu.
+          // ⚠️ `HitTestBehavior.opaque`: `Avatar` sade modda notr bir daire
+          //	ciziyor; saydam bolgelerde dokunus DUSERDI.
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () {
+              aktifSekme.value = 5;
+              Navigator.of(context).popUntil((r) => r.isFirst);
+            },
+            child: Avatar(
+              ad: tamAd,
+              mediaId: profil?['avatar_media_id'] as String?,
+              avatarUrl: (profil?['avatar_url'] ?? '').toString(),
+              cap: 42,
+              // TURU 171d - fotograf yoksa harf/soru isareti DEGIL,
+              //    ciplerle ayni notr daire (kullanici emri).
+              sade: true,
+            ),
           ),
           const SizedBox(width: 11),
           // ⚠️ `Expanded` ZORUNLU: uzun bir ad arama ikonunu ekran

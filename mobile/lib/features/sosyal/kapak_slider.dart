@@ -138,21 +138,12 @@ class _KapakSliderState extends State<KapakSlider> {
             child: _slayt(i),
           ),
         ),
-        // ⚠️⚠️ TURU 180k — **SAGA HIZALI, ORTADA DEGIL** (emulatorde IKI KEZ
-        //	olculdu). Ortalandiginda noktalar AVATARIN TAM ARKASINDA
-        //	kaliyordu: avatar da yatayda ortali ve dikeyde tam kapagin alt
-        //	kenarina oturuyor, yani "alttan pay ver" duzeltmesi onlari
-        //	avatarin merkezine tasidi. Sagda hicbir sey yok — geri oku
-        //	SOLDA, yardim/hamburger YUKARIDA.
-        if (ids.length > 1)
-          Positioned(
-            right: 16,
-            bottom: widget.altPay,
-            // ⚠️ `IgnorePointer`: noktalar SUS, dokunulabilir degil. Aksi
-            //    halde kapaga dokunmak isteyen kullanicinin dokunusunu
-            //    yutarlardi.
-            child: IgnorePointer(child: _noktalar(i, ids.length)),
-          ),
+        // ⚠️⚠️⚠️ TURU 180m — **NOKTA GOSTERGESI KALDIRILDI** (kullanici:
+        //	*"sliderde alttaki cubuklari EKLEME"* + *"resimleri galeri
+        //	seklinde koymussun, ben sana GALERI DEMEDIM"*).
+        //	Noktalar kapagi bir foto galerisi gibi gosteriyordu; istenen
+        //	sey sessizce donen bir HEADER.
+        // ⚠️ YAPMA: nokta/cubuk/sayac gostergesi geri ekleme.
       ],
     );
   }
@@ -189,6 +180,10 @@ class _KapakSliderState extends State<KapakSlider> {
     return MedyaGorsel(mediaId: id, fit: BoxFit.cover);
   }
 
+  // ⚠️ TURU 180m — cagri yeri kaldirildi; govde `ignore` ile DURUYOR ki
+  //    karar tek satirla geri alinabilsin (bu projede silme komsu uyeyi
+  //    BES kez goturdu).
+  // ignore: unused_element
   Widget _noktalar(int aktif, int adet) => Row(
         // ⚠️ `min` ZORUNLU: `Positioned(right:)` ile konumlandiginda `Row`
         //    genislik kisiti almaz; `max` olsaydi sinirsiz kisitta PATLARDI.

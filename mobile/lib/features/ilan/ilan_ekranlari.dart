@@ -245,7 +245,7 @@ class _IlanListesiEkraniState extends ConsumerState<IlanListesiEkrani> {
                 ? 'İlanlarım'
                 : _favori
                 ? 'Favorilerim'
-                : 'İlanlar'),
+                : '2. El İlan'),
       sagIkon: (_tur == 'is' || _tur == 'talep') ? LucideIcons.briefcase : null,
       sagIpucu: _tur == 'talep' ? 'Tekliflerim' : 'Başvurularım',
       sagBasildi: () => Navigator.of(
@@ -937,7 +937,13 @@ class _IlanListesiEkraniState extends ConsumerState<IlanListesiEkrani> {
   ///    (Yemek ekranindaki duzenin aynisi).
   Widget _listeBasligi(int adet) => kabukBolumBasligi(
     context,
-    'İlanlar ($adet)',
+    // ⚠️ TURU 180m — **'İlanlar' -> '2. El İlan'** (kullanici: *"İlan,
+    //	2. El İlan olarak degisecek"*). Bu ekran IS ILANLARINI da
+    //	listeleyebiliyor (`_tur == 'is'`), o yuzden baslik TURDEN
+    //	turetilir — sabit yazilsaydi is ilani listesi de "2. El İlan"
+    //	derdi ve kullanicinin ACIKCA ayirmamizi istedigi iki urun yine
+    //	karisirdi.
+    _tur == 'is' ? 'İş İlanları ($adet)' : '2. El İlan ($adet)',
     sag: KabukGorunumSecici(
       izgara: _izgara,
       onSec: (v) => setState(() => _izgara = v),
