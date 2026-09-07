@@ -10194,3 +10194,92 @@ popup/sheet** -> kabaca 60-80 benzersiz ekran.
    tasarimciya para verilmemeli; bugun bile profil ekrani yeniden kuruldu.
 ⚠️ Brief'te `assets/marka` ve `feedmc` icerigi **tescilli marka / ornek veri**
    olarak isaretlenmeli.
+
+---
+
+## Oturum — Turu 180k (7 Eylul 2026)
+
+Kullanici emri: *"McDonald's isletmesinin header'ina videoh.mp4 koy, header
+slider tarzi; ILK bu video gelsin, 15-20 saniye sonra degissin"*.
+
+### ⚠️⚠️⚠️ ALAN YOKTU — ACILDI (migration 051)
+`users.kapak_media_id` **TEK** medya tasiyor; slider tanim geregi birden
+fazla ister. Arayuze sabit liste basmak yalan olurdu (turu 176/179'da
+"Ozellikler" ve "Instagram hesabi" TAM BU sebeple yazilmamis, turu 180'de
+dogru cozum ALAN ACMAK olmustu). `isletmeler.kapak_medyalari TEXT[] NOT NULL
+DEFAULT '{}'` — additive, **DB TRUNCATE GEREKMEDI**.
+⚠️ `kapak_media_id` DOKUNULMADI: liste/harita/Yakinimda kartlari onu okuyor
+   ve slider BOSSA istemci eski davranisa duser (sahadaki surumler bozulmaz).
+
+### ⚠️⚠️ TUR BILGISI DE DONER (`kapak_turleri`)
+`posts.media_kinds` deseninin birebir esi (`unnest ... WITH ORDINALITY`,
+sira korunur). Tursuz bir video id'si `MedyaGorsel`e gider ve **KIRIK
+GORSEL** cizerdi — turu 83b denetiminin profil izgarasinda bulup kapattigi
+hatanin aynisi.
+
+### ⚠️⚠️⚠️ SEVK ENGELI: `erisebilir()` DALI UNUTULDU
+Emulatorde **ANINDA** gorundu: kapakta *"Video açılamadı"*. Yeni medya sutunu
+acildi ama `media.erisebilir()` icine dal EKLENMEDI -> slider medyasi
+**YUKLEYENDEN BASKA HERKESE 403**. Cagiran kapi
+`if sahip != userID && !erisebilir(...)` oldugu icin McDonald's hesabiyla
+bakilsa SORUN GORUNMEZDI.
+⚠️ CLAUDE.md'de yazili *"yeni medya sutunu -> `erisebilir()` dali +
+   `medyayiKopar` sayimi + e2e"* kuralinin **DORDUNCU** tekrari
+   (turu 75b akis · 77 hikaye · 78 kapak · 78b grup avatari).
+✅ IKINCI HESAPLA dogrulandi: iki medya da **200**.
+· `medyayiKopar` referans sayimi UC KOPYAYA da eklendi (chat/kanal/social):
+  ayni medya hem bir gonderide hem slider'da kullaniliyorsa gonderi
+  silinince slider medyasi kopariliyor ve kapak KIRILIRDI.
+  ⏳ **DURUST SINIR:** o uc kopya BIRBIRINDEN FARKLI (drift etmis) —
+     `social` kopyasi `users.kapak_media_id` ve `chats.avatar_media_id`
+     saymiyor. Tek kaynaga alma AYRI IS.
+
+### 🎞️ `KapakSlider` (yeni dosya)
+`AnimatedSwitcher` + `Timer`; video **18 sn**, foto **6 sn**.
+⚠️ 18 sn secimi olculdu: video **8,9 sn** (ffprobe) -> 18 = IKI TAM DONUS;
+   15 ya da 20'de slayt videonun ORTASINDA kesilirdi.
+⚠️ **`PageView`/kaydirma jesti YOK** — turu 180j'de yeni temizlenen ic ice
+   kaydirma catismasini geri davet ederdi.
+⚠️ Video SESSIZ + kontrolsuz + dongulu (iOS'ta ses oturumunu ele gecirmesin;
+   dongusuz olsa son 9 saniye DONMUS KARE kalirdi).
+⚠️ `didUpdateWidget` ZORUNLU: isletme detayi AG ISTEGIYLE sonradan gelir.
+
+### ⚠️⚠️ NOKTA GOSTERGESI IKI KEZ KAYBOLDU (emulatorde olculdu)
+1. `bottom: 10` -> kapagin alt ~52 dp'si avatar tasmasi + koyu sayfa
+   tarafindan ORTULUYOR, noktalar HIC gorunmuyordu.
+2. `bottom: _tasma + 10` -> bu sefer **AVATARIN TAM ARKASINA** dustu
+   (avatar da yatayda ortali ve dikeyde kapagin alt kenarinda).
+**FIX:** `right: 16` ile SAGA hizali (`MainAxisSize.min` zorunlu —
+`Positioned(right:)` ile `Row` genislik kisiti almaz).
+
+### ⚠️ `Isletme.kapakMedyalari` NULLABLE (turu 85b dersi)
+`isletme_duzenle.dart` kaydederken YENI bir `Isletme(...)` kuruyor ve slider
+alanini VERMIYOR. Duz `List<String>` olsaydi varsayilan bos dilim her kayitta
+`[]` gider ve **calisma saatini duzenleyen isletme kapak videosunu SESSIZCE
+SILERDI**. `null`=dokunma · `[]`=bosalt.
+
+### 🛠️ `tools/kapak_yukle.js`
+presign -> R2 PUT -> commit; poster karesi **commit'ten ONCE** (turu 180h).
+⚠️ PUT oncesi mevcut isletme bilgisi OKUNUP geri gonderiliyor: `PUT
+/users/me/isletme` bir UPSERT ve adres/telefon/calisma alanlarini KOSULSUZ
+`EXCLUDED` ile yaziyor — yalnizca slider gonderilseydi **adres ve 7 gunluk
+calisma saatleri BOSALIRDI** (turu 77b veri kaybi). Betik sonrasinda bunu
+ayrica DOGRULUYOR.
+⚠️ `slidermc.png` 3,0 MB -> 1440x960 JPEG **400 KB**.
+⚠️ Login yaniti `{token, user_id}` doner (`user:{id}` DEGIL — olculdu).
+
+### ✅ Dogrulama
+migration 001->051 atilabilir kopyada TEMIZ (55 tablo) · backend deploy +
+health ok · `go build/vet/test` temiz · `flutter analyze` **0/0** ·
+`flutter test` **86/86** · emulatorde slider **gozle dogrulandi**:
+video 18 sn -> magaza fotografi 6 sn -> video (dongu), noktalar sagda.
+
+### ⏳ Durust sinirlar
+- Video **720x1280 DIKEY**, kapak ise genis bir serit: `BoxFit.cover` ile
+  ortadan bir serit gorunuyor (burger'in ustu/alti kirpiliyor). Yatay bir
+  kapak videosu daha iyi otururdu.
+- Kapak slideri icin **DUZENLEME ARAYUZU YOK**: alan sunucuda acik ama
+  isletme sahibi kendi slider'ini uygulamadan degistiremiyor (bugun yalniz
+  `tools/kapak_yukle.js` ile). ⏳ AYRI IS.
+- `videoh.mp4` da `feedmc/` ve `assets/marka` ile ayni sinifta **tescilli
+  marka icerigi** — yayin oncesi cikarilmali.
