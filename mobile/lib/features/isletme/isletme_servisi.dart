@@ -225,6 +225,8 @@ class Isletme {
     this.web = '',
     this.ozellikler = const <String>[],
     this.odeme = const <String>[],
+    this.kapakMedyalari,
+    this.kapakTurleri = const <String>[],
     this.calisma = const [],
     this.enlem,
     this.boylam,
@@ -250,6 +252,46 @@ class Isletme {
   //	(turu 77 kurali).
   List<String> ozellikler;
   List<String> odeme;
+
+  /// ⚠️⚠️⚠️ TURU 180k — **KAPAK SLIDERI** (kullanici emri: *"McDonald's
+  ///	isletmesinin header'ina bu video koy, header slider tarzi; ILK bu
+  ///	video gelsin, 15-20 saniye sonra degissin"*).
+  ///
+  /// Medya id listesi (foto VE video olabilir; tur `media_assets.kind`ten
+  /// gelir ve `MedyaKucukResmi`/`MedyaVideo` ayrimi ISTEMCIDE yapilir).
+  ///
+  /// ⚠️⚠️ **BOSSA ESKI DAVRANIS**: `ProfilBasligi` tek `kapakMediaId`yi cizer.
+  ///	Yani bu alan hicbir isletmede zorunlu degil ve doldurulmamis
+  ///	kayitlarda gorunum DEGISMEZ.
+  /// ⚠️ `users.kapak_media_id` DOKUNULMADI: liste/harita/Yakinimda kartlari
+  ///	onu okuyor (tek 16:9 kapak orada DOGRU olan).
+  /// ⚠️⚠️⚠️ **NULLABLE VE BU HAYATI** (turu 85b koordinat dersinin birebir
+  ///	aynisi — o gun sahada YASANDI):
+  ///
+  ///	  `null`  -> alan istege KONMAZ; sunucu COALESCE ile MEVCUDU KORUR
+  ///	  `[]`    -> alan bos gonderilir; sunucu slideri BOSALTIR
+  ///	  dolu    -> normal kayit
+  ///
+  ///	`isletme_duzenle.dart` kaydederken YENI bir `Isletme(...)` kuruyor ve
+  ///	slider alanini VERMIYOR (o ekranda boyle bir form YOK). Alan duz
+  ///	`List<String>` olsaydi varsayilan bos dilim her kayitta sunucuya
+  ///	`[]` olarak gider ve **calisma saatini duzenleyen bir isletme kapak
+  ///	videosunu SESSIZCE SILERDI.**
+  /// ⚠️ YAPMA: bunu non-nullable yapma; `json()`teki `!= null` kapisini
+  ///	kaldirma.
+  List<String>? kapakMedyalari;
+
+  /// ⚠️ `kapakMedyalari` ile **BIREBIR HIZALI** tur listesi (`video`/`image`/
+  ///	`yok`). SUNUCUDAN gelir (`unnest ... WITH ORDINALITY`), istemcide
+  ///	TAHMIN EDILMEZ.
+  ///
+  /// ⚠️⚠️ `json()`E **EKLENMEZ**: bu bir TURETILMIS alan, kullanicinin
+  ///	yazdigi veri DEGIL. Gonderilseydi sunucu onu yok sayardi ama
+  ///	okuyan biri "demek ki yazilabilir" sanip bir yazma yolu acardi.
+  /// ⚠️ Salt okunur (`final`): slider degistiginde tur listesi de SUNUCUDAN
+  ///	yeniden gelir.
+  final List<String> kapakTurleri;
+
   List<CalismaGunu> calisma;
 
   /// ⚠️⚠️ TURU 85b — **NULLABLE**: "gonderilmedi" ile "SIFIRLA" AYRI seylerdir.
@@ -300,6 +342,7 @@ class Isletme {
     'calisma': calisma.map((c) => c.json()).toList(),
     'ozellikler': ozellikler,
     'odeme': odeme,
+    if (kapakMedyalari != null) 'kapak_medyalari': kapakMedyalari,
     // ⚠️⚠️⚠️ TURU 78b — KOORDINATLAR **YALNIZ DOLUYSA** GONDERILIR (denetim).
     //
     //    Sunucuda `enlem`/`boylam` ISARETCI yapildi ve
@@ -341,6 +384,12 @@ class Isletme {
         .map((e) => e.toString())
         .toList(),
     odeme: ((m['odeme'] as List?) ?? const [])
+        .map((e) => e.toString())
+        .toList(),
+    kapakMedyalari: ((m['kapak_medyalari'] as List?) ?? const [])
+        .map((e) => e.toString())
+        .toList(),
+    kapakTurleri: ((m['kapak_turleri'] as List?) ?? const [])
         .map((e) => e.toString())
         .toList(),
     calisma: ((m['calisma'] as List?) ?? [])

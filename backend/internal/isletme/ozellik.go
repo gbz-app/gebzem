@@ -1,6 +1,9 @@
 package isletme
 
-import "net/http"
+import (
+	"net/http"
+	"strings"
+)
 
 // ⚠️⚠️⚠️ TURU 180 — ISLETME OZELLIKLERI VE ODEME SECENEKLERI (TEK KAYNAK).
 //
@@ -126,4 +129,79 @@ func (h *Handler) Katalog(w http.ResponseWriter, r *http.Request) {
 		"ozellikler": katalogListe(OzellikAdlari, ozellikSira),
 		"odeme":      katalogListe(OdemeAdlari, odemeSira),
 	})
+}
+
+// temizMedya — kapak slideri icin gonderilen medya id listesini dogrular.
+//
+// ⚠️⚠️ TURU 180k — `temizListe`den AYRI bir yardimci ve bu bilincli: oradaki
+//
+//	dogrulama SABIT BIR BEYAZ LISTEYE bakiyor (`OzellikAdlari`), burada ise
+//	deger bir medya id'si — kume ONCEDEN BILINEMEZ. Ayni fonksiyona
+//	"beyaz liste nil ise her seyi kabul et" gibi bir dal eklemek, ozellik
+//	tarafindaki kapiyi da tek satirlik bir hatayla ACARDI.
+//
+// ⚠️⚠️ **`nil` KAYNAK -> `nil` DONER** (`temizListe` ile ayni sozlesme):
+//
+//	cagri yerindeki `COALESCE($n::text[], isletmeler.kapak_medyalari)`
+//	bunu "alan gonderilmedi, MEVCUDU KORU" diye okur. Bos dilim
+//	(`[]string{}`) ise "slideri BOSALT" demektir — ikisi AYRI seydir.
+//
+// ⚠️⚠️ **BOS DILIM ASLA `nil` DONMEZ**: NOT NULL sutuna `nil` dilim yazmak
+//
+//	SQL NULL'a cevrilir ve `23502` verir (turu 75b `posts.media_ids`
+//	sevk engelinin birebir aynisi).
+//
+// ⚠️ UUID BICIM SUZGECI ZORUNLU: tek bozuk deger `text[]` sutununa yazilir,
+//
+//	istemci onu cozemez ve slaytta KIRIK bir kutu cizilir. Ayrica ileride
+//	bu sutun bir sorguda `= ANY(...)` ile uuid'ye karsi kullanilirsa
+//	**TUM SORGU 500 doner** (turu 113'te `favorim` cast'inda yasandi).
+//
+// ⚠️ Tavan **8**: slider bir vitrindir, albüm degil. Sinirsiz birakilsaydi
+//
+//	istemci acilista onlarca medya id'si icin imzali adres cozmeye
+//	calisirdi (turu 91'de olculen N+1 sinifi).
+func temizMedya(kaynak *[]string) []string {
+	if kaynak == nil {
+		return nil
+	}
+	const tavan = 8
+	gorulen := map[string]bool{}
+	cikti := []string{}
+	for _, k := range *kaynak {
+		k = strings.TrimSpace(k)
+		if !uuidBicimi(k) || gorulen[k] {
+			continue
+		}
+		gorulen[k] = true
+		cikti = append(cikti, k)
+		if len(cikti) >= tavan {
+			break
+		}
+	}
+	return cikti
+}
+
+// uuidBicimi — 8-4-4-4-12 onaltilik bicim (surum/varyant SORGULANMAZ).
+//
+// ⚠️ `regexp` KULLANILMADI: bu fonksiyon her kayitta 8 kez kosuyor ve elle
+//
+//	tarama hem daha ucuz hem bagimliliksiz. Ayrica projede regex'in
+//	Turkce/kacis tuzaklariyla defalarca sorun yasandi (turu 157).
+func uuidBicimi(s string) bool {
+	if len(s) != 36 {
+		return false
+	}
+	for i, c := range s {
+		if i == 8 || i == 13 || i == 18 || i == 23 {
+			if c != '-' {
+				return false
+			}
+			continue
+		}
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') && (c < 'A' || c > 'F') {
+			return false
+		}
+	}
+	return true
 }

@@ -1,0 +1,38 @@
+-- TURU 180k — ISLETME KAPAK SLIDERI (kullanici emri: *"McDonald's isletmesinin
+-- header'ina videoh.mp4 koy, header slider tarzi; ILK bu video gelsin,
+-- 15-20 saniye sonra degissin"*).
+--
+-- ⚠️⚠️⚠️ NEDEN YENI SUTUN: `users.kapak_media_id` **TEK** bir medya tasiyor.
+--    Slider TANIM GEREGI birden fazla medya ister ve bugun sunucuda boyle bir
+--    alan YOK. Arayuze sabit bir liste basmak "bu isletmenin kapak videosu
+--    budur" YALANI olurdu — turu 176/179'da "Ozellikler" ve "Instagram hesabi"
+--    TAM BU SEBEPLE yazilmamis, turu 180'de dogru cozum olarak ALAN ACILMISTI
+--    (`isletmeler.ozellikler/odeme`). Bu migration onun birebir esi.
+--
+-- ⚠️⚠️ `kapak_media_id` **DOKUNULMADI** ve dokunulmamali:
+--    · isletme listesi (`Liste`), `Yakinimda` kartlari ve harita alt sayfasi
+--      onu okuyor — tek gorselli 16:9 kapak orada DOGRU olan.
+--    · eski istemci surumleri yalnizca onu biliyor; kaldirilsaydi sahadaki
+--      her surumde kapak KAYBOLURDU.
+--    Yani `kapak_medyalari` BOSSA istemci eski davranisa duser (tek slayt).
+--
+-- ⚠️ `TEXT[]` — `UUID[]` DEGIL: `media_assets.id` uuid ama bu sutun bir
+--    REFERANS LISTESI, FK DEGIL. `posts.media_ids` de (015'ten beri) `TEXT[]`
+--    ve medya silinince orada YETIM id kalmasi ZATEN kabul edilmis bir durum
+--    (istemci cozemedigi id icin yer tutucu cizer). Ayni deseni bozmuyoruz.
+--
+-- ⚠️⚠️ **NOT NULL DEFAULT '{}' ZORUNLU**: nullable birakilsaydi Go tarafinda
+--    `nil` dilim SQL NULL'a cevrilir ve `pgx` tarama sirasinda patlardi.
+--    Turu 75b'de `posts.media_ids` uzerinde TAM BU yasandi ve **her yazi
+--    gonderisi 500 donuyordu** (SQLSTATE 23502). `temizListe` yardimcisi da
+--    bu yuzden ASLA `nil` dondurmez.
+--
+-- ⚠️ CHECK constraint YOK: uzunluk/bicim dogrulamasi Go'da (beyaz liste
+--    deseni). Migration 036/037'de CHECK **IKI KEZ** sevk engeli uretmisti
+--    (yeni bir `kind`/`durum` degeri eklenince eski CHECK sessizce reddediyor).
+--
+-- ⚠️ ADDITIVE: yalnizca sutun ekler -> **DB TRUNCATE GEREKMEZ**, mevcut
+--    hesaplar ve isletmeler DURUR.
+
+ALTER TABLE isletmeler
+  ADD COLUMN IF NOT EXISTS kapak_medyalari TEXT[] NOT NULL DEFAULT '{}';

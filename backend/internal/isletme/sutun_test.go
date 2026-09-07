@@ -183,6 +183,13 @@ func TestDetaySelectVeScanHizali(t *testing.T) {
 	istisna := map[string]string{
 		"u.onayli":                 "dogrulandi",
 		"COALESCE(ra.acik, false)": "randevuAcik",
+		// ⚠️ TURU 180k — Go tarafinda camelCase (`kapakMedyalari`), sutun
+		//    snake_case. Bilincli sapma; SIRA yine de korunuyor.
+		"i.kapak_medyalari": "kapakMedyalari",
+		// ⚠️ ALT SORGU: adi sutundan turetilemez, ACIKCA yazilir. Anahtar alt
+		//    sorgunun ILK SATIRIDIR (govde cok satirli) — `Liste` muhafizinda
+		//    da ayni desen kullaniliyor.
+		"COALESCE((SELECT array_agg(COALESCE(ma.kind,'yok') ORDER BY km.idx)": "kapakTurleri",
 	}
 	for i, s := range sutunlar {
 		bekle, ok := istisna[s]

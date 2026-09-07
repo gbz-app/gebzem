@@ -5,6 +5,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/theme.dart' show kimlikRengi;
 import '../medya/medya_gorsel.dart';
+import 'kapak_slider.dart';
 import 'sosyal_servisi.dart' show Profil;
 
 /// ⚠️⚠️ TURU 78 — PROFIL BASLIGI: KAPAK + LOGO/AVATAR + ONAYLI ROZET.
@@ -71,10 +72,24 @@ class ProfilBasligi extends StatelessWidget {
     required this.p,
     this.onAvatarDokun,
     this.acik,
+    this.kapakMedyalari = const <String>[],
+    this.kapakTurleri = const <String>[],
   });
 
   final Profil p;
   final VoidCallback? onAvatarDokun;
+
+  /// ⚠️⚠️ TURU 180k — **KAPAK SLIDERI** (isletme; `isletmeler.kapak_medyalari`).
+  ///
+  /// ⚠️ **BOSSA ESKI DAVRANIS**: tek `p.kapakMediaId` cizilir. Yani kisisel
+  ///	hesaplar ve slideri doldurulmamis isletmeler DEGISMEZ.
+  /// ⚠️ Veri `Profil`de DEGIL `Isletme`de: bu yuzden parametre olarak
+  ///	geciriliyor. `Profil`e eklenseydi `/users/{id}/profile` ucunun da
+  ///	tasimasi gerekirdi — o uc isletme tablosuna JOIN YAPMIYOR.
+  final List<String> kapakMedyalari;
+
+  /// ⚠️ `kapakMedyalari` ile BIREBIR hizali tur listesi (bkz. `KapakSlider`).
+  final List<String> kapakTurleri;
 
   /// ⚠️⚠️ TURU 179 — **ACIK/KAPALI NOKTASI** (kullanici emri: *"logonun
   ///	sag altinda YESIL daire olsun acik olduguna isaret, degilse
@@ -159,6 +174,12 @@ class ProfilBasligi extends StatelessWidget {
   );
 
   Widget _kapak() {
+    // ⚠️⚠️ TURU 180k — SLIDER **ONCE**: dolu ise tek kapagin yerine gecer.
+    //    Bos ise (kisisel hesap ya da slideri doldurulmamis isletme) asagidaki
+    //    ESKI davranis aynen kosar — sahadaki hicbir profil bozulmaz.
+    if (kapakMedyalari.isNotEmpty) {
+      return KapakSlider(medyaIds: kapakMedyalari, turler: kapakTurleri);
+    }
     final id = p.kapakMediaId;
     if (id != null && id.isNotEmpty) {
       // ⚠️ `kucuk: false` — kapak TAM GENISLIK cizilir; kucuk resim burada

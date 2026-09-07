@@ -848,6 +848,13 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
             //    degisseydi bir ariza cikinca SEBEP AYIRT EDILEMEZDI (turu 67).
             ProfilBasligi(
               p: p,
+              // ⚠️⚠️ TURU 180k — KAPAK SLIDERI (isletme). Veri `Isletme`den
+              //	geliyor ve `_isletme` AG ISTEGIYLE SONRADAN dolar;
+              //	`KapakSlider.didUpdateWidget` bu gecisi karsiliyor
+              //	(yoksa slider ilk BOS haliyle donardi).
+              // ⚠️ Bos ise `ProfilBasligi` ESKI davranisa duser (tek kapak).
+              kapakMedyalari: _isletme?.kapakMedyalari ?? const <String>[],
+              kapakTurleri: _isletme?.kapakTurleri ?? const <String>[],
               // ⚠️ TURU 179 — nokta YALNIZ calisma saati GIRILMIS bir
               //    isletmede cizilir; `null` gecilirse HIC cizilmez
               //    (bkz. `ProfilBasligi.acik` serhi).
