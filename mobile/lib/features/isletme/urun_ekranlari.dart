@@ -758,10 +758,56 @@ class _UrunKatalogEkraniState extends ConsumerState<UrunKatalogEkrani> {
         width: boy,
         height: boy,
         child: u.mediaIds.isNotEmpty
-            ? MedyaGorsel(
-                mediaId: u.mediaIds.first,
-                kucuk: true,
-                fit: BoxFit.cover,
+            ? Stack(
+                children: [
+                  Positioned.fill(
+                    child: MedyaGorsel(
+                      mediaId: u.mediaIds.first,
+                      kucuk: true,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                  // ⚠️⚠️ TURU 180o — COKLU FOTOGRAF ROZETI.
+                  //    Listede yalniz KAPAK cizilir; rozet olmadan musteri
+                  //    urunun baska fotograflari oldugunu BILEMEZ ve detaya
+                  //    girip galeriyi kaydirmayi hic denemez.
+                  if (u.mediaIds.length > 1)
+                    Positioned(
+                      right: 5,
+                      bottom: 5,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.55),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 7,
+                            vertical: 2,
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                LucideIcons.images,
+                                size: 11,
+                                color: Colors.white,
+                              ),
+                              const SizedBox(width: 3),
+                              Text(
+                                '${u.mediaIds.length}',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
               )
             : _yerTutucu(scheme),
       ),
@@ -1179,7 +1225,24 @@ class _UrunDuzenleEkraniState extends ConsumerState<UrunDuzenleEkrani> {
     ...?widget.urun?.ozellikler,
   };
 
-  File? _gorsel;
+  /// ⚠️⚠️⚠️ TURU 180o — **COKLU FOTOGRAF** (kullanici: *"otel odasinda
+  ///    galeri vs bu galeriler aciliyor mu, her sey var mi"*).
+  ///
+  /// Onceden burada `File? _gorsel` vardi: bir otel odasina ya da hizmete
+  /// **TEK** fotograf eklenebiliyordu ve detay sayfasi da yalniz onu
+  /// ciziyordu. Sutun (`isletme_urunleri.media_ids UUID[]`, migration 031)
+  /// ve sunucu ZATEN dizi tasiyordu — eksik olan ARAYUZDU.
+  /// ⚠️ Backend'e DOKUNULMADI (kullanici: *"backendi sonra yap arayuzu
+  ///    hizli cikart"*).
+  final List<File> _gorseller = [];
+
+  /// ⚠️ AI aciklama yolu tek gorsel ister; ilk fotograf temsilcidir.
+  File? get _gorsel => _gorseller.isEmpty ? null : _gorseller.first;
+
+  /// ⚠️ Tavan: cok fotograf = cok yukleme + cok R2 nesnesi. 6 kare,
+  ///    onizleme seridinde kaydirmadan sigan sayidir.
+  static const int _enFazlaFoto = 6;
+
   bool _kaydediliyor = false;
   bool _aiCalisiyor = false;
 
@@ -1209,17 +1272,16 @@ class _UrunDuzenleEkraniState extends ConsumerState<UrunDuzenleEkrani> {
 
   Future<void> _gorselSec() async {
     if (!MedyaKapisi.izinVer(ref)) return;
-    XFile? x;
-    try {
-      MedyaKapisi.pickerAcik = true;
-      x = await ImagePicker().pickImage(source: ImageSource.gallery);
-    } catch (_) {
-    } finally {
-      MedyaKapisi.pickerAcik = false;
-    }
-    if (x == null || !mounted) return;
+    final kalan = _enFazlaFoto - _gorseller.length;
+    if (kalan <= 0) return;
+    // ⚠️⚠️ `MedyaSecici.coklu` TEK KAYNAK: `pickMultiImage(limit: 1)`
+    //    **ArgumentError FIRLATIR** ve o hata burada sessizce yutulurdu
+    //    (turu 90b dersi). Yardimci, tavan 1 iken sinirsiz acip donusu
+    //    kirpar.
+    final secim = await MedyaSecici.coklu(kalan);
+    if (secim.isEmpty || !mounted) return;
     setState(() {
-      _gorsel = File(x!.path);
+      _gorseller.addAll(secim.map((x) => File(x.path)));
       // ⚠️⚠️ TURU 79 — SIMETRI ZORUNLU: onay adimi elle secilen dosyayi
       //    dusuruyor, burasi da AI gorselini DUSURMELI. Ikisi ayni anda dolu
       //    kalsaydi `_kaydet` AI'i tercih eder ve kullanicinin YENI SECTIGI
@@ -1406,7 +1468,7 @@ class _UrunDuzenleEkraniState extends ConsumerState<UrunDuzenleEkrani> {
       _uretilenMediaId = mediaId;
       // ⚠️ Elle secilmis dosya varsa DUSURULUR: iki kaynak birden olursa
       //    `_kaydet` hangisini yollayacagini bilemez ve sessizce biri kaybolur.
-      _gorsel = null;
+      _gorseller.clear();
     });
   }
 
@@ -1488,16 +1550,22 @@ class _UrunDuzenleEkraniState extends ConsumerState<UrunDuzenleEkrani> {
         //    gelip R2'ye orada yazildi; istemcide dosya HIC YOK.)
         if (_uretilenMediaId != null) {
           idler.add(_uretilenMediaId!);
-        } else if (_gorsel != null) {
-          final hazir = await MedyaServisi.gorseliHazirla(_gorsel!);
-          if (hazir == null) throw Exception('Görsel hazırlanamadı');
-          idler.add(
-            await medyaSvc.yukle(
-              dosya: hazir,
-              kind: 'image',
-              mime: 'image/jpeg',
-            ),
-          );
+        } else {
+          // ⚠️⚠️ TURU 180o — **SIRA KORUNUR**: yuklemeler `Future.wait`
+          //    ile paralel yapilsaydi donus sirasi AG HIZINA gore degisir ve
+          //    kullanicinin sectigi ilk fotograf katalogda kapak olmayabilirdi
+          //    (katalog + detay ikisi de `mediaIds.first`i kapak sayar).
+          for (final dosya in _gorseller) {
+            final hazir = await MedyaServisi.gorseliHazirla(dosya);
+            if (hazir == null) throw Exception('Görsel hazırlanamadı');
+            idler.add(
+              await medyaSvc.yukle(
+                dosya: hazir,
+                kind: 'image',
+                mime: 'image/jpeg',
+              ),
+            );
+          }
         }
         govde['media_ids'] = idler;
         await urunSvc.ekle(govde);
@@ -1607,7 +1675,7 @@ class _UrunDuzenleEkraniState extends ConsumerState<UrunDuzenleEkrani> {
                             children: [
                               Icon(LucideIcons.imagePlus, size: 28),
                               SizedBox(height: 6),
-                              Text('Ürün fotoğrafı'),
+                              Text('Fotoğraf ekle'),
                             ],
                           ),
                         )
@@ -1618,6 +1686,93 @@ class _UrunDuzenleEkraniState extends ConsumerState<UrunDuzenleEkrani> {
                 ),
               ),
             ),
+          // ⚠️⚠️ TURU 180o — SECILEN FOTOGRAFLARIN SERIDI.
+          //    Ustteki 16:9 kutu KAPAGI (ilk fotograf) gosterir; serit
+          //    digerlerini gorunur kilar ve TEK TEK kaldirma yolunu acar.
+          // ⚠️ Serit YALNIZ dosya secilmisken cizilir: AI gorseli tek
+          //    parcadir ve onun icin serit anlamsiz olurdu.
+          if (widget.urun == null && _gorseller.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            SizedBox(
+              height: 74,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: _gorseller.length + 1,
+                separatorBuilder: (_, _) => const SizedBox(width: 8),
+                itemBuilder: (_, k) {
+                  if (k == _gorseller.length) {
+                    // ⚠️ Tavana ulasilinca ekleme karesi CIZILMEZ: dokunusa
+                    //    cevap vermeyen bir kutu "bozuk" gorunurdu.
+                    if (_gorseller.length >= _enFazlaFoto) {
+                      return const SizedBox.shrink();
+                    }
+                    return GestureDetector(
+                      onTap: _gorselSec,
+                      child: Container(
+                        width: 74,
+                        decoration: BoxDecoration(
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.surfaceContainerHighest,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(LucideIcons.plus, size: 22),
+                      ),
+                    );
+                  }
+                  return Stack(
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Image.file(
+                          _gorseller[k],
+                          width: 74,
+                          height: 74,
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                      Positioned(
+                        top: 0,
+                        right: 0,
+                        // ⚠️⚠️ Dokunma kutusu 30 dp: turu 78b'de olculdu —
+                        //    17x17'lik kaldirma dugmesi Material'in 48 dp
+                        //    tabaninin cok altindaydi ve basilamiyordu.
+                        child: GestureDetector(
+                          onTap: () => setState(() => _gorseller.removeAt(k)),
+                          child: Container(
+                            width: 30,
+                            height: 30,
+                            alignment: Alignment.center,
+                            child: DecoratedBox(
+                              decoration: const BoxDecoration(
+                                color: Colors.black54,
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Padding(
+                                padding: EdgeInsets.all(3),
+                                child: Icon(
+                                  LucideIcons.x,
+                                  size: 13,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(
+                '${_gorseller.length}/$_enFazlaFoto fotoğraf · ilki kapak olur',
+                style: const TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+            ),
+          ],
           // ---- ⚠️⚠️ TURU 79 — YAPAY ZEKA ILE GORSEL OLUSTUR
           //
           // Kullanici emri: "yapay zeka ile gorsel oluşturma nerede?" —

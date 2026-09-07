@@ -15,6 +15,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/theme.dart';
 import '../medya/medya_gorsel.dart';
+import '../medya/tam_ekran_gorsel.dart';
 import 'urun_servisi.dart';
 
 Future<void> urunDetayAc(
@@ -32,7 +33,7 @@ Future<void> urunDetayAc(
   ),
 );
 
-class UrunDetayEkrani extends StatelessWidget {
+class UrunDetayEkrani extends StatefulWidget {
   const UrunDetayEkrani({
     super.key,
     required this.urun,
@@ -44,7 +45,29 @@ class UrunDetayEkrani extends StatelessWidget {
   final String isletmeAd;
   final Modul modul;
 
+  @override
+  State<UrunDetayEkrani> createState() => _UrunDetayEkraniState();
+}
+
+class _UrunDetayEkraniState extends State<UrunDetayEkrani> {
+  Urun get urun => widget.urun;
+  String get isletmeAd => widget.isletmeAd;
+  Modul get modul => widget.modul;
+
   ColorScheme get _ks => kKoyuTema.colorScheme;
+
+  /// Galeri sayfa sayaci.
+  /// ⚠️ `PageController` `initState`te kurulur: `build` icinde kurulsaydi
+  ///    her cizimde YENISI olusur ve kaydirma konumu SIFIRLANIRDI
+  ///    (turu 92 slider dersi).
+  final _sayfaCtrl = PageController();
+  int _sayfa = 0;
+
+  @override
+  void dispose() {
+    _sayfaCtrl.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -156,22 +179,86 @@ class UrunDetayEkrani extends StatelessWidget {
   ///    cizilseydi gorselli ve gorselsiz urunlerde sayfa yapisi degisirdi.
   /// ⚠️ 4:3 — kare degil: menu fotograflari genelde yatay ve kare kutu
   ///    onlari ustten/alttan KIRPARDI.
-  Widget _gorsel(BuildContext context) => ClipRRect(
-    borderRadius: BorderRadius.circular(20),
-    child: AspectRatio(
-      aspectRatio: 4 / 3,
-      child: urun.mediaIds.isNotEmpty
-          ? MedyaGorsel(mediaId: urun.mediaIds.first, fit: BoxFit.cover)
-          : ColoredBox(
-              color: _ks.onSurface.withValues(alpha: 0.08),
-              child: Icon(
-                LucideIcons.image,
-                size: 44,
-                color: _ks.onSurface.withValues(alpha: 0.25),
+  ///
+  /// ⚠️⚠️⚠️ TURU 180o — **GALERI** (kullanici: *"otel odasinda galeri vs bu
+  ///    galeriler aciliyor mu"*). Onceden YALNIZ `mediaIds.first` ciziliyordu:
+  ///    bir otel odasinin 5 fotografi yuklense bile musteri **BIRINI**
+  ///    goruyordu ve digerlerine ulasmanin HICBIR yolu yoktu.
+  /// ⚠️ Sutun ZATEN dizi (`isletme_urunleri.media_ids UUID[]`, migration
+  ///    031) ve sunucu diziyi oldugu gibi donduruyordu — eksik olan
+  ///    yalnizca ARAYUZDU. Backend'e DOKUNULMADI.
+  /// ⚠️⚠️ Dokunus **TAM EKRAN** acar: fotograf 4:3 kutuda `cover` cizilir,
+  ///    yani dikey bir oda fotografinin buyuk kismi KIRPIKTIR ve tam haline
+  ///    ulasmanin baska yolu YOK (ilan galerisiyle birebir ayni gerekce,
+  ///    turu 113).
+  /// ⚠️ Urun medyasi **DAIMA fotograftir** (`kind: 'image'` sabit yazilir,
+  ///    AI gorseli de oyle) — bu yuzden video dali YOK. Ileride video
+  ///    eklenirse once sunucu `media_kinds` dondurmeli, yoksa video id'si
+  ///    `MedyaGorsel`e gidip KIRIK GORSEL cizer (turu 83b dersi).
+  Widget _gorsel(BuildContext context) {
+    final n = urun.mediaIds.length;
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(20),
+      child: AspectRatio(
+        aspectRatio: 4 / 3,
+        child: n == 0
+            ? ColoredBox(
+                color: _ks.onSurface.withValues(alpha: 0.08),
+                child: Icon(
+                  LucideIcons.image,
+                  size: 44,
+                  color: _ks.onSurface.withValues(alpha: 0.25),
+                ),
+              )
+            : Stack(
+                children: [
+                  PageView.builder(
+                    controller: _sayfaCtrl,
+                    itemCount: n,
+                    onPageChanged: (i) => setState(() => _sayfa = i),
+                    itemBuilder: (_, k) => GestureDetector(
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) =>
+                              TamEkranGorsel(mediaId: urun.mediaIds[k]),
+                        ),
+                      ),
+                      child: MedyaGorsel(
+                        mediaId: urun.mediaIds[k],
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                  ),
+                  if (n > 1)
+                    Positioned(
+                      right: 12,
+                      bottom: 12,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.55),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
+                          child: Text(
+                            '${_sayfa + 1}/$n',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
               ),
-            ),
-    ),
-  );
+      ),
+    );
+  }
 
   Widget _rozet(String metin) => Align(
     alignment: Alignment.centerLeft,
