@@ -10162,3 +10162,35 @@ gozle: isletme profilinde tek parca kaydirma (takilma YOK), Menü Mesaj'in
 saginda, rezervasyon yok, yuzen hap yok, is ilaninda logo + navigator ikonu +
 ust bosluk, yenileme noktalari durum cubugunun ALTINDA, kendi profilinde bos
 durum ORTALANMIS ve alt menunun arkasinda DEGIL.
+
+### ✅ Yayin (7 Eyl 17:13)
+ios **34130725023** (`0f36d89`), R2 ipa=**29074344** (md5 432ac7e7),
+index=7967 (e23a26bb) surum.json=45 (3f3a6141), purge OK, **CDN ucu de
+BIREBIR**, `get-task-allow: false`, ad hoc profil, `MapsApiKey` +
+`NSLocationWhenInUse` VAR, 4 ttf + 8 marka pakette.
+IPAda dizeler VAR: `Beğeniler` · `İş İlanları` · `Maaş belirtilmemiş` ·
+`Henüz gönderi yok` · `Google Sans Flex`; kontrol dizesi `Yakınımda` VAR.
+⚠️ `Rezervasyon` dizesi hala VAR ve NORMAL: profil satirindan cikti ama
+randevu akisi onu kullaniyor.
+Adres: https://indir.gebzem.app/index.html?v=20260907-1713
+
+### ⚠️ Build 34130249330 BASARISIZ — KOD HATASI DEGIL
+GitHub release CDN'i `Sentry-Dynamic.xcframework.zip` ve
+`Sentry-Dynamic-WithARM64e.xcframework.zip` icin **504** dondu; Xcode SPM
+bagimliliklarini cozemedi. Yeniden tetiklendi (34130725023), ikincisi gecti.
+⚠️ Ayni hata tekrarlarsa kodda arama YAPMA — bekle ve tekrar tetikle.
+
+### 💸 Redesign maliyeti (kullanici sordu, bugun karar YOK)
+Olculdu: **153 Dart dosyasi · ~96.000 satir · 59 ekran sinifi · 109
+popup/sheet** -> kabaca 60-80 benzersiz ekran.
+· $150-200/sa'lik bir tasarimciyla tam redesign **$60-84K** (345-480 saat).
+· Kullanicinin butcesi **$5.000** -> tam redesign IMKANSIZ (25-33 saat).
+· **ONERI:** para **marka kimligi + tasarim sistemine** harcanir, ekranlari
+  ben uygularim. `core/theme.dart` TEK KAYNAK oldugu icin sistem oraya
+  girince tum ekranlar birden doner (turu 180i'de yazi tipi tek sabitle
+  10 yerde birden degismisti — ayni kaldirac).
+· Turkiye'de $40-70/sa -> ayni para 3-4 kat is demek.
+⚠️ **ZAMANLAMA UYARISI (kullaniciya soylendi):** arayuz akislari DONMADAN
+   tasarimciya para verilmemeli; bugun bile profil ekrani yeniden kuruldu.
+⚠️ Brief'te `assets/marka` ve `feedmc` icerigi **tescilli marka / ornek veri**
+   olarak isaretlenmeli.

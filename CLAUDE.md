@@ -41,9 +41,25 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
       kaybettiriyorsun"*. **Üçüncüsü olmayacak.**
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
-- **KALDIGIMIZ YER (7 Eyl): TURU 180j KODU BITTI, iOS BUILD ALINIYOR (34130249330).**
-  Arayuz turu: **BACKEND DEGISMEDI**, migration YOK, deploy YOK, DB TRUNCATE YOK.
-  ✅ analyze **0/0** · test **86/86** · emulatorde gozle dogrulandi.
+- **KALDIGIMIZ YER (7 Eyl 17:13): TURU 180j YAYINLANDI — SADECE iOS.**
+  ios **34130725023** (**0f36d89**), R2 ipa=**29074344** (md5 432ac7e7),
+  index=7967 (e23a26bb) surum.json=45 (3f3a6141), purge OK, **CDN BIREBIR**
+  (ucu de), `get-task-allow: false`, ad hoc profil, `MinimumOSVersion` +
+  `MapsApiKey` + `NSLocationWhenInUse` VAR, 4 ttf + 8 marka pakette.
+  IPAda dizeler VAR: `Beğeniler` · `İş İlanları` · `Maaş belirtilmemiş` ·
+  `Henüz gönderi yok` · `Google Sans Flex` · `Kaydedilenler`.
+  Kontrol dizesi `Yakınımda` VAR (yontem dogrulandi).
+  ⚠️ `Rezervasyon` dizesi HALA VAR ve bu NORMAL: profil satirindan cikti ama
+     randevu akisi (`randevu_al.dart`, randevu listeleri) onu KULLANIYOR.
+  ⚠️ **ADRES:** https://indir.gebzem.app/index.html?v=20260907-1713
+  Arayuz turu: **BACKEND DEGISMEDI**, migration YOK, deploy YOK,
+  **DB TRUNCATE EDILMEDI**. health ok.
+  ✅ analyze **0/0** · test **86/86** · emulatorde isletme profili · is
+     ilanlari · kendi profil **gozle dogrulandi**.
+  ⚠️ **BUILD 34130249330 BASARISIZ OLDU — KOD HATASI DEGIL**: GitHub release
+     CDN'i `Sentry-Dynamic.xcframework.zip` icin **504** dondu (SPM cozumu).
+     Yeniden tetiklendi, ikincisi gecti. Ayni hata tekrarlarsa BEKLE + tekrar
+     tetikle; kodda arama YAPMA.
 
 - 🔀 ⚠️⚠️⚠️ **TURU 180j — "SAYFA TAKILIYOR"UN KOK NEDENI: PROFILDE IKI
   DIKEY KAYDIRMA ALANI VARDI.**
