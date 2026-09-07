@@ -10283,3 +10283,13 @@ video 18 sn -> magaza fotografi 6 sn -> video (dongu), noktalar sagda.
   `tools/kapak_yukle.js` ile). ⏳ AYRI IS.
 - `videoh.mp4` da `feedmc/` ve `assets/marka` ile ayni sinifta **tescilli
   marka icerigi** — yayin oncesi cikarilmali.
+
+### ✅ Yayin (7 Eyl 18:48)
+ios **34139135702** (`be76972`), R2 ipa=**29075675** (md5 268fa8f1),
+index=7967 (317572b0) surum.json=45 (bcb5b9bc), purge OK, **CDN ucu de
+BIREBIR**, `get-task-allow: false`, ad hoc profil, `MapsApiKey` +
+`NSLocationWhenInUse` VAR, 4 ttf + 8 marka pakette.
+IPAda dizeler VAR: `kapak_medyalari` · `kapak_turleri` · `Video açılamadı` ·
+`Beğeniler` · `İş İlanları` · `Maaş belirtilmemiş`; kontrol dizesi
+`Yakınımda` VAR. Backend deploy (migration 051) + health ok.
+Adres: https://indir.gebzem.app/index.html?v=20260907-1848
