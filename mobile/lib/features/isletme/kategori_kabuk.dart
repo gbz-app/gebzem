@@ -36,8 +36,8 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/yenile.dart';
-import '../home/alt_menu.dart';
-import '../home/home_screen.dart' show aktifSekme;
+// ⚠️ TURU 180m — `AltMenu` ve `aktifSekme` importlari KALDIRILDI: alt menu
+//    cagri yeri kapatildi (bkz. `bottomNavigationBar` serhi).
 import 'isletme_kart.dart'
     show kYanBosluk, kYaricap, kYuzeyGri, kVurgu, kalinIkon;
 import 'isletme_listesi.dart'
@@ -627,4 +627,114 @@ SliverGridDelegate kabukIzgaraOlcu(BuildContext c, {int bilgiSatiri = 1}) {
     mainAxisSpacing: 20,
     mainAxisExtent: en * 9 / 16 + 7 + ad + 2 + bilgi + 1,
   );
+}
+
+/// ⚠️⚠️⚠️ TURU 180m — **KUCUK KATEGORI SERIDI** (kullanici emri: *"ilan
+/// hizmetlerdeki vasita emlak vs BUYUK KARTLARI KALDIR, altina kucuk kartlar
+/// kalsin"* + *"butun kategorileri YEMEK arayuzu MANTIGI ile yap"*).
+///
+/// Ilan · Etkinlik · Talep ekranlarinda tur/kategori secimi 4 sutunlu bir
+/// **kutu izgarasiyla** yapiliyordu; izgara ekranin ustunde ~200 dp yer
+/// kapliyor ve asil listeyi asagi itiyordu. Yemek ekraninda ise ayni secim
+/// **yatay 60 dp'lik bir seritle** yapilir.
+///
+/// ⚠️⚠️ **IZGARA SILINMEDI, YERINE BU KONDU — ISLEV KAYBI YOK.** Bu izgaralar
+///	o ekranlardaki TEK tur/kategori secme yoluydu (ciplerin hepsi
+///	FILTRE: siralama · fiyat · favorilerim · yaklasan/gecmis). Duz
+///	silinseydi kullanici bir daha "Emlak" ya da "Konser" secemezdi —
+///	bu projede tekrar eden "ozellik ulasilamaz kaldi" sinifi.
+///
+/// ⚠️ Yukseklik **YAZI OLCEGINDEN** turetilir, sabit dp DEGIL: Android'in ilk
+///	yazi kademesi (1.15) bile sabit bir kutuyu tasirirdi (turu 93b'de
+///	Yemek seridinde birebir yasandi).
+/// ⚠️ Ad `FittedBox(scaleDown)` icinde: uzun bir ad (or. "Teklif İsteği")
+///	KIRPILMAZ, kuculur — tasma YAPISAL OLARAK imkansiz.
+/// ⚠️ Kutu icinde IKON/GORSEL YOK: Yemek seridinde de kutular BOS gri
+///	(turu 96q kullanici karari) ve iki ekran yan yana ayni dili
+///	konusmali.
+class KabukKucukSerit extends StatelessWidget {
+  const KabukKucukSerit({
+    super.key,
+    required this.ogeler,
+    required this.secili,
+    required this.onSec,
+  });
+
+  /// (anahtar, gorunen ad) ciftleri.
+  final List<({String anahtar, String ad})> ogeler;
+
+  /// Secili anahtar; bos dize = hicbiri.
+  final String secili;
+  final ValueChanged<String> onSec;
+
+  /// Kutu olcusu — Yemek seridiyle AYNI (`kAltKutu`).
+  static const double kutu = 60;
+
+  @override
+  Widget build(BuildContext context) {
+    if (ogeler.isEmpty) return const SizedBox.shrink();
+    final olcek = MediaQuery.textScalerOf(context);
+    // ⚠️ Iki satirlik ad payi: 13 punto x 1.15 x 2 satir.
+    final etiket = olcek.scale(13) * 1.15 * 2;
+    return SizedBox(
+      height: kutu + 5 + etiket + 2,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: kYanBosluk),
+        itemCount: ogeler.length,
+        separatorBuilder: (_, _) => const SizedBox(width: kIzgaraAralik),
+        itemBuilder: (c, i) {
+          final o = ogeler[i];
+          final aktif = o.anahtar == secili;
+          return SizedBox(
+            width: kutu,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              // ⚠️ Secili ogeye tekrar dokunmak SECIMI BIRAKIR: bos dizeye
+              //    donen baska bir yol yok (Yemek seridiyle ayni davranis).
+              onTap: () => onSec(aktif ? '' : o.anahtar),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: kutu,
+                    height: kutu,
+                    decoration: BoxDecoration(
+                      color: kYuzeyGri(c),
+                      borderRadius: BorderRadius.circular(kYaricap(kutu)),
+                      // ⚠️ Secim KENARLIKLA gosterilir, dolguyla DEGIL:
+                      //    dolu bir kutu bos kardeslerinin yaninda "gorsel
+                      //    yuklendi" gibi okunurdu.
+                      border: aktif
+                          ? Border.all(color: kVurgu(c), width: 1.6)
+                          : null,
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  Expanded(
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        o.ad,
+                        textAlign: TextAlign.center,
+                        maxLines: 2,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          height: 1.15,
+                          // ⚠️ Kalinlik SABIT: secimle degisseydi metnin
+                          //    genisligi degisir ve serit her dokunusta
+                          //    KAYARDI (turu 140 dersi).
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
 }

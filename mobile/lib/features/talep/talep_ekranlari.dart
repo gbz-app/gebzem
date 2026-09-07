@@ -326,48 +326,27 @@ class _TalepAkisiState extends ConsumerState<TalepAkisiEkrani> {
                   ),
                 )
               else
-                SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(
-                    kYanBosluk,
-                    0,
-                    kYanBosluk,
-                    28,
-                  ),
-                  sliver: SliverGrid(
-                    gridDelegate:
-                        SliverGridDelegateWithFixedCrossAxisCount(
-                          // ⚠️ 4 sutun: menudeki kategori izgarasiyla BIREBIR
-                          //    (turu 96q kullanici emri).
-                          crossAxisCount: 4,
-                          crossAxisSpacing: kIzgaraAralik,
-                          mainAxisSpacing: kIzgaraAralik,
-                          // ⚠️⚠️⚠️ TURU 114 (denetim) — **ORAN DEGIL SABIT
-                          //	YUKSEKLIK.** Ilk yazimda `childAspectRatio: 0.78`
-                          //	vardi; hucre yuksekligi GENISLIKTEN turedigi icin
-                          //	yazi olcegi buyudugunde etiket alani BUYUYOR ama
-                          //	hucre BUYUMUYORDU.
-                          //	OLCULDU (gercek `flutter test` + font metrikleri):
-                          //	  411 dp · olcek 1.5 -> hucre 109.94 dp,
-                          //	  icerik 131.30 dp -> **21.36 dp TASMA**.
-                          //	Formul menudeki izgaranin AYNISI: gri kutu + 5 +
-                          //	IKI SATIRLIK etiket, etiket yazi olceginden
-                          //	TURETILIR. Boylece tasma YAPISAL OLARAK imkansiz.
-                          // ⚠️ YAPMA: `childAspectRatio`a geri donme.
-                          // +1 dp pay: TextPainter satir yuksekligini YUKARI
-                          // yuvarlar; paysiz hesap 0.1 px tasma seridi
-                          // cizdiriyordu (etkinlikte olculdu).
-                          mainAxisExtent:
-                              kKesifKutu +
-                              5 +
-                              MediaQuery.textScalerOf(context).scale(14) *
-                                  1.15 *
-                                  2 +
-                              1,
+                // ⚠️⚠️⚠️ TURU 180m — **BUYUK KUTU IZGARASI -> KUCUK SERIT**
+                //	(kullanici: *"butun kategorilerdeki BUYUK KARTLARI
+                //	kaldir, altina kucuk kartlar kalsin"*).
+                // ⚠️⚠️ Bu kartlar bir FILTRE DEGIL **EYLEM**: dokunus talep
+                //	sihirbazini aciyor ve baska hicbir girisi YOK. Serit
+                //	o yuzden BOS secimle cizilir — hicbiri secili
+                //	gorunmez, dokunus dogrudan sihirbaza gider.
+                // ⚠️ Izgara + `_kategoriKarti` govdeleri SILINMEDI.
+                SliverToBoxAdapter(
+                  child: KabukKucukSerit(
+                    ogeler: gosterilen,
+                    secili: '',
+                    onSec: (a) {
+                      final k = gosterilen.firstWhere((x) => x.anahtar == a);
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              TalepSihirbaziEkrani(tur: talep, kategori: k),
                         ),
-                    delegate: SliverChildBuilderDelegate(
-                      (c, i) => _kategoriKarti(talep, gosterilen[i]),
-                      childCount: gosterilen.length,
-                    ),
+                      );
+                    },
                   ),
                 ),
               // ⚠️ TURU 123 — "NASIL ÇALIŞIR" blogu KALDIRILDI: Yemek ve
@@ -521,6 +500,8 @@ class _TalepAkisiState extends ConsumerState<TalepAkisiEkrani> {
   ///
   /// ⚠️ IKON YOK, HARF YOK: kutu bir YUZEYDIR, yazi ALTINDA (kullanici
   ///    kategori ekraninda kutu icine konan HER SEYI uc kez kaldirtti).
+  // ⚠️ TURU 180m — cagri yeri kapatildi (bkz. build serhi).
+  // ignore: unused_element
   Widget _kategoriKarti(IlanTuru talep, ({String anahtar, String ad}) k) =>
       RepaintBoundary(
         child: GestureDetector(

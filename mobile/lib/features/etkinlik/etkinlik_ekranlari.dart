@@ -211,7 +211,22 @@ class _EtkinlikListesiEkraniState extends ConsumerState<EtkinlikListesiEkrani> {
           //	Onceki serh *"bu ekranda kategori GORSELI yok, kutu bos
           //	kalirdi"* diyordu — ama Yemek, Ilan ve Hizmet ekranlarinda da
           //	kutular BOS (gri) ve altlarinda yazi var; ayni dil.
-          SliverToBoxAdapter(child: _kategoriIzgarasi()),
+          // ⚠️⚠️⚠️ TURU 180m — **BUYUK KUTU IZGARASI -> KUCUK SERIT**
+          //	(kullanici: *"butun kategorilerdeki BUYUK KARTLARI kaldir"*).
+          //	Yemek ekranindaki 60 dp yatay seridin AYNISI; secim islevi
+          //	KORUNUR (cipler burada Yaklasan/Gecmis, yani kategori
+          //	secmenin baska yolu YOK).
+          // ⚠️ Izgara govdesi SILINMEDI, cagri yeri kapatildi.
+          SliverToBoxAdapter(
+            child: KabukKucukSerit(
+              ogeler: [
+                for (final e in etkinlikKategorileri.entries)
+                  (anahtar: e.key, ad: e.value),
+              ],
+              secili: _kategori,
+              onSec: _kategoriSec,
+            ),
+          ),
           kabukBosluk(),
 
           // ── TEK CIP SERIDI (Yemek`te de TEK serit vardir) ──
@@ -404,6 +419,8 @@ class _EtkinlikListesiEkraniState extends ConsumerState<EtkinlikListesiEkrani> {
   /// ⚠️ Ayni kutuya tekrar dokunmak secimi KALDIRIR ("Tümü"ye doner):
   ///    aksi halde kullanici tum etkinliklere donmek icin ayri bir dugme
   ///    aramak zorunda kalirdi (Ilan ekranindaki kural).
+  // ⚠️ TURU 180m — cagri yeri kapatildi (bkz. build serhi).
+  // ignore: unused_element
   Widget _kategoriIzgarasi() {
     // Iki satirlik ad + 1 dp pay: TextPainter satir yuksekligini YUKARI
     // yuvarlar ve paysiz hesap 0.1 px tasma seridi cizdiriyordu

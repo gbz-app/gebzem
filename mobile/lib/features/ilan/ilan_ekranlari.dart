@@ -323,7 +323,23 @@ class _IlanListesiEkraniState extends ConsumerState<IlanListesiEkrani> {
         //	sonra dogrudan kutular gelir. Baslik bu ekrani ailenin disinda
         //	gosteriyordu.
         if (turler.isNotEmpty) ...[
-          SliverToBoxAdapter(child: _turIzgarasi(turler)),
+          // ⚠️⚠️⚠️ TURU 180m — **BUYUK KUTU IZGARASI -> KUCUK SERIT**
+          //	(kullanici: *"ilan hizmetlerdeki vasita emlak vs BUYUK
+          //	KARTLARI KALDIR, altina kucuk kartlar kalsin"*).
+          //	4 sutunlu izgara ekranin ustunde ~200 dp yiyor ve asil
+          //	ilan listesini asagi itiyordu; Yemek ekraninda ayni secim
+          //	yatay 60 dp serit ile yapiliyor.
+          // ⚠️ IZGARA GOVDESI SILINMEDI (`_turIzgarasi`), cagri yeri
+          //	kapatildi — karar tek satirla geri alinabilsin.
+          SliverToBoxAdapter(
+            child: KabukKucukSerit(
+              ogeler: [
+                for (final t in turler) (anahtar: t.anahtar, ad: t.ad),
+              ],
+              secili: _tur,
+              onSec: _turSec,
+            ),
+          ),
           const SliverToBoxAdapter(child: SizedBox(height: kBosluk)),
         ],
 
@@ -500,6 +516,8 @@ class _IlanListesiEkraniState extends ConsumerState<IlanListesiEkrani> {
   ///    ve gradyan YOK (turu 96s kullanici karari).
   /// ⚠️ Secili tur cerceveyle isaretlenir: yalnizca renk tonu degistirmek
   ///    dusuk gorme kosullarinda ayirt edilemiyordu.
+  // ⚠️ TURU 180m — cagri yeri kapatildi (bkz. build serhi).
+  // ignore: unused_element
   Widget _turIzgarasi(List<IlanTuru> turler) {
     final etiket = MediaQuery.textScalerOf(context).scale(14) * 1.15 * 2 + 1;
     return Padding(
