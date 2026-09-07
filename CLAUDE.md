@@ -41,7 +41,83 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
       kaybettiriyorsun"*. **Üçüncüsü olmayacak.**
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
-- **KALDIGIMIZ YER (7 Eyl 17:13): TURU 180j YAYINLANDI — SADECE iOS.**
+- **KALDIGIMIZ YER (7 Eyl): TURU 180k KODU BITTI, iOS BUILD ALINIYOR
+  (34139135702, be76972).**
+  ✅ **BACKEND DEPLOY** (migration **051** canlida) + health ok.
+  ⚠️ **DB TRUNCATE EDILMEDI** (051 additive: yalniz bir sutun ekliyor).
+  ✅ analyze **0/0** · test **86/86** · go build+vet+test temiz ·
+     emulatorde slider **gozle dogrulandi**.
+
+- 🎞️ ⚠️⚠️⚠️ **TURU 180k — ISLETME KAPAK SLIDERI (video + foto).**
+  Kullanici emri: *"McDonald's isletmesinin header'ina bu video koy, header
+  slider tarzi; ILK bu video gelsin, 15-20 saniye sonra degissin"*.
+  ⚠️⚠️ **ALAN YOKTU — ACILDI** (migration **051**,
+     `isletmeler.kapak_medyalari TEXT[] NOT NULL DEFAULT '{}'`).
+     `users.kapak_media_id` TEK medya tasiyor; arayuze sabit liste basmak
+     YALAN olurdu (turu 176/179 dersi), dogru cozum ALANI ACMAK (turu 180
+     `ozellikler/odeme` deseninin esi).
+  ⚠️ `kapak_media_id` **DOKUNULMADI**: liste/harita/Yakinimda kartlari onu
+     okuyor ve slider BOSSA istemci ESKI davranisa duser.
+  ⚠️⚠️ **TUR BILGISI DE DONER** (`kapak_turleri`, `posts.media_kinds`
+     deseninin esi, `unnest ... WITH ORDINALITY`): tursuz bir video id'si
+     `MedyaGorsel`e gider ve **KIRIK GORSEL** cizerdi (turu 83b).
+  · `KapakSlider` (yeni dosya): `AnimatedSwitcher` + `Timer`; video **18 sn**
+    (video 8,9 sn -> IKI TAM DONUS; 15/20'de ortasindan kesilirdi),
+    foto **6 sn**.
+  ⚠️ **`PageView`/kaydirma jesti YOK**: turu 180j'de temizlenen ic ice
+     kaydirma catismasini geri davet ederdi.
+  ⚠️ Video SESSIZ + kontrolsuz + DONGULU (dongusuz olsa son 9 sn DONMUS
+     KARE kalirdi; sesli olsa iOS'ta aktif aramayi sagirlastirabilirdi).
+  ⚠️ `Isletme.kapakMedyalari` **NULLABLE**: `isletme_duzenle` yeni bir
+     `Isletme(...)` kuruyor ve bu alani VERMIYOR — duz dilim olsaydi calisma
+     saatini duzenleyen isletme kapak videosunu SESSIZCE SILERDI (turu 85b).
+
+- ⚠️⚠️⚠️ **TURU 180k — SEVK ENGELI: `erisebilir()` DALI UNUTULDU.**
+  Emulatorde **ANINDA** gorundu: kapakta *"Video açılamadı"*. Yeni medya
+  sutunu acildi ama `media.erisebilir()` icine dal EKLENMEDI -> slider
+  medyasi **YUKLEYENDEN BASKA HERKESE 403**. Cagiran kapi
+  `if sahip != userID && !erisebilir(...)` oldugu icin **McDonald's
+  hesabiyla bakilsa SORUN GORUNMEZDI**.
+  ⚠️ CLAUDE.md'de yazili *"yeni medya sutunu -> `erisebilir()` dali +
+     `medyayiKopar` sayimi + e2e"* kuralinin **DORDUNCU** tekrari
+     (turu 75b akis · 77 hikaye · 78 kapak · 78b grup avatari).
+  ✅ IKINCI HESAPLA dogrulandi: iki medya da **200**.
+  ⚠️ `= ANY(kapak_medyalari)` — sutun `TEXT[]`, `::uuid` cast'i EKLEME
+     (turu 113 `favorim` hatasi: uuid = text -> TUM SORGU 500).
+  ⏳ **DURUST SINIR:** `medyayiKopar` UC KOPYA (chat/kanal/social) ve
+     BIRBIRINDEN FARKLI (drift etmis) — `social` kopyasi
+     `users.kapak_media_id` ve `chats.avatar_media_id` SAYMIYOR.
+     Ucune de `kapak_medyalari` eklendi; tek kaynaga alma **AYRI IS**.
+
+- ⚠️⚠️ **TURU 180k — NOKTA GOSTERGESI IKI KEZ KAYBOLDU (emulatorde olculdu).**
+  1. `bottom: 10` -> kapagin alt ~52 dp'si avatar tasmasi + koyu sayfa
+     tarafindan ORTULUYOR, noktalar HIC gorunmuyordu.
+  2. `bottom: _tasma + 10` -> bu sefer **AVATARIN TAM ARKASINA** dustu
+     (avatar da yatayda ortali, dikeyde kapagin alt kenarinda).
+  **FIX:** `right: 16` ile SAGA hizali. ⚠️ `MainAxisSize.min` ZORUNLU:
+  `Positioned(right:)` ile `Row` genislik kisiti ALMAZ.
+
+- 🛠️ **TURU 180k — `tools/kapak_yukle.js`.**
+  presign -> R2 PUT -> commit; poster karesi **commit'ten ONCE** (turu 180h).
+  ⚠️⚠️ PUT oncesi mevcut isletme bilgisi **OKUNUP GERI GONDERILIYOR**:
+     `PUT /users/me/isletme` bir UPSERT ve adres/telefon/calisma alanlarini
+     KOSULSUZ `EXCLUDED` ile yaziyor — yalnizca slider gonderilseydi
+     **adres ve 7 gunluk calisma saatleri BOSALIRDI** (turu 77b veri kaybi).
+     Betik bunu sonrasinda AYRICA dogruluyor.
+  ⚠️ `slidermc.png` 3,0 MB -> 1440x960 JPEG **400 KB**.
+  ⚠️ Login yaniti **`{token, user_id}`** doner (`user:{id}` DEGIL — olculdu).
+
+- ⏳ **TURU 180k — DURUST SINIRLAR:**
+  · Video **720x1280 DIKEY**, kapak genis bir serit -> `cover` ile ortadan
+    bir serit gorunuyor (burger'in ustu/alti kirpiliyor). Yatay bir kapak
+    videosu daha iyi otururdu.
+  · **Slider icin DUZENLEME ARAYUZU YOK**: alan sunucuda acik ama isletme
+    sahibi kendi slider'ini uygulamadan degistiremiyor (bugun yalniz
+    `tools/kapak_yukle.js`). ⏳ AYRI IS.
+  · `videoh.mp4` da `feedmc/` ve `assets/marka` ile ayni sinifta **tescilli
+    marka icerigi** — yayin oncesi cikarilmali.
+
+- **ONCEKI (7 Eyl 17:13): TURU 180j YAYINLANDI — SADECE iOS.**
   ios **34130725023** (**0f36d89**), R2 ipa=**29074344** (md5 432ac7e7),
   index=7967 (e23a26bb) surum.json=45 (3f3a6141), purge OK, **CDN BIREBIR**
   (ucu de), `get-task-allow: false`, ad hoc profil, `MinimumOSVersion` +
