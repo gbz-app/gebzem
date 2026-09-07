@@ -10390,3 +10390,14 @@ Logcat tasma **0** (is ilanlarinda 3 tur kaydirma dahil).
   cihazda surerse hangi anda oldugu sorulacak.
 - Kategori bazli FILTRELER (kullanici *"her kategoriye gore filtrelemeler
   olsun"* dedi) HENUZ YAPILMADI — ⏳ AYRI TUR.
+
+### ✅ Yayin (7 Eyl 20:54)
+ios **34148594179** (`8bb1f5b`), R2 ipa=**29067909** (md5 0df0f925),
+index=7967 (b3921ae7) surum.json=45 (db4b42ee), purge OK, **CDN ucu de
+BIREBIR**, `get-task-allow: false`, ad hoc profil, `MapsApiKey` +
+`NSLocationWhenInUse` VAR, 4 ttf + 8 marka pakette.
+IPAda dizeler VAR: `2. El İlan` · `Beğeniler yakında` · `İş İlanları`;
+kontrol dizesi `Yakınımda` VAR. Backend DEGISMEDI, health ok.
+Adres: https://indir.gebzem.app/index.html?v=20260907-2054
+⚠️ `Organizasyon` IPAda hala var — menudeki KART kaldirildi, kalan tek yer
+talep ekraninin BASLIGI (`Düğün & Organizasyon`). ⏳ Sonraki tur.

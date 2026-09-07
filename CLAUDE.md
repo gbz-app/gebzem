@@ -41,7 +41,24 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
       kaybettiriyorsun"*. **Üçüncüsü olmayacak.**
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
-- **KALDIGIMIZ YER (7 Eyl 18:48): TURU 180k YAYINLANDI — SADECE iOS.**
+- **KALDIGIMIZ YER (7 Eyl 20:54): TURU 180m YAYINLANDI — SADECE iOS.**
+  ios **34148594179** (**8bb1f5b**), R2 ipa=**29067909** (md5 0df0f925),
+  index=7967 (b3921ae7) surum.json=45 (db4b42ee), purge OK, **CDN BIREBIR**
+  (ucu de), `get-task-allow: false`, ad hoc profil, `MapsApiKey` +
+  `NSLocationWhenInUse` VAR, 4 ttf + 8 marka pakette.
+  IPAda dizeler VAR: `2. El İlan` · `Beğeniler yakında` · `İş İlanları`.
+  Kontrol dizesi `Yakınımda` VAR (yontem dogrulandi).
+  Arayuz turu: **BACKEND DEGISMEDI**, migration YOK, deploy YOK,
+  **DB TRUNCATE EDILMEDI**. health ok.
+  ✅ analyze **0/0** · test **86/86** · emulatorde altin cipi · arama ekrani ·
+     begeni sekmesi · alt menusuz kategori · 2. El Ilan seridi **gozle
+     dogrulandi**; logcat tasma **0**.
+  ⚠️ **ADRES:** https://indir.gebzem.app/index.html?v=20260907-2054
+  ⚠️ IPAda `Organizasyon` HALA VAR ve bu BEKLENEN: menudeki KART kaldirildi,
+     kalan tek yer talep ekraninin BASLIGI (`Düğün & Organizasyon`).
+     ⏳ Sonraki turda `Düğün`e cekilecek.
+
+- **ONCEKI (7 Eyl 18:48): TURU 180k YAYINLANDI — SADECE iOS.**
   ios **34139135702** (**be76972**), R2 ipa=**29075675** (md5 268fa8f1),
   index=7967 (317572b0) surum.json=45 (bcb5b9bc), purge OK, **CDN BIREBIR**
   (ucu de), `get-task-allow: false`, ad hoc profil, `MinimumOSVersion` +
