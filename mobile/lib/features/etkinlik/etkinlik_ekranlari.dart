@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 
+import '../../core/theme.dart' show kAiZemin, koyuSayfa;
 import '../../core/api.dart';
 import '../../router.dart' show rootMessengerKey;
 import '../home/home_screen.dart' show myProfileProvider;
@@ -133,8 +134,17 @@ class _EtkinlikListesiEkraniState extends ConsumerState<EtkinlikListesiEkrani> {
     }
   }
 
+  // TURU 180v — KOYU SAYFA + Builder.
+  //   koyuSayfa temayi build in DONDURDUGU agaca koyar; bu metodun
+  //   kendi context i o temanin USTUNDE kalir. Builder olmadan sliver lar
+  //   ACIK temanin renkleriyle cizilip siyah zeminde OKUNMUYORDU.
+  // UYARI Builder parametresi de context ADIYLA alinir: govdedeki TUM
+  //   mevcut context kullanimlari boylece KOYU temayi gorur.
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext _) =>
+      koyuSayfa(Builder(builder: (context) => _koyuGovde(context)));
+
+  Widget _koyuGovde(BuildContext context) {
     // ⚠️⚠️ TURU 121c — "Ücretsiz" cipi GERCEKTEN SUZUYOR.
     //	Cipi cizip listeye uygulamamak, bu projede DOKUZ kez sahaya cikan
     //	"olu ozellik" sinifi olurdu: kullanici dokunur, sayi degismez ve
@@ -161,18 +171,23 @@ class _EtkinlikListesiEkraniState extends ConsumerState<EtkinlikListesiEkrani> {
         setState(() => _benim = !_benim);
         _yukle();
       },
+      // ⚠️⚠️⚠️ TURU 180v — **"+" SAG UST KOSEDE, FAB KALDIRILDI**
+      //	(kullanici emri: *"etkinlikler sayfasinda sag alttaki etkinlik
+      //	olustur SAG USTTE olacak + olarak"*).
+      // ⚠️ `push<String>` ve donen id kontrolu AYNEN korundu: `_kaydet`
+      //	olusturmada `pop(id)` ile String donduruyor ve liste ancak o
+      //	zaman tazeleniyor (turu 90b "donen id ATILIYORDU" dersi).
+      // ⚠️ Sag slot ZATEN doluydu (Benim etkinliklerim); kabuga IKINCI
+      //	sag eylem eklendi, mevcut suzgec KALDIRILMADI.
+      sagIkon2: LucideIcons.plus,
+      sagIpucu2: 'Etkinlik oluştur',
+      sagBasildi2: () async {
+        final id = await Navigator.of(context).push<String>(
+          MaterialPageRoute(builder: (_) => const EtkinlikOlusturEkrani()),
+        );
+        if (id != null) _yukle();
+      },
       onYenile: _yukle,
-      altDugme: FloatingActionButton.extended(
-        heroTag: 'fabEtkinlikOlustur',
-        onPressed: () async {
-          final id = await Navigator.of(context).push<String>(
-            MaterialPageRoute(builder: (_) => const EtkinlikOlusturEkrani()),
-          );
-          if (id != null) _yukle();
-        },
-        icon: const Icon(LucideIcons.plus),
-        label: const Text('Etkinlik oluştur'),
-      ),
       slivers: [
           kabukBosluk(kBosluk - 10),
           // ⚠️ Arama KABUKTAN (Yemek ile birebir): 48 dp, notr kenarlik,
@@ -345,7 +360,7 @@ class _EtkinlikListesiEkraniState extends ConsumerState<EtkinlikListesiEkrani> {
                 // bilgi satiri); bkz. kabukIzgaraOlcu serhi.
                 gridDelegate: kabukIzgaraOlcu(context),
                 delegate: SliverChildBuilderDelegate(
-                  (_, i) => _izgaraKarti(l[i]),
+                  (c, i) => _izgaraKarti(c, l[i]),
                   childCount: l.length,
                 ),
               ),
@@ -353,11 +368,12 @@ class _EtkinlikListesiEkraniState extends ConsumerState<EtkinlikListesiEkrani> {
           else
             SliverList.builder(
               itemCount: l.length,
-              itemBuilder: (_, i) => _kart(l[i]),
+              itemBuilder: (c, i) => _kart(c, l[i]),
             ),
-          // ⚠️ FAB payi: son kartin "Etkinlik oluştur" dugmesinin altinda
-          //    kalmasini onler (turu 90b dersi).
-          kabukBosluk(90),
+          // ⚠️ TURU 180v — FAB kalkti ("+" sag ust kosede), 90 dp'lik pay
+          //    gereksiz OLU BOSLUK birakiyordu. Son kartin ekranin dibine
+          //    yapismamasi icin kucuk bir nefes KALIR.
+          kabukBosluk(24),
       ],
     );
   }
@@ -440,7 +456,7 @@ class _EtkinlikListesiEkraniState extends ConsumerState<EtkinlikListesiEkrani> {
           crossAxisSpacing: kIzgaraAralik,
           mainAxisExtent: kKesifKutu + 5 + etiket,
         ),
-        itemBuilder: (_, i) {
+        itemBuilder: (context, i) {
           final e = ogeler[i];
           final secili = _kategori == e.key;
           return RepaintBoundary(
@@ -491,7 +507,7 @@ class _EtkinlikListesiEkraniState extends ConsumerState<EtkinlikListesiEkrani> {
   /// Buyuk kartla AYNI iskelet, DAHA AZ satir: kapak + tarih rozeti -> ad
   /// -> tek satir zaman. Katilimci sayaci ve kategori cipi DUSURULDU —
   /// yarim genislikte okunmuyorlardi.
-  Widget _izgaraKarti(Etkinlik e) => InkWell(
+  Widget _izgaraKarti(BuildContext context, Etkinlik e) => InkWell(
     borderRadius: BorderRadius.circular(kYaricapBuyuk),
     // ⚠️ Detay donusu BUYUK KARTLA AYNI YOLDAN: ayri bir `push` yazilirsa
     //    silme/duzenleme sonrasi liste tazelenmez ve kart BAYAT kalir
@@ -605,7 +621,12 @@ class _EtkinlikListesiEkraniState extends ConsumerState<EtkinlikListesiEkrani> {
   ///    olculdu; 12 px metin icin 4.5:1 gerekiyor).
   ///  · Alt satir `Flexible` ile korunuyor: kategori adi uzun + yazi olcegi
   ///    1.3 iken eski `Row` TASIYORDU.
-  Widget _kart(Etkinlik e) {
+  /// TURU 180v — context DISARIDAN gecilir.
+  ///   Bu bir State metodu ve kendi context i koyuSayfa nin USTUNDE kalir;
+  ///   Theme.of(context) ACIK temayi cozuyor ve kart yuzeyi siyah zeminde
+  ///   BEYAZ, meta satirlari da okunmaz KOYU GRI cizilyordu (emulatorde
+  ///   goruldu). itemBuilder in verdigi context temanin ALTINDADIR.
+  Widget _kart(BuildContext context, Etkinlik e) {
     final tema = Theme.of(context);
     final soluk = tema.colorScheme.onSurface.withValues(alpha: 0.62);
     final yer = [
@@ -1588,25 +1609,50 @@ class _EtkinlikOlusturEkraniState extends ConsumerState<EtkinlikOlusturEkrani> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      title: Text(_duzenleme ? 'Etkinliği düzenle' : 'Etkinlik oluştur'),
-      actions: [
-        TextButton(
-          onPressed: _kaydediliyor ? null : _kaydet,
-          child: Text(_duzenleme ? 'Kaydet' : 'Yayınla'),
-        ),
-      ],
-    ),
-    body: AbsorbPointer(
-      absorbing: _kaydediliyor,
-      child: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          // ---- MEDYA (coklu gorsel + video) — TURU 78
-          // ⚠️ Onceden TEK kapak gorseli vardi; sunucu ZATEN 10 medya kabul
-          //    ediyordu, yani sinir yalnizca ARAYUZDEYDI.
+  /// Sihirbaz adimi (0..3).
+  ///
+  /// ⚠️⚠️ TURU 180v — **ADIM ADIM** (kullanici emri: *"etkinlik olustur
+  ///	sayfasini STEP STEP yap, gorsel ayri basliklar ayri duzgun bir
+  ///	sekilde yap"*). Gorsel KENDI adiminda.
+  /// ⚠️ DUZENLEMEDE sihirbaz YOK: mevcut bir etkinligin tek alanini
+  ///	degistirmek icin dort adim gezdirmek anlamsizdi (`isletme_duzenle`
+  ///	deseni: `_sihirbaz = !_zatenIsletme`).
+  int _adim = 0;
+  bool get _sihirbaz => !_duzenleme;
+
+  static const _adimAdlari = ['Görsel', 'Bilgi', 'Zaman & Yer', 'Bilet'];
+
+  /// Adim gecisinin TEK KAPISI.
+  ///
+  /// ⚠️ `unfocus` ZORUNLU: klavye acikken adim degisince alt cubuk
+  ///	klavyenin ARKASINDA kalirdi (randevu_al deseni).
+  void _adimaGit(int i) {
+    FocusScope.of(context).unfocus();
+    setState(() => _adim = i.clamp(0, _adimAdlari.length - 1));
+  }
+
+  /// Ileri gecis — dogrulama BURADA.
+  ///
+  /// ⚠️⚠️ Baslik kontrolu `_kaydet`teydi; dort adimli yapida kullanici
+  ///	SON ADIMDA "Başlık gerekli" gorup IKI ADIM geri donmek zorunda
+  ///	kalirdi. `_kaydet`teki kontrol EMNIYET AGI olarak DURUYOR.
+  void _ileri() {
+    if (_adim == 1 && _baslik.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Başlık gerekli')),
+      );
+      return;
+    }
+    if (_adim < _adimAdlari.length - 1) {
+      _adimaGit(_adim + 1);
+      return;
+    }
+    _kaydet();
+  }
+
+  Widget _bolumGorsel() => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
           _medyaSeridi(),
           Row(
             children: [
@@ -1631,6 +1677,12 @@ class _EtkinlikOlusturEkraniState extends ConsumerState<EtkinlikOlusturEkrani> {
               ),
             ],
           ),
+    ],
+  );
+
+  Widget _bolumBilgi() => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
           const SizedBox(height: 14),
           TextField(
             controller: _baslik,
@@ -1664,6 +1716,12 @@ class _EtkinlikOlusturEkraniState extends ConsumerState<EtkinlikOlusturEkrani> {
             ],
             onChanged: (v) => setState(() => _kategori = v ?? 'diger'),
           ),
+    ],
+  );
+
+  Widget _bolumZaman() => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
           const SizedBox(height: 12),
           OutlinedButton.icon(
             onPressed: _tarihSec,
@@ -1729,6 +1787,12 @@ class _EtkinlikOlusturEkraniState extends ConsumerState<EtkinlikOlusturEkrani> {
               ),
             ],
           ),
+    ],
+  );
+
+  Widget _bolumBilet() => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
           const SizedBox(height: 12),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
@@ -1756,16 +1820,159 @@ class _EtkinlikOlusturEkraniState extends ConsumerState<EtkinlikOlusturEkrani> {
               border: OutlineInputBorder(),
             ),
           ),
-          if (_kaydediliyor)
-            const Padding(
-              padding: EdgeInsets.only(top: 20),
-              child: LinearProgressIndicator(),
-            ),
-          const SizedBox(height: 40),
-        ],
-      ),
-    ),
+    ],
   );
+
+  @override
+  Widget build(BuildContext context) {
+    // TURU 180v — GERI TUSU ADIM ADIM GERI ALIR.
+    //   Yoksa 3. adimda geri basan kullanici TUM FORMU kaybederdi
+    //   (isletme_duzenle serhi bu hatayi ISIMLE anlatiyor).
+    return PopScope(
+      canPop: !_sihirbaz || _adim == 0,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        if (_adim > 0) _adimaGit(_adim - 1);
+      },
+      child: koyuSayfa(
+        Scaffold(
+          backgroundColor: kAiZemin,
+          body: Column(
+            children: [
+              SafeArea(
+                bottom: false,
+                child: SizedBox(
+                  height: 44,
+                  child: Stack(
+                    children: [
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: IconButton(
+                          icon: const Icon(LucideIcons.arrowLeft),
+                          tooltip: 'Geri',
+                          onPressed: () {
+                            if (_sihirbaz && _adim > 0) {
+                              _adimaGit(_adim - 1);
+                              return;
+                            }
+                            Navigator.of(context).maybePop();
+                          },
+                        ),
+                      ),
+                      Center(
+                        child: Text(
+                          _duzenleme ? 'Etkinliği düzenle' : 'Etkinlik oluştur',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                            height: 1.0,
+                          ),
+                        ),
+                      ),
+                      if (!_sihirbaz)
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton(
+                            onPressed: _kaydediliyor ? null : _kaydet,
+                            child: const Text('Kaydet'),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+              if (_sihirbaz)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(0, 6, 0, 2),
+                  child: KabukAdimSeridi(
+                    adlar: _adimAdlari,
+                    adim: _adim,
+                    onAdimaGit: _adimaGit,
+                    etiketEni: 72,
+                  ),
+                ),
+              Expanded(
+                child: AbsorbPointer(
+                  absorbing: _kaydediliyor,
+                  child: ListView(
+                    padding: const EdgeInsets.all(16),
+                    children: [
+                      if (!_sihirbaz) ...[
+                        _bolumGorsel(),
+                        _bolumBilgi(),
+                        _bolumZaman(),
+                        _bolumBilet(),
+                      ] else
+                        switch (_adim) {
+                          0 => _bolumGorsel(),
+                          1 => _bolumBilgi(),
+                          2 => _bolumZaman(),
+                          _ => _bolumBilet(),
+                        },
+                      if (_kaydediliyor)
+                        const Padding(
+                          padding: EdgeInsets.only(top: 20),
+                          child: LinearProgressIndicator(),
+                        ),
+                      const SizedBox(height: 24),
+                    ],
+                  ),
+                ),
+              ),
+              if (_sihirbaz) _adimCubugu(),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Alt cubuk: Geri / Devam / Yayinla.
+  Widget _adimCubugu() {
+    final son = _adim == _adimAdlari.length - 1;
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 6, 16, 10),
+        child: Row(
+          children: [
+            if (_adim > 0) ...[
+              Expanded(
+                child: OutlinedButton(
+                  onPressed:
+                      _kaydediliyor ? null : () => _adimaGit(_adim - 1),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size.fromHeight(46),
+                  ),
+                  child: const FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text('Geri'),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+            ],
+            Expanded(
+              flex: 2,
+              child: FilledButton(
+                onPressed: _kaydediliyor ? null : _ileri,
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size.fromHeight(46),
+                ),
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(son ? 'Yayınla' : 'Devam'),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
 
   /// Secilmis/mevcut medyalarin yatay seridi.
   ///

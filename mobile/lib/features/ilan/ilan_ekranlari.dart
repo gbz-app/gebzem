@@ -1,3 +1,4 @@
+import '../../core/theme.dart' show koyuSayfa;
 import 'dart:async';
 import 'dart:io';
 
@@ -225,8 +226,17 @@ class _IlanListesiEkraniState extends ConsumerState<IlanListesiEkrani> {
   ///    `kKesifKutu`, `kAltKutu`, `kAltHucre`, `kBaslikOptik`); kopyalanan
   ///    sayi YOK.
   /// ⚠️ YAPMA: burayi tekrar `Column` + `Expanded`e cevirme.
+  // TURU 180v — KOYU SAYFA + Builder.
+  //   koyuSayfa temayi build in DONDURDUGU agaca koyar; bu metodun
+  //   kendi context i o temanin USTUNDE kalir. Builder olmadan sliver lar
+  //   ACIK temanin renkleriyle cizilip siyah zeminde OKUNMUYORDU.
+  // UYARI Builder parametresi de context ADIYLA alinir: govdedeki TUM
+  //   mevcut context kullanimlari boylece KOYU temayi gorur.
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext _) =>
+      koyuSayfa(Builder(builder: (context) => _koyuGovde(context)));
+
+  Widget _koyuGovde(BuildContext context) {
     final agac = ref.watch(ilanAgaciProvider);
     // Siralama ISTEMCIDE uygulanir (sunucuda parametre yok) — bkz. _sirala.
     final l = _sirala(_liste);

@@ -35,6 +35,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../../core/theme.dart' show kAiZemin, koyuSayfa;
 import '../../core/yenile.dart';
 // ⚠️ TURU 180m — `AltMenu` ve `aktifSekme` importlari KALDIRILDI: alt menu
 //    cagri yeri kapatildi (bkz. `bottomNavigationBar` serhi).
@@ -90,6 +91,9 @@ class KategoriKabugu extends StatelessWidget {
     this.sagIkon,
     this.sagIpucu,
     this.sagBasildi,
+    this.sagIkon2,
+    this.sagIpucu2,
+    this.sagBasildi2,
     this.onYenile,
     this.altDugme,
   });
@@ -110,19 +114,46 @@ class KategoriKabugu extends StatelessWidget {
   final IconData? sagIkon;
   final String? sagIpucu;
   final VoidCallback? sagBasildi;
+
+  /// TURU 180v — IKINCI sag eylem (opsiyonel).
+  ///
+  /// Etkinlik ekraninda sag ust slot ZATEN doluydu (Benim etkinliklerim
+  /// suzgeci) ve kullanici oraya bir de + istedi. Parametre OPSIYONEL:
+  /// kabuk UC ekrani besliyor (etkinlik/ilan/talep) ve digerleri
+  /// degismeden derlenmeli.
+  final IconData? sagIkon2;
+  final String? sagIpucu2;
+  final VoidCallback? sagBasildi2;
   final Future<void> Function()? onYenile;
 
   /// Yuzen eylem dugmesi (or. "İlan ver").
   final Widget? altDugme;
 
+  // ⚠️⚠️⚠️ TURU 180v — **KOYU SAYFA** (kullanici: *"hepsi ayni gorunmeli"*).
+  //	Ilan / Etkinlik / Talep ekranlari TEMA DUYARLIYDI ve acik temada
+  //	BEYAZ aciliyordu; menu · akis · profil · mesaj · canli sekmeleri ise
+  //	SIYAH. Ayni menuden acilan ekranlar farkli uygulamalardan gelmis gibi
+  //	duruyordu (Yemek ekrani turu 174'te zaten siyaha alinmisti).
+  //
+  // ⚠️⚠️ **`Builder` ZORUNLU** (turu 135c/138/178 — dokuzuncu tekrar):
+  //	`koyuSayfa` bir `Theme`i `build`in DONDURDUGU agaca koyar; bu
+  //	metodun kendi `context`i o `Theme`in USTUNDE kalir. `Builder`
+  //	olmadan header basligi, arama kutusu ve cipler ACIK temanin
+  //	renkleriyle cizilip siyah zeminde OKUNMUYORDU (emulatorde goruldu).
+  // ⚠️ Builder parametresi de `context` ADIYLA alinir: govdedeki TUM
+  //	mevcut `context` kullanimlari boylece KOYU temayi gorur.
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext _) =>
+      koyuSayfa(Builder(builder: (context) => _govde(context)));
+
+  Widget _govde(BuildContext context) {
     final govde = CustomScrollView(
       // ⚠️ Bos listede de asagi-cek calissin (turu 83b dersi).
       physics: const AlwaysScrollableScrollPhysics(),
       slivers: slivers,
     );
     return Scaffold(
+      backgroundColor: kAiZemin,
       // ⚠️⚠️⚠️ TURU 180m — **ALT MENU KALDIRILDI** (kullanici: *"kategorilerin
       //	alt menusunu kaldir; TUM KATEGORILERDEKI alt menuyu
       //	kaldirmayi unutma"*).
@@ -201,7 +232,12 @@ class KategoriKabugu extends StatelessWidget {
           //    baslik kayardi.
           Center(
             child: Padding(
-              padding: EdgeInsets.symmetric(horizontal: 44 + kBaslikOptik),
+              // ⚠️⚠️ TURU 180v — DOLGU IKON SAYISINDAN TURETILIR.
+              //	Sabit 44 dp iken IKI sag ikon cizildiginde uzun baslik
+              //	(ya da buyuk yazi olcegi) sagdaki ikonun ALTINA giriyordu.
+              padding: EdgeInsets.symmetric(
+                horizontal: 44 * (sagIkon2 != null ? 2 : 1) + kBaslikOptik,
+              ),
               child: Text(
                 baslik,
                 maxLines: 1,
@@ -215,14 +251,30 @@ class KategoriKabugu extends StatelessWidget {
               ),
             ),
           ),
-          if (sagIkon != null)
+          if (sagIkon != null || sagIkon2 != null)
             Align(
               alignment: Alignment.centerRight,
-              child: _daire(
-                context,
-                sagIkon!,
-                sagIpucu ?? '',
-                sagBasildi ?? () {},
+              // ⚠️ `mainAxisSize.min` ZORUNLU: `Align` genislik kisiti
+              //    VERMEZ, `Row` sinirsiz genislige yayilir ve soldaki geri
+              //    okunun uzerine binerdi.
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (sagIkon != null)
+                    _daire(
+                      context,
+                      sagIkon!,
+                      sagIpucu ?? '',
+                      sagBasildi ?? () {},
+                    ),
+                  if (sagIkon2 != null)
+                    _daire(
+                      context,
+                      sagIkon2!,
+                      sagIpucu2 ?? '',
+                      sagBasildi2 ?? () {},
+                    ),
+                ],
               ),
             ),
         ],
@@ -766,11 +818,22 @@ class KabukAdimSeridi extends StatelessWidget {
     required this.adlar,
     required this.adim,
     required this.onAdimaGit,
+    this.etiketEni = 92,
   });
 
   final List<String> adlar;
   final int adim;
   final ValueChanged<int> onAdimaGit;
+
+  /// Etiket kutusunun genisligi.
+  ///
+  /// ⚠️⚠️ TURU 180v — OLCULDU: etiket kutusu SABIT ve nokta() Rowun
+  ///	Expanded OLMAYAN cocugu; yalniz baglayicilar esner. Dis dolgu
+  ///	kYanBosluk x2 = 32 dp. UC adimda 3x92+32 = 308 dp (siger), DORT
+  ///	adimda 4x92+32 = 400 dp -> 360 dp ekranda 40 dp RenderFlex TASMASI.
+  ///	Dort adimli sihirbaz 72 gecmeli (4x72+32 = 320 dp).
+  /// ⚠️ Varsayilan 92 KALIR: mevcut tek cagiran (isletme_duzenle) 3 adimli.
+  final double etiketEni;
 
   @override
   Widget build(BuildContext context) {
@@ -811,7 +874,7 @@ class KabukAdimSeridi extends StatelessWidget {
             // ⚠️ `FittedBox`: "Çalışma saatleri" gibi uzun bir ad dar ekranda
             //    KIRPILMAZ, kuculur.
             SizedBox(
-              width: 92,
+              width: etiketEni,
               child: FittedBox(
                 fit: BoxFit.scaleDown,
                 child: Text(
