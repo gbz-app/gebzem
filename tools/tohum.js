@@ -31,6 +31,9 @@
 const crypto = require('crypto');
 // ⚠️ TURU 93b — kapak gorseli uretici (harici bagimlilik YOK, salt zlib).
 const { kapakUret } = require('./kapak_uret');
+// TURU 180w — SOSYAL KATMAN TOHUMU (`kDemoAkis` kapatildi, akis artik
+//   YALNIZ sunucudan besleniyor).
+const { sosyalTohum } = require('./tohum_sosyal');
 
 const API = process.env.GEBZEM_API || 'https://api.gebzem.app';
 
@@ -625,6 +628,15 @@ async function main() {
   if (listeR.kod !== 201) throw new Error(`diyet listesi: ${listeR.kod}`);
   console.log('  diyet OK: bag aktif + 4 ogun + olcum + haftalik liste');
 
+  // ---- SOSYAL KATMAN (gonderi · yorum · begeni · hikaye · sohbet)
+  //
+  // UYARI Bu blok SESSIZ DEGIL: sosyal katman bu turun ASIL isi ve
+  //    patlarsa kullanici bos bir akis gorur. Hata yukari firlar.
+  const sos = await sosyalTohum(j, kullanicilar, isletmeler);
+  console.log('  sosyal OK: ' + sos.gonderi + ' gonderi · ' + sos.yorum +
+    ' yorum · ' + sos.begeni + ' begeni · ' + sos.hikaye + ' hikaye · ' + sos.reels + ' reels · ' +
+    sos.mesaj + ' mesaj');
+
   // ---- KULLANICIYA VERILECEK TABLO
   const g = (s, n) => String(s).padEnd(n);
   console.log('');
@@ -635,7 +647,8 @@ async function main() {
   }
   console.log('');
   console.log(`TOHUM TAMAM: ${isletmeler.length} isletme · ${kullanicilar.length} kullanici · ` +
-    `${ilanlar.length} ilan (1 is ilani + basvuru) · ${etkinlikler.length} etkinlik · randevu + rezervasyon`);
+    `${ilanlar.length} ilan (1 is ilani + basvuru) · ${etkinlikler.length} etkinlik · randevu + rezervasyon · ` +
+    `${sos.gonderi} gonderi · ${sos.yorum} yorum · ${sos.begeni} begeni · ${sos.mesaj} mesaj`);
 }
 
 main().catch((e) => {

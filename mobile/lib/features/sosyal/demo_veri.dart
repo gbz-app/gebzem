@@ -27,7 +27,7 @@ import 'story_servisi.dart';
 /// ⚠️ YAPMA: bu dosyadaki veriyi sunucuya yazma ya da `kDemoAkis`i kalici
 ///    `true` birakip yayin alma.
 /// Demo modu. **Yayinda `false` olmali.**
-const bool kDemoAkis = true;
+const bool kDemoAkis = false;
 
 const _kBenimId = 'demo-ben';
 
