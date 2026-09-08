@@ -1463,6 +1463,54 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
           ],
         ),
       ),
+      // ⚠️⚠️⚠️ TURU 180o — **ISLETME KENDI KATALOGUNA GIREMIYORDU.**
+      //
+      //	Kullanici sorusu: *"otel odasinda galeri vs ... her sey var mi?"*
+      //	Emulatorde OTEL HESABIYLA bakildi: kendi profilinde **Odalar
+      //	dugmesi YOKTU**. Kok neden `_dugmeler`in ILK SATIRI:
+      //	`if (_benimMi) return _kendiDugmelerim();` — erken donus,
+      //	altindaki `if (_isletme != null)` modul dugmesine HIC
+      //	ULASILMIYORDU.
+      //	Sonuc: isletme sahibi oda/menu/hizmet EKLEYEMIYOR, mevcutlari
+      //	DUZENLEYEMIYORDU; katalog YALNIZ musteri gozuyle (baskasinin
+      //	profilinden) acilabiliyordu ve sahip kendi profilinde
+      //	"baskasi" olamaz. Ayarlar > "Isletme bilgilerim" alt yazisi
+      //	*"...calisma saatleri, menu"* diyordu ama o ekranda da giris
+      //	YOKTU — yani vaat GOVDEDE KARSILIKSIZDI.
+      // ⚠️ TAM GENISLIK, kardeslerinin ALTINDA: turu 179'da olculdu —
+      //	ucuncu dugme AYNI SATIRA girince `FittedBox` metinleri
+      //	kucultuyor ve "Profili duzenle" okunmaz hale geliyor.
+      // ⚠️ Etiket SUNUCUDAN (`_isletme!.modul.ad`): Menü / Odalar /
+      //	Hizmetler. Istemcide TAHMIN EDILMEZ (turu 89).
+      if (_isletme != null) ...[
+        const SizedBox(height: 10),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              icon: const Icon(LucideIcons.bookOpen, size: 16),
+              label: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text('${_isletme!.modul.ad}ı yönet'),
+              ),
+              onPressed: () async {
+                await Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => UrunKatalogEkrani(
+                      isletmeId: widget.userId,
+                      isletmeAd: _p?.ad ?? '',
+                      benimMi: true,
+                      modul: _isletme!.modul,
+                    ),
+                  ),
+                );
+                if (mounted) unawaited(_yukle());
+              },
+            ),
+          ),
+        ),
+      ],
       // ⚠️⚠️⚠️ TURU 107 — **GIZLI HESAP ANAHTARI AYARLARA TASINDI**
       //	(kullanici emri: *"profilde gizli hesap alani orada olmamali,
       //	ayarlarda olacak"*).

@@ -1203,6 +1203,10 @@ class UrunDuzenleEkrani extends ConsumerStatefulWidget {
 }
 
 class _UrunDuzenleEkraniState extends ConsumerState<UrunDuzenleEkrani> {
+  /// ⚠️⚠️ TURU 180o — State metotlari `build`in dondurdugu `Theme`i
+  ///    GORMEZ (turu 135c/138/178). Renkler BURADAN okunur.
+  ColorScheme get _ks => kKoyuTema.colorScheme;
+
   late final _ad = TextEditingController(text: widget.urun?.ad ?? '');
   late final _aciklama = TextEditingController(
     text: widget.urun?.aciklama ?? '',
@@ -1512,7 +1516,9 @@ class _UrunDuzenleEkraniState extends ConsumerState<UrunDuzenleEkrani> {
     if (_ad.text.trim().isEmpty) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Ürün adı gerekli')));
+      ).showSnackBar(
+        SnackBar(content: Text('${widget.modul.tekil} adı gerekli')),
+      );
       return;
     }
     setState(() => _kaydediliyor = true);
@@ -1621,9 +1627,26 @@ class _UrunDuzenleEkraniState extends ConsumerState<UrunDuzenleEkrani> {
   @override
   Widget build(BuildContext context) {
     final ai = ref.watch(aiDurumProvider).valueOrNull;
-    return Scaffold(
+    // ⚠️⚠️⚠️ TURU 180o — **BASLIK MODULDEN, ZEMIN SIYAH.**
+    //
+    //	Emulatorde OTEL hesabiyla bakildi: katalogdaki dugme dogru
+    //	("Oda ekle") ama acilan formun basligi **"Ürün ekle"** idi —
+    //	otelci "oda" ekledigini sanip "urun" ekranina dusuyordu.
+    //	Etiket artik `modul.tekil`den gelir (Oda / Hizmet / Ürün);
+    //	istemcide TAHMIN EDILMEZ (turu 89 kurali).
+    // ⚠️ Zemin `koyuSayfa`: cagiran katalog ekrani (turu 178) ve isletme
+    //	profili SIYAH; beyaz bir ara form gecisi KOPUK duruyordu
+    //	(emulatorde goruldu).
+    // ⚠️⚠️ `koyuSayfa` TEK BASINA YETMEZ: State metotlarinin `context`i
+    //	`build`in DONDURDUGU `Theme`in USTUNDE kalir (turu 135c/138/178,
+    //	yedinci tekrar). Renk okuyan yerler `_ks`ten beslenir.
+    final tekil = widget.modul.tekil;
+    return koyuSayfa(Scaffold(
+      backgroundColor: kAiZemin,
       appBar: AppBar(
-        title: Text(widget.urun == null ? 'Ürün ekle' : 'Ürünü düzenle'),
+        backgroundColor: kAiZemin,
+        foregroundColor: _ks.onSurface,
+        title: Text(widget.urun == null ? '$tekil ekle' : '$tekil düzenle'),
         actions: [
           if (widget.urun != null)
             IconButton(icon: const Icon(LucideIcons.trash2), onPressed: _sil),
@@ -1652,9 +1675,7 @@ class _UrunDuzenleEkraniState extends ConsumerState<UrunDuzenleEkrani> {
                 aspectRatio: 16 / 9,
                 child: DecoratedBox(
                   decoration: BoxDecoration(
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.surfaceContainerHighest,
+                    color: _ks.surfaceContainerHighest,
                     borderRadius: BorderRadius.circular(14),
                   ),
                   // ⚠️ TURU 79 — UC DURUM: (a) AI gorseli onaylandi -> SUNUCUDAN
@@ -1711,9 +1732,7 @@ class _UrunDuzenleEkraniState extends ConsumerState<UrunDuzenleEkrani> {
                       child: Container(
                         width: 74,
                         decoration: BoxDecoration(
-                          color: Theme.of(
-                            context,
-                          ).colorScheme.surfaceContainerHighest,
+                          color: _ks.surfaceContainerHighest,
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: const Icon(LucideIcons.plus, size: 22),
@@ -1855,9 +1874,9 @@ class _UrunDuzenleEkraniState extends ConsumerState<UrunDuzenleEkrani> {
           TextField(
             controller: _ad,
             maxLength: 120,
-            decoration: const InputDecoration(
-              labelText: 'Ürün adı',
-              border: OutlineInputBorder(),
+            decoration: InputDecoration(
+              labelText: '$tekil adı',
+              border: const OutlineInputBorder(),
             ),
           ),
           TextField(
@@ -1984,7 +2003,7 @@ class _UrunDuzenleEkraniState extends ConsumerState<UrunDuzenleEkrani> {
           const SizedBox(height: 40),
         ],
       ),
-    );
+    ));
   }
 }
 
