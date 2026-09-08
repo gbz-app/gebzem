@@ -41,6 +41,106 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
       kaybettiriyorsun"*. **Üçüncüsü olmayacak.**
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
+- **KALDIGIMIZ YER (8 Eyl 19:07): TURU 180t YAYINLANDI — SADECE iOS.**
+  ios **34248194144** (**1e019b9**), R2 ipa=**29069411** (md5 9de10efd),
+  index=7967 (1f4ec5be) surum.json=45 (b423242d), purge OK, **CDN BIREBIR**
+  (ucu de), `get-task-allow: false`, ad hoc profil, `MapsApiKey` +
+  `MinimumOSVersion` + `NSLocationWhenInUse` VAR.
+  IPAda dizeler VAR: `Ayşe Demir` · `Gebze Komşuları` · `Sohbet ara` ·
+  `Bu bir örnek sohbet.` · `Canlı Yayın` · `Bildirimler` · `Sesli oda`;
+  KALKANLAR YOK: `Canlı Yayın · Sesli Odalar` · `gönderisini beğendi`.
+  Kontrol dizesi `Yakınımda` VAR.
+  ⚠️ `Henüz reels yok` IPAda HALA VAR ve bu **BEKLENEN**: kaldirilan sey
+     REELS SAYFASININ bos durumuydu; kalan tek yer PROFIL sekmesinin bos
+     metni (`profil_sayfasi.dart`) — AYRI ekran, kullanici oradan bahsetmedi.
+  ⚠️ **ADRES:** https://indir.gebzem.app/index.html?v=20260908-1907
+  Arayuz turu: **BACKEND DEGISMEDI**, migration YOK, deploy YOK.
+  ⚠️⚠️ **DB TRUNCATE EDILDI + tohum + `tools/oda_galeri.js`** (14 isletme ·
+     2 kullanici · 14/14 randevu 201 · dugun talebi + 3 teklif · diyet ·
+     otel odasi 4 gorsel). health ok.
+  ✅ analyze **0/0** · test **86/86** · emulatorde ON BIR maddenin hepsi
+     **gozle dogrulandi**.
+
+- 💬 ⚠️⚠️⚠️ **TURU 180t — SOHBET LISTESI EKRANDA HIC CIZILMIYORDU
+  (emulatorde bulundu, KOK NEDEN TEK SATIRDI).**
+  Ekran BOMBOS siyahti: arama kutusu, filtre cipleri, spinner — HICBIRI yok.
+  `flutter analyze` TEMIZ, uygulama COKMUYOR, logcatte istisna YOK.
+  **KOK NEDEN:** okunmamis rozetindeki `Container(alignment: Alignment.center)`.
+  `Container`a `alignment` verilince cocugu bir `Align`e sarar ve `Align`
+  **GEVSEK kisitta EN BUYUK BOYUTU ALIR** -> rozet satirin TAM GENISLIGINE
+  (olculdu: **328 dp**) yayiliyor. `ListTile` bunu
+  `tileWidth == trailingSize.width` esitligiyle yakalayip **yerlesimi
+  PATLATIYOR** (*"Trailing widget consumes the entire tile width"*) ->
+  *"RenderBox was not laid out"* zinciri -> sliver assert -> hicbir sey
+  cizilmiyor.
+  ⚠️⚠️ **TURU 138 TUZAGININ BIREBIR TEKRARI** (*"Container alignment
+     verilince EN BUYUGU alir"*, o turda filtre panelinde olculmustu).
+  **FIX:** `alignment` KALDIRILDI; ortalama `Center(widthFactor: 1,
+  heightFactor: 1)` ile — `minWidth: 20` devreye girdiginde tek haneli sayi
+  yine ORTADA durur. ⚠️ YAPMA: buraya tekrar `alignment:` koyma.
+  ⚠️ **NEDEN SIMDIYE KADAR GORULMEDI:** her surumde DB TRUNCATE edildigi
+     icin emulatorde sohbet listesi DAIMA BOSTU; ilk `ListTile` ancak bu
+     turda (ornek sohbetler) cizildi.
+
+- 🧾 **TURU 180t — MESAJ SEKMESI YENIDEN KURULDU** (kullanici emri:
+  *"sohbet sagdaki + butonu daire kaldir, yemek header gibi yap: solda geri
+  ortada mesaj sagda +; Sohbet/Aramalar TEXT olsun; aramayi header altina
+  al; ornek sohbetler ekle"*).
+  · 44 dp header (`AppBar` DEGIL — Material `BackButton` platforma gore
+    degisir ve baslik SOLA yaslanir). Geri oku `pop` YAPMAZ: burasi alt
+    menunun KOK route'u, `aktifSekme.value = 0` ile anasayfaya doner.
+  · Hap secici -> DUZ METIN; kalinlik SABIT w700 (secimle degisseydi metnin
+    genisligi degisir ve serit her dokunusta KAYARDI — turu 140).
+  · `ChatsScreen`in **ic `Scaffold`u KALKTI** (FAB gidince gereksizdi) ve
+    govde duz `Column` oldu -> `ListView` `MediaQuery.padding.top`u kendi
+    ust dolgusu yapiyordu: `MediaQuery.removePadding(removeTop: true)`.
+  · **5 ORNEK SOHBET** (`demoSohbetler`): `kDemoAkis` kapisi, `demo-` onekli
+    kimlikler, dokunusta *"Bu bir örnek sohbet."* — gercek bir rotaya
+    gitseydi BOS ekran acilir, kullanici KIRIK sanardi (turu 113 sinifi).
+  ⚠️⚠️ Ornekler **HATA DALINDA DA** cizilir: ag hatasi TUM listeyi yutuyordu
+     ve kullanicinin istedigi ornekler HIC gorunmuyordu. Hata SAKLANMIYOR —
+     ustte ince `_HataSeridi` + "Tekrar dene" KALIR.
+  ⚠️ Sheet'i acan "+" **`bc`** (Builder context) kullanir: State'in kendi
+     context'i `koyuSayfa`nin USTUNDE kalir ve panel ACIK TEMADA cizilirdi
+     (turu 138 dersi).
+
+- 📺 **TURU 180t — CANLI SEKMESI: YALNIZ CANLI YAYIN.**
+  "Canlı Yayın / Sesli Odalar" secicisi KALKTI, ayni 44 dp header (sagda "+"
+  -> `LiveStartScreen`).
+  ⚠️ **`RoomsTab` ULASILAMAZ KALMADI**: sesli odaya giris `olustur_menusu`
+     ("+" > Sesli oda) uzerinden DURUYOR. Sinif SILINMEDI — `mesgulMu`
+     muhafizlari `oda_` onegine bagli.
+
+- ➕ **TURU 180t — OLUSTUR MENUSU: HEPSI KART, "Grup" CIKTI, PANEL KOYU.**
+  ⚠️ Grup olusturma ULASILAMAZ KALMADI: `Mesaj` > "+" > **Yeni grup** duruyor.
+  ⚠️⚠️ Panel `backgroundColor: kAiZemin` + `Theme(kKoyuTema)` + **`Builder` +
+     `DefaultTextStyle`**: sheet'in `Material`i DIS temayla kurulur, yani
+     `DefaultTextStyle` ACIK temadan gelir ve renk vermeyen `Text`ler koyu
+     zeminde KOYU cizilir (emulatorde olculdu: TUM etiketler okunmuyordu).
+  ⚠️ `_kart` cagrilarina **`tc`** (Theme altindaki context) gecilir; `c` ile
+     `scheme.primary` ACIK temadan gelirdi.
+
+- 🧱 **TURU 180t — ALT MENU BORDERI `foregroundDecoration`DA.**
+  `decoration`daki bir `Border` cocugun kisitindan **2 x width** duser ve
+  yerlesimi kaydirir (turu 150); `foregroundDecoration` cocugun USTUNE cizer,
+  yerlesime DOKUNMAZ. `ClipRRect` -> `Container(clipBehavior: antiAlias)`.
+  ⚠️ `BoxDecoration` `borderRadius` varken **duzgun olmayan** `Border` kabul
+     ETMEZ (*"A borderRadius can only be given for a uniform Border"*) ->
+     `Border.fromBorderSide`.
+  ✅ `alt_menu_test.dart` **BOZULARAK KANITLANDI**: border satiri silinince
+     test KIRMIZI (0/1), geri konunca **15/15**.
+  · Ortadaki logo **5 dp asagi** (`kAltMenuLogoKaldir` = ikon + 12 -> **+7**).
+
+- 📉 **TURU 180t — HAVA/DOVIZ CIPI 0,256 px TASIYORDU** (sari-siyah serit,
+  emulator logunda olculdu). Kutu genisligi SABIT (2 sn'lik ziplamayi o
+  onluyor, turu 171c) -> icerik `FittedBox(scaleDown)` ile sarildi.
+  ⚠️ YAPMA: kutu genisligini buyutme (cip ziplar).
+
+- 🧹 **TURU 180t — DIGER:** reels bos durumunda *"Henüz reels yok."* metni
+  KALKTI (ikon + paylas dugmesi KALIR) · bildirimler yemek header'i +
+  `koyuSayfa` · yorum satirindaki thread cizgisi ve nokta KALKTI ·
+  *"gönderi sahibi beğendi"* rozeti TAMAMEN kaldirildi.
+
 - **KALDIGIMIZ YER (8 Eyl 17:38): TURU 180p-180s YAYINLANDI — SADECE iOS.**
   ios **34238584754** (**811bb5f**), R2 ipa=**29069344** (md5 d57e1519),
   index=7967 (3a3a745a) surum.json=45 (486d7ca7), purge OK, **CDN BIREBIR**
