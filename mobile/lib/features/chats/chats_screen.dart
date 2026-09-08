@@ -128,7 +128,11 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
               onChanged: (v) => setState(() => _arama = v.trim().toLowerCase()),
               decoration: InputDecoration(
                 isDense: true,
-                hintText: 'Sohbet ara',
+                // ⚠️ Ipucu SECILI CIPE gore: "Aramalar" acikken "Sohbet ara"
+                //    yazmak, kutunun o listeyi suzmedigi izlenimi verirdi.
+                hintText: _filtre == _Filtre.aramalar
+                    ? 'Arama geçmişinde ara'
+                    : 'Sohbet ara',
                 prefixIcon: const Icon(LucideIcons.search, size: 20),
                 suffixIcon: _arama.isEmpty
                     ? null

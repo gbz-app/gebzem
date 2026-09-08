@@ -8,6 +8,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../../core/theme.dart' show kAiZemin, koyuSayfa;
+import '../isletme/kategori_kabuk.dart' show YemekHeader;
 import '../medya/medya_gorsel.dart';
 import '../medya/medya_kapisi.dart';
 import '../medya/medya_servisi.dart';
@@ -112,17 +114,28 @@ class _KanalOlusturState extends ConsumerState<KanalOlustur> {
     }
   }
 
+  // ⚠️⚠️ TURU 180x — EKRAN **BEYAZDI** (emulatorde goruldu). Sohbet sekmesi,
+  //	"Yeni mesaj" ekrani ve topluluk ekrani siyah; bu form acik temada
+  //	kaliyordu ve akisin ortasinda goz alan beyaz bir sayfa aciliyordu.
+  // ⚠️ `koyuSayfa` + `Builder` ZORUNLU: `State` metotlarinin ciplak `context`i
+  //	`build`in DONDURDUGU `Theme`in USTUNDE kalir (turu 135c/138/178/180w —
+  //	ONBIRINCI tekrar). Bu dosyada renk okuyan `State` metodu YOK, ama
+  //	`Builder` yine de konuyor: gelecekte eklenirse dogru context'i alsin.
   @override
   Widget build(BuildContext context) {
+    return koyuSayfa(Builder(builder: _govde));
+  }
+
+  Widget _govde(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Topluluk aç'),
-        actions: [
-          TextButton(
-            onPressed: _calisiyor ? null : _olustur,
-            child: const Text('Oluştur'),
-          ),
-        ],
+      backgroundColor: kAiZemin,
+      appBar: YemekHeader(
+        baslik: 'Topluluk aç',
+        geriBasildi: () => Navigator.of(context).maybePop(),
+        sag: TextButton(
+          onPressed: _calisiyor ? null : _olustur,
+          child: const Text('Oluştur'),
+        ),
       ),
       body: AbsorbPointer(
         absorbing: _calisiyor,

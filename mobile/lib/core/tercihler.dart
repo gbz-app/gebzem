@@ -81,10 +81,28 @@ class Tercihler {
   }
 
   /// 'sistem' | 'acik' | 'koyu'
+  ///
+  /// ⚠️⚠️⚠️ TURU 180x — **VARSAYILAN ARTIK KOYU** (`sistem` DEGIL).
+  ///
+  ///	GEREKCE (emulatorde olculdu): uygulamanin ana yuzeyleri turu 174'ten
+  ///	beri `koyuSayfa` ile ZORLA SIYAH ciziliyor — anasayfa · yemek ·
+  ///	kategori · profil · akis · reels · mesaj · ilan · hizmet · randevu.
+  ///	Cihaz acik temadaysa GERIYE KALAN ekranlar (sohbet detayi, topluluk,
+  ///	grup olustur, kisi arama, ayarlar) BEYAZ aciliyor ve kullanici siyah
+  ///	bir akisin ortasinda goz alan beyaz sayfalara dusuyordu.
+  /// ⚠️ Bu, o ekranlari TEK TEK `koyuSayfa` ile sarmaktan DAHA GUVENLI:
+  ///	sarma yontemi her ekranda "State metodunun ciplak `context`i
+  ///	Theme'in USTUNDE kalir" tuzagini yeniden acar (bu projede ONBIR kez
+  ///	sahaya cikti). Tema modunu degistirmek o tuzagi YAPISAL OLARAK
+  ///	yaratmaz.
+  /// ⚠️ Kullanicinin SECIMI DAIMA USTUNDUR: Ayarlar > Tema'dan 'acik' ya da
+  ///	'sistem' secilirse o yazilir ve burasi DEVREYE GIRMEZ.
+  /// ⚠️ Acik tema SILINMEDI — `lightTheme` duruyor ve secilebilir.
   ThemeMode get temaModu => switch (_p?.getString(_kTema)) {
     'acik' => ThemeMode.light,
     'koyu' => ThemeMode.dark,
-    _ => ThemeMode.system,
+    'sistem' => ThemeMode.system,
+    _ => ThemeMode.dark,
   };
 
   Future<void> temaYaz(ThemeMode m) async {
