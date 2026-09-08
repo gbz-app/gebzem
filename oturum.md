@@ -10562,3 +10562,118 @@ IPAda VAR: `Gönderi` · `Fotoğraf ekle` · `ı yönet`; YOK: `Yazışma` ·
 `Hareketi gör`. Kontrol `Yakınımda` VAR.
 Backend DEGISMEDI, health ok. DB TRUNCATE + tohum + oda_galeri.
 Adres: https://indir.gebzem.app/index.html?v=20260908-1738
+
+---
+
+## Oturum — 8 Eylül 2026 (turu 180u · 180v · 180w)
+
+### Turu 180u — Bildirim · yorum paneli · profil sekmeleri
+Kullanici emri: *"bildirimlerde sagdaki takip istedigi iconu kaldir,
+yerine takip istegi mockup olustur; gonderilerdeki yoruma tiklayinca
+instagram yorum paneli gibi acilsin; profildeki alana repost ekle,
+digerlerini kaldir; 20 spor salonu gibi seyler profilde gorunmesin"*.
+- Bildirimlerde sag ust ikon KALKTI; takip istegi satirinin ALTINA
+  **Onayla / Sil** dugmeleri kondu (`_istekDurum` yerel durumu, hata
+  olursa GERI ALINIR ve `rootMessengerKey` ile sebep yazilir).
+- Yeni `yorum_paneli.dart`: gonderi yorumlari **%78 sheet** olarak
+  aciliyor. Yorum mantigi KOPYALANMADI — `YorumlarSayfasi`ya `sheet`
+  parametresi eklendi (tek kaynak).
+- Profil sekmeleri **BESE** indi: Gönderiler · Fotoğraf · Reels ·
+  Beğeni · **Repost**. Kisayoldan gelinen sekme (`_kisayolSekme`)
+  serite EKLENIR — "İlanlarım" gibi girisler ULASILAMAZ KALMADI.
+  ⚠️ Repost'un SUNUCUDA KARSILIGI YOK (grep: 0 eslesme) — sekme
+  durustce *"Repost yakında"* diyor, sahte sayi cizilmiyor.
+
+### Turu 180v — Etkinlik/ilan sihirbazlari · ilan detayi · hizmet · ayarlar
+Kullanici emri (tek mesaj): *"etkinlik olustur sag ustte + olsun, step
+step yap; ayni sekilde is ilanlari da; ilan kartlarini duzgunlestir;
+ilan detaylarinda ara butonu, butonlar 3lu sol ort sag ve headerda
+duzenle"* + *"hizmetlerde ufak kartlari kaldir, sag altta hizmet al
+butonu, step step hizmet alma; arama alani digerleri gibi degil"* +
+*"profil ayarlarinda header vs hepsini ayni yemek gibi yapacagiz"*.
+
+- **Etkinlik olustur** 4 adim (Görsel · Bilgi · Zaman & Yer · Bilet);
+  FAB kalkti, `+` sag uste (`sagIkon2` yuvasi kabuga eklendi).
+- **Ilan ver** 5 adim (Tür · Bilgi · Fiyat · **Detay** · Görsel).
+  ⚠️ "Detay" adimi SUNUCUDAN gelen tipe ozel alanlari tasir; tur icin
+     alan YOKSA adim SERITTE HIC CIZILMEZ -> adim sayisi DINAMIK,
+     indeksler `adlar`dan turetilir, `_adim` clamp'lenir.
+  ⚠️ `etiketEni` 62: bes adimda varsayilan 92 ile 5x92+32 = 492 dp
+     cikar ve 360 dp ekranda TASAR (olculdu).
+  ⚠️ Duzenlemede sihirbaz YOK (tek alan icin bes adim anlamsiz).
+- **Ilan karti** gercek bir yuzeye oturdu; kapak **DAIMA** cizilir,
+  yoksa ture gore ikon (`_turIkonu`) — kosullu olsaydi liste ZIPLARDI.
+- **Ilan detayi**: 44 dp yemek header'i + koyu zemin; eylemler listenin
+  SONUNDAN **ALT CUBUGA** tasindi, **sol · orta · sag** uc dugme:
+  baskasinin ilani `Ara · Mesaj · (Başvur | Teklif ver | Favori)`,
+  kendi ilanim `Düzenle · (Başvuranlar | Teklifler | Satıldı) · Kaldır`.
+  ⚠️ "Ara" UYGULAMANIN KENDI sesli aramasi: telefon numarasi ne
+     `Ilan` modelinde ne `/ilanlar/{id}` yanitinda VAR ve UYDURULMADI.
+  ⚠️ Kalp YALNIZ BIR YERDE: sag yuva "Favori" ise header kalp cizmez.
+- **Hizmet ekrani**: talep kategorisi seridi KALKTI; giris sag alttaki
+  **"Hizmet al"** dugmesine tasindi ve sihirbazin ILK ADIMI oldu
+  (`TalepSihirbaziEkrani.kategori` artik OPSIYONEL, `_off` ile sunucu
+  adimlari bir kayar). Arama artik EKRANDA GORUNENI suzuyor.
+- **`kabukArama` yemek diline gecti**: kenarliksiz + hafif dolgu.
+  Kenarligi kaldirmak TEK BASINA YETMEZ — siyah zeminde dolgusuz bir
+  `TextField` GORUNMEZ olur.
+- **Yeni `YemekHeader`** (`kategori_kabuk.dart`) TEK KAYNAK, 44 dp,
+  `PreferredSizeWidget` -> ekranlar `appBar:` yuvasini degistirmeden
+  geciyor. Cevrilenler: Ayarlar · Hesabım · Engellenen kişiler ·
+  Profili düzenle · Kaydedilenler · Takip istekleri · Randevularım ·
+  Randevu ayarları · Kapalı günler · Başvuranlar · Başvurularım.
+
+### Turu 180w — SOSYAL KATMAN GERCEKTEN CALISIYOR
+Kullanici emri: *"sosyal medya sifirla her seyi sifirla; gonderi, reels
+vs paylasabilelim, yorum atabilelim, bildirimler gelsin — yorum yapti,
+begendi, mesaj bildirimleri hepsi TAM CALISIR sekilde bakend calissin"*.
+
+- **`kDemoAkis = false`**: akis · hikaye seridi · sohbet listesi ·
+  bildirimler · ilan listesi · yorumlar artik YALNIZ sunucudan.
+- Yeni **`tools/tohum_sosyal.js`**: bos veritabaninda dort ekran birden
+  bombos kalmasin diye sosyal katmani GERCEK kayitlarla dolduruyor —
+  karsilikli takip · 6 gonderi · **2 reels** (mp4 presign -> R2 PUT ->
+  commit) · yorum · begeni · kaydetme · hikaye · sohbet + 4 mesaj.
+  ⚠️ SIRA ONEMLI: once TAKIP sonra gonderi — ters olsaydi akis bos
+     doner ve "paylastim, akiste yok" izlenimi olusurdu.
+  ⚠️ Etkilesim KARSI TARAFTAN: kendi gonderini begenmek BILDIRIM
+     URETMEZ (alici == aktor) ve bildirimler ekrani bos kalirdi.
+  ⚠️ A sohbeti okur, B OKUMAZ: okunmamis rozeti GERCEK sayidan gelsin.
+- **CANLI DOGRULAMA** (Ali Vural hesabiyla, tohum sonrasi):
+  `/feed` 8 · `/reels` 2 · `/notifications` 11 · `/chats` 1 ·
+  `/stories` 1 · **`node tools/uctan_uca.js` 404/404 GECTI**.
+- Emulatorde GOZLE dogrulandi: akista gercek gonderiler + oynayan
+  reels videosu, bildirimlerde "Zeynep Ak gönderini beğendi / gönderine
+  yorum yaptı / seni takip etmeye başladı", sohbet listesinde gercek
+  mesaj, profilde 4 gönderi · 1 takipçi · 2 takip.
+
+### ⚠️⚠️⚠️ Turu 180w — TEMA-CONTEXT TUZAGININ **ONUNCU** TEKRARI
+Gercek veri gelince UC ekranda birden sahaya cikti:
+- Hizmet: "Hizmet alanları" kutulari **BEYAZ**.
+- Ilan: filtre cipleri ve "2. El İlan (N)" basligi siyah zemine
+  **SIYAH** (fiilen gorunmuyordu).
+- Randevularim: gun seridi **BEYAZ** zeminli, saat KOYU GRI.
+KOK NEDEN (hepsinde ayni): `koyuSayfa` temayi `build`in DONDURDUGU
+agaca koyar; bir `State` metodunun ciplak `context`i o `Theme`in
+USTUNDE kalir ve `kYuzeyGri`/`kVurgu`/`kabukYazi`/`Theme.of` **ACIK**
+temayi cozer.
+FIX: (a) yeni `kYuzeyGriKoyu` / `kVurguKoyu` sabitleri — DAIMA koyu
+cizilen ekranlarin State metotlari icin; (b) `_filtreSatiri`,
+`_listeBasligi`, `_altSerit`, `_gunBasligi`, `_satir`, `_ozetSeridi`,
+`_kategoriGovde` artik **TEMALI `context`** aliyor.
+⚠️ `itemBuilder`in verdigi `c` TEMALIDIR — asagi O gecirilir.
+
+### Turu 180w — Iki olcum daha
+- **"Sık görüştüklerin" seridi 5 px tasiyordu**: yukseklik SABIT 96 dp
+  idi, artik YAZI OLCEGINDEN turetiliyor (+1 dp yuvarlama payi).
+  ⚠️ Serit demo verisiyle HIC cizilmiyordu; gercek sohbet gelince
+     sahaya cikti.
+- **Profil sekmesinde alt menunun koselerinden BEYAZ CENTIK**:
+  `home_screen`in DIS Scaffold'u profil sekmesinde acik gri kaliyordu
+  (turu 98n/180r ile ayni hata, UCUNCU tekrar).
+
+### ⚠️ Surec dersi — CRLF (dorduncu tekrar)
+`randevu_listeleri.dart` ve `basvuru_ekranlari.dart` **CRLF**; LF ile
+birlestirilmis desenler ESLESMEDI ve betik "BULUNAMADI" dedi. Bu repoda
+satir sonlari KARISIK — metin degistiren her betik satir sonunu
+**DOSYADAN ALGILAMALI**.

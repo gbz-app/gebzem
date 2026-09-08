@@ -41,6 +41,92 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
       kaybettiriyorsun"*. **Üçüncüsü olmayacak.**
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
+- **KALDIGIMIZ YER (8 Eyl 22:0x): TURU 180u+180v+180w — SOSYAL KATMAN
+  GERCEK, BUILD ALINIYOR.**
+  ⚠️⚠️ **`kDemoAkis = false`** (turu 180w): akis · hikaye seridi · sohbet
+     listesi · bildirimler · ilan listesi · yorumlar artik **YALNIZ
+     SUNUCUDAN**. Sahte `demo-` icerik ve kapilari devre disi.
+  ⚠️⚠️ **DB TRUNCATE EDILDI + `tools/tohum.js`** (14 isletme · 2 kullanici
+     · 2 ilan · 2 etkinlik · randevu + rezervasyon · talep + 3 teklif ·
+     diyet) **+ yeni `tools/tohum_sosyal.js`** (karsilikli takip · 6
+     gonderi · **2 reels** · 4 yorum · 7 begeni · hikaye · sohbet + 4
+     mesaj). Hepsi GERCEK kayit; bildirimleri SUNUCU uretiyor.
+  ✅ **CANLI DOGRULAMA** (Ali Vural, +905551060001 / Gebzem2026!):
+     `/feed` 8 · `/reels` 2 · `/notifications` 11 · `/chats` 1 ·
+     `/stories` 1 · **`node tools/uctan_uca.js` 404/404 GECTI**.
+  ✅ analyze **0/0** · test **86/86** · emulatorde ON EKRAN gozle
+     dogrulandi (akis · reels videosu · bildirimler · sohbet · profil ·
+     hizmet · hizmet sihirbazi · ilan listesi · ilan detayi · ilan ver
+     sihirbazi · randevularim · ayarlar).
+
+- 📣 **TURU 180u — BILDIRIM · YORUM PANELI · PROFIL SEKMELERI.**
+  · Bildirimlerde sag ust ikon KALKTI; takip istegi satirinin ALTINA
+    **Onayla / Sil** kondu (yerel durum ONCE yazilir, hata olursa GERI
+    ALINIR ve sebep `rootMessengerKey` ile yazilir).
+  · Yeni `yorum_paneli.dart`: yorumlar **%78 sheet**. Yorum mantigi
+    KOPYALANMADI — `YorumlarSayfasi`ya `sheet` parametresi eklendi.
+  · Profil sekmeleri **BESE** indi: Gönderiler · Fotoğraf · Reels ·
+    Beğeni · **Repost**. Kisayoldan gelinen sekme (`_kisayolSekme`)
+    serite EKLENIR — "İlanlarım" gibi girisler ULASILAMAZ KALMADI.
+  ⚠️⚠️ **REPOST'UN SUNUCUDA KARSILIGI YOK** (backend grep: 0 eslesme);
+     sekme durustce *"Repost yakında"* der, sahte sayi CIZMEZ.
+
+- 🧭 **TURU 180v — IKI SIHIRBAZ + ILAN DETAYI + HIZMET + AYARLAR.**
+  · **Etkinlik olustur** 4 adim; FAB kalkti, `+` sag uste (`sagIkon2`).
+  · **Ilan ver** 5 adim (Tür · Bilgi · Fiyat · **Detay** · Görsel).
+    ⚠️ "Detay" adimi SUNUCUDAN gelen alanlari tasir; tur icin alan YOKSA
+       adim SERITTE HIC CIZILMEZ -> adim sayisi DINAMIK, `_adim` clamp.
+    ⚠️ `etiketEni` **62**: bes adimda varsayilan 92 ile 492 dp cikar ve
+       360 dp ekranda TASAR (olculdu).
+    ⚠️ Duzenlemede sihirbaz YOK.
+  · **Ilan detayi**: 44 dp header + koyu zemin; eylemler listenin
+    SONUNDAN **ALT CUBUGA** tasindi, **sol · orta · sag** uc dugme.
+    ⚠️⚠️ **"Ara" UYGULAMANIN KENDI SESLI ARAMASI**: telefon numarasi ne
+       `Ilan` modelinde ne `/ilanlar/{id}` yanitinda VAR — UYDURULMADI.
+    ⚠️ Kalp YALNIZ BIR YERDE: sag yuva "Favori" ise header kalp cizmez.
+  · **Hizmet ekrani**: talep kategorisi seridi KALKTI; giris sag alttaki
+    **"Hizmet al"** dugmesine tasindi ve sihirbazin ILK ADIMI oldu
+    (`TalepSihirbaziEkrani.kategori` OPSIYONEL; `_off` ile sunucu
+    adimlari BIR KAYAR — kaydirma TEK YERDEN hesaplanir).
+  · **`kabukArama` yemek diline gecti** (kenarliksiz + hafif dolgu).
+    ⚠️ Kenarligi kaldirmak TEK BASINA YETMEZ: siyah zeminde dolgusuz bir
+       `TextField` GORUNMEZ olur (turu 174 dersi).
+  · **Yeni `YemekHeader`** (`kategori_kabuk.dart`) **TEK KAYNAK**, 44 dp,
+    `PreferredSizeWidget` -> ekranlar `appBar:` yuvasini DEGISTIRMEDEN
+    geciyor. Cevrilenler: Ayarlar · Hesabım · Engellenen kişiler ·
+    Profili düzenle · Kaydedilenler · Takip istekleri · Randevularım ·
+    Randevu ayarları · Kapalı günler · Başvuranlar · Başvurularım.
+
+- ⚠️⚠️⚠️ **TURU 180w — TEMA-CONTEXT TUZAGININ **ONUNCU** TEKRARI.**
+  Gercek veri gelince UC ekranda birden sahaya cikti: Hizmet kutulari
+  **BEYAZ** · Ilan cipleri ve bolum basligi siyah zemine **SIYAH** ·
+  Randevularim gun seridi **BEYAZ** zeminli.
+  **KOK NEDEN (hepsinde ayni):** `koyuSayfa` temayi `build`in DONDURDUGU
+  agaca koyar; bir `State` metodunun ciplak `context`i o `Theme`in
+  USTUNDE kalir ve `kYuzeyGri`/`kVurgu`/`kabukYazi`/`Theme.of` **ACIK**
+  temayi cozer.
+  **FIX:** (a) yeni **`kYuzeyGriKoyu` / `kVurguKoyu`** sabitleri (DAIMA
+  koyu cizilen ekranlarin State metotlari icin; degerler `kYuzeyGri`/
+  `kVurgu`nin KOYU DALIYLA BIREBIR ayni); (b) `_filtreSatiri`,
+  `_listeBasligi`, `_altSerit`, `_gunBasligi`, `_satir`, `_ozetSeridi`,
+  `_kategoriGovde` artik **TEMALI `context`** aliyor.
+  ⚠️ `itemBuilder`in verdigi `c` TEMALIDIR — asagi O gecirilir.
+  ⚠️ YAPMA: bu metotlarda tekrar ciplak `context` kullanma.
+
+- 📏 **TURU 180w — IKI OLCUM:**
+  · **"Sık görüştüklerin" seridi 5 px TASIYORDU** (sabit 96 dp) ->
+    yukseklik YAZI OLCEGINDEN turetiliyor (+1 dp yuvarlama payi).
+    ⚠️ Serit demo verisiyle HIC cizilmiyordu; gercek sohbet gelince
+       sahaya cikti.
+  · **Profil sekmesinde alt menunun koselerinden BEYAZ CENTIK**:
+    `home_screen`in DIS Scaffold'u profil sekmesinde acik gri kaliyordu
+    (turu 98n/180r ile ayni hata, **UCUNCU** tekrar).
+
+- ⚠️ **TURU 180w — SUREC (CRLF, dorduncu tekrar):**
+  `randevu_listeleri.dart` ve `basvuru_ekranlari.dart` **CRLF**; LF ile
+  birlestirilmis desenler ESLESMEDI. Bu repoda satir sonlari KARISIK —
+  metin degistiren her betik satir sonunu **DOSYADAN ALGILAMALI**.
+
 - **KALDIGIMIZ YER (8 Eyl 19:07): TURU 180t YAYINLANDI — SADECE iOS.**
   ios **34248194144** (**1e019b9**), R2 ipa=**29069411** (md5 9de10efd),
   index=7967 (1f4ec5be) surum.json=45 (b423242d), purge OK, **CDN BIREBIR**
