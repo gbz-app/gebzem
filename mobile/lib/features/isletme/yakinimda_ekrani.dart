@@ -71,6 +71,7 @@ import 'isletme_kart.dart' show kYanBosluk, kYaricap, kYuzeyGri, kVurgu;
 //    edilir; biri degisince ikisi birlikte doner.
 import 'isletme_listesi.dart' show kKesifKutu, kIzgaraAralik;
 import '../home/home_screen.dart' show myProfileProvider;
+import '../medya/medya_gorsel.dart';
 import '../medya/medya_servisi.dart' show medyaServisiProvider;
 import '../ulasim/adres_servisi.dart';
 import '../ulasim/rota_bul.dart';
@@ -6453,19 +6454,56 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani>
   ///	(`_markaPinUret`) hala onu okuyor — kullanici logolari HARITADA
   ///	acikca istedi (turu 142).
   /// ⚠️ YAPMA: `_ornekLogo`yu "artik kullanilmiyor" diye silme.
+  /// ⚠️⚠️⚠️ TURU 180p — **KART ALANI: GERCEK GORSEL** (kullanici emri:
+  ///	*"yakinimdaki alttaki kartlarin solda icon resim kart alani yer
+  ///	yap"*).
+  ///
+  /// Onceden burada **her zaman** kategori ikonu vardi: McDonald's da,
+  /// Gul Eczanesi de ayni notr simgeyle ciziliyordu — kart tanimlanamaz
+  /// oluyordu. Artik SIRA: ornek marka logosu > isletme avatari > kapak >
+  /// kategori ikonu.
+  /// ⚠️ Alan **DAIMA cizilir** (kosullu olsaydi kimi kart 56 kimi 0 dp
+  ///	genislikte olur ve serit ZIPLARDI — turu 178 dersi).
+  /// ⚠️ `MedyaGorsel` YALNIZ sunucu medyasi kabul eder; `demo-` onekli
+  ///	kayitlarin medyasi SUNUCUDA YOKTUR, o yuzden ornek dali ONCE
+  ///	gelir ve varliktan cizer.
+  /// ⚠️ Logo `contain`: marka logolari cogu zaman KARE DEGIL ve `cover`
+  ///	onlari ustten/alttan KIRPAR (turu 140'ta olculdu).
+  /// ⚠️ `kucuk: true` — ham avatar 1600x1600 olabiliyor; 56 dp'lik kutu
+  ///	icin tam cozunurlukte cozmek kare basina megabaytlarca gecici RAM
+  ///	demek (turu 91).
   Widget _kartLogosu(BuildContext c, IsletmeOzet o) {
+    const boy = 56.0;
+    final ornekYol = _ornekLogo[o.ad];
+    final medya = o.avatarMediaId ?? o.kapakMediaId;
+    Widget ic;
+    if (ornekYol != null) {
+      ic = Image.asset(
+        ornekYol,
+        fit: BoxFit.contain,
+        cacheWidth: (boy * MediaQuery.devicePixelRatioOf(c)).round(),
+      );
+    } else if (medya != null && medya.isNotEmpty) {
+      ic = MedyaGorsel(
+        mediaId: medya,
+        kucuk: true,
+        fit: o.avatarMediaId != null ? BoxFit.contain : BoxFit.cover,
+      );
+    } else {
+      ic = Icon(_kategoriIkonu(o.kategori), size: 24, color: kVurgu(c));
+    }
     return Container(
-      width: 46,
-      height: 46,
+      width: boy,
+      height: boy,
       alignment: Alignment.center,
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         // ⚠️ TEK KAYNAK: cip ikonlariyla ve menudeki kategori kartiyla
         //    AYNI yuzey.
         color: kAiKartYuzey(c),
-        borderRadius: BorderRadius.circular(kYaricap(46)),
+        borderRadius: BorderRadius.circular(kYaricap(boy)),
       ),
-      child: Icon(_kategoriIkonu(o.kategori), size: 22, color: kVurgu(c)),
+      child: ic,
     );
   }
 

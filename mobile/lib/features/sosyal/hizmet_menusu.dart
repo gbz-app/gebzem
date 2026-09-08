@@ -1278,6 +1278,15 @@ class _HizmetMenusuState extends ConsumerState<HizmetMenusu> {
           // TURU 171c - dokunus PANELI ACAR (kullanici: *"tikladigimda
           //    pencere acilmiyor"*). Widget varsayilani da ayni panel.
           const HavaDovizCipleri(kompakt: true),
+          // TURU 180p - **CIP ILE ARAMA ARASINDA BOSLUK** (kullanici:
+          //	*"arama ile doviz arasinda bosluk yok"*). Ikisi de yuvarlak
+          //	ve AYNI zeminde oldugu icin bitisikken TEK BIR HAP gibi
+          //	goruluyordu.
+          // UYARI `HavaDovizCipleri` veri yokken HICBIR SEY cizmez; bosluk
+          //	`Row`un cocugu oldugu icin o durumda da 8 dp yer kaplar ve
+          //	arama dairesi sagdan 8 dp iceri kayar. Kabul edilebilir:
+          //	dairenin kendi sag dolgusu zaten basligin dolgusundan gelir.
+          const SizedBox(width: 8),
           // TURU 171d - **ARAMANIN ARKASINDA DAIRE** (kullanici emri:
           //	*"aramanin arkasinda daire olsun, hava durumu ve dolar
           //	gibi ayni renkte"*). Zemin ifadesi ciplerle AYNI.
