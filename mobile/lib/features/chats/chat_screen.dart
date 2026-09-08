@@ -1529,7 +1529,11 @@ class _Bubble extends StatelessWidget {
                 AnketBalon(anket: message.anket!, benimMi: mine)
               else if (_yapisalTipler.contains(message.type))
                 _YapisalBalon(message: message, benimMi: mine)
-              else if (message.content.isNotEmpty)
+              // ⚠️ TURU 180y — "tek kullanimlik" ISARETCISI ALTYAZI OLARAK
+              //	CIZILMEZ: emulatorde goruldu, balonun altinda ham `[1x]`
+              //	yaziyordu. Isaretci teknik bir bayrak, kullanici metni DEGIL.
+              else if (message.content.isNotEmpty &&
+                  message.content.trim() != kTekKullanimlikIsaret)
                 Text(message.content, style: const TextStyle(fontSize: 15.5)),
             ],
             const SizedBox(height: 2),
