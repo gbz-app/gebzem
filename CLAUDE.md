@@ -41,6 +41,85 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
       kaybettiriyorsun"*. **Üçüncüsü olmayacak.**
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
+- **KALDIGIMIZ YER (8 Eyl 17:38): TURU 180p-180s YAYINLANDI — SADECE iOS.**
+  ios **34238584754** (**811bb5f**), R2 ipa=**29069344** (md5 d57e1519),
+  index=7967 (3a3a745a) surum.json=45 (486d7ca7), purge OK, **CDN BIREBIR**
+  (ucu de), `get-task-allow: false`, ad hoc profil, `MapsApiKey` +
+  `NSLocationWhenInUse` + `MinimumOSVersion` VAR.
+  IPAda dizeler VAR: `Gönderi` · `Fotoğraf ekle` · `ı yönet`;
+  KALKANLAR YOK: `Yazışma` · `Hareketi gör`. Kontrol `Yakınımda` VAR.
+  ⚠️ **ADRES:** https://indir.gebzem.app/index.html?v=20260908-1738
+  Arayuz turu: **BACKEND DEGISMEDI**, migration YOK, deploy YOK.
+  ⚠️⚠️ **DB TRUNCATE EDILDI + tohum + `tools/oda_galeri.js`**.
+  ✅ analyze **0/0** · test **86/86** · emulatorde sekiz madde de gozle
+     dogrulandi.
+
+- 🌑 ⚠️⚠️⚠️ **TURU 180r — SOSYAL SIYAH + GONDERI DETAYI YENIDEN.**
+  Kullanicinin sekiz maddesi:
+  1. **Zemin siyah** (akis + gonderi detayi): `koyuSayfa` + `kAiZemin`.
+     ⚠️⚠️ `koyuSayfa` TEK BASINA YETMEZ — State metotlarinin `context`i
+        `build`in dondurdugu Theme'in USTUNDE kalir (turu 135c/138/178,
+        **sekizinci** tekrar). Iki ekrana da `_ks` getter'i kondu; detayda
+        `Theme.of(context)` sayisi **11 -> 0**.
+     ⚠️ `home_screen`in DIS Scaffold'u da akis sekmesinde siyah: acik gri
+        kalsaydi alt menunun yuvarlak koselerinden **BEYAZ CENTIK**
+        gorunurdu (turu 98n'de sahada IKI KEZ bildirilen hata).
+  2. **Alt menu border**: `ColoredBox` -> `DecoratedBox` + ust kenarlik
+     (%14 beyaz). Zemin DEGISMEDI (kullanici *"arka plan rengi kalsin"*).
+     ⚠️ Kenarlik `ClipRRect`in **ICINDE**: disinda olsaydi yuvarlak
+        koselerin disina tasar ve iki ucta duz uzanirdi.
+     ⚠️ `test/alt_menu_test.dart` yardimcisi widget tipine uyarlandi;
+        muhafizin AMACI (zemin siyah, temaya bagli DEGIL) korundu.
+  3. **Story paylas moru**: `kHikayePaylasGradient` artik `morGradient`
+     (anasayfa FAB'iyle TEK KAYNAK). Onceki `#8B3FFF` uygulamanin hicbir
+     yerinde kullanilmayan ayri bir mordu.
+  4. **Yorum thread cizgisi + nokta kalkti** (uc yer): `_segment` artik
+     cizgi cizmiyor (imza KORUNDU, dort cagri yeri dokunulmadi) ·
+     `YanitlariGosterSatiri`ndaki ok rozeti · akis kartindaki cizgi.
+  5. **"Hareketi gör" kalkti** (`GonderiHareketleri` ekrani DURUYOR).
+  6. **"Çayırova · 146 gönderi" kalkti** — zaten SUNUCUDA KARSILIGI
+     OLMAYAN bir vitrindi ve sayi SABIT 146 idi.
+  7. **Detay header'i YEMEK EKRANIYLA AYNI**: 44 dp · ortada baslik ·
+     solda `arrowLeft` · `AppBar` YOK.
+  8. **Baslik "Yazışma" + goruntulenme -> tek kelime "Gönderi"**.
+
+- 🔤 ⚠️⚠️⚠️ **TURU 180r — SESSIZ REGRESYON: `kKoyuTema`da `fontFamily`
+  YOKTU.** Kesif ajani buldu: tema YALNIZ dort alan tasiyordu
+  (`scaffoldBackgroundColor` + splash uclusu). `ThemeData.dark()`
+  `fontFamily` TASIMAZ ve `Theme(data: kKoyuTema)` `MaterialApp.theme`daki
+  `fontFamily: kYaziAilesi` satirini **EZER** — yani `koyuSayfa` ile
+  sarilan HER ekran (menu · kategori · profil · katalog · urun formu ·
+  isletme sihirbazi · arama) sessizce **SISTEM FONTUNA** dusuyordu.
+  Turu 180d/180i'de TEK KAYNAGA alinan kararin ihlali.
+  ⚠️⚠️ `appBarTheme`/`bottomSheetTheme`/`dialogTheme` de eksikti: AppBar
+     M3 varsayilani (#141218) ile govde (#050308) arasinda **GORUNUR
+     DIKIS** birakiyordu. Dordu de eklendi.
+  ⚠️ YAPMA: `kKoyuTema`dan `fontFamily`yi kaldirma.
+
+- ❤️ **TURU 180s — KALBIN YANINDAKI GRI NOKTA** (kullanici ekran
+  goruntusu gonderdi). "Gonderi sahibi begendi" rozetinin ikinci parcasi
+  sahibin AVATARIYDI ama `MiniAvatar(cap: 16)` **`mediaId` VERILMEDEN**
+  cagriliyordu; o parametre yoksa widget DAIMA duz gri daireye duser.
+  Rozet kimin begendigini gostermek icin duruyor ve HICBIR ZAMAN
+  gosteremiyordu. Kalp KALDI (bilgiyi o tasiyor + `Semantics` etiketi).
+  ⚠️ Daireyi geri koymadan once `YorumGorunum`a sahip avatarinin
+     `mediaId`si TASINMALI — yoksa ayni gri nokta doner.
+
+- 🖼️ **TURU 180p — YAKINIMDA KARTLARINDA IKON/GORSEL ALANI.**
+  · **Anasayfa** (`_yakinKart`): solda raduslu kare (34 dp) + bolum ikonu.
+    Turu 142'de ikon KALDIRILMISTI (o gunku emir); simdi kart alani olarak
+    geri. Kart boleni **2.05 -> 1.8**: ikon alani metinden 43 dp aldi ve
+    emulatorde OLCULDU, "Gül Ecza…" / "Şen Mark…" diye KIRPILIYORDU.
+  · **Yakinimda ekrani** (`_kartLogosu`): 46 -> 56 dp; sira **ornek marka
+    logosu > isletme avatari > kapak > kategori ikonu**. McDonald's artik
+    GERCEK LOGOSUYLA cizilyor.
+  · Cip grubu ile arama dairesi arasina **8 dp**.
+
+- 🖼️ **TURU 180q — ANA SLIDERDEKI GORSEL KALDIRILDI** (kullanici emri).
+  ⚠️ `kSliderIlkGorsel` sabiti ve `assets/slider/slider1.jpg` SILINMEDI:
+     **kategori ekrani** onu KULLANMAYA DEVAM EDIYOR; varligi pubspec'ten
+     cikarmak o ekrani KIRIK GORSELE dusururdu.
+
 - **KALDIGIMIZ YER (8 Eyl 12:52): TURU 180n+180o YAYINLANDI — SADECE iOS.**
   ios **34211102618** (**ebf91aa**), R2 ipa=**29077172** (md5 851c6c13),
   index=7967 (cfb5ebd3) surum.json=45 (3159bd71), purge OK, **CDN BIREBIR**

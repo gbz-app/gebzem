@@ -10524,3 +10524,41 @@ IPAda dizeler VAR: `Fotoğraf ekle` · ` fotoğraf · ilki kapak olur` ·
 kontrol dizesi `Yakınımda` VAR. Backend DEGISMEDI, health ok.
 DB TRUNCATE + tohum + `tools/oda_galeri.js` kosuldu.
 Adres: https://indir.gebzem.app/index.html?v=20260908-1252
+
+## Oturum 182 — 8 Eyl 2026 (turu 180p–180s)
+
+### Turu 180p — Yakinimda kartlarinda ikon/gorsel alani
+- **Anasayfa** `_yakinKart`: solda 34 dp raduslu kare + bolum ikonu.
+  Kart boleni 2.05 -> 1.8; ilk denemede "Gül Ecza…" KIRPILIYORDU
+  (turu 134'te ayni sinif dort adi birden kirpmisti).
+- **Yakinimda ekrani** `_kartLogosu`: 46 -> 56 dp, sira ornek marka
+  logosu > avatar > kapak > kategori ikonu.
+- Cip grubu ile arama dairesi arasina 8 dp.
+
+### Turu 180q — Ana sliderdeki gorsel kaldirildi
+`kSliderIlkGorsel` ve varlik SILINMEDI (kategori ekrani kullaniyor).
+
+### Turu 180r — Sosyal siyah + gonderi detayi (8 madde)
+Kullanicinin tek mesajindaki sekiz madde tek tek uygulandi ve
+emulatorde gozle dogrulandi; ayrintili liste CLAUDE.md'de.
+
+⚠️⚠️⚠️ **SESSIZ REGRESYON — `kKoyuTema`da `fontFamily` YOKTU.**
+Kesif ajani buldu. `ThemeData.dark()` fontFamily tasimaz ve
+`Theme(data: kKoyuTema)` `MaterialApp.theme`daki `kYaziAilesi` satirini
+EZER: `koyuSayfa` kullanan HER ekran sistem fontuna dusuyordu.
+`appBarTheme`/`bottomSheetTheme`/`dialogTheme` de eksikti. Dordu de
+eklendi.
+
+### Turu 180s — Kalbin yanindaki gri nokta
+`MiniAvatar(cap: 16)` `mediaId` VERILMEDEN cagriliyordu -> daima duz gri
+daire. Rozet kimin begendigini gosteremiyordu; kalp kaldi.
+
+### ✅ Yayin (8 Eyl 17:38)
+ios **34238584754** (`811bb5f`), R2 ipa=**29069344** (md5 d57e1519),
+index=7967 (3a3a745a) surum.json=45 (486d7ca7), purge OK, CDN ucu de
+BIREBIR, `get-task-allow: false`, MapsApiKey + NSLocationWhenInUse +
+MinimumOSVersion VAR.
+IPAda VAR: `Gönderi` · `Fotoğraf ekle` · `ı yönet`; YOK: `Yazışma` ·
+`Hareketi gör`. Kontrol `Yakınımda` VAR.
+Backend DEGISMEDI, health ok. DB TRUNCATE + tohum + oda_galeri.
+Adres: https://indir.gebzem.app/index.html?v=20260908-1738
