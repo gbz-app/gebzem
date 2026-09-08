@@ -8,15 +8,16 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import "../../core/yenile.dart";
 
 import '../../core/api.dart';
-import '../../core/theme.dart';
 import '../auth/auth_provider.dart';
 import '../medya/medya_gorsel.dart';
 import 'arama_kaydi.dart';
+import '../../router.dart' show rootMessengerKey;
 import 'chats_provider.dart';
 import '../kanal/kanal_ekrani.dart' show KanalEkrani;
 import '../kanal/kanal_olustur.dart' show KanalOlustur;
 import '../kanal/kanallar_sekmesi.dart' show KanallarSayfasi;
 import 'grup_olustur.dart';
+import '../sosyal/demo_veri.dart' show kDemoAkis;
 import 'models.dart';
 
 /// WhatsApp tarzi sohbet listesi. "Gebzem" basliginin altinda ARAMA INPUT'u (yerel filtre);
@@ -43,163 +44,6 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
     super.dispose();
   }
 
-  /// + dugmesi: yeni sohbet mi, yeni grup mu.
-  Future<void> _yeniSecenek(BuildContext context) async {
-    final secim = await showModalBottomSheet<String>(
-      context: context,
-      showDragHandle: true,
-      // ⚠️⚠️⚠️ TURU 114 (denetim) — **`isScrollControlled` ZORUNLU.**
-      //
-      //	Sheet bu turda IKI maddeden DORDE cikti. Bayrak verilmediginde
-      //	Flutter tavani `ekran * 9/16` yapar; ustune `showDragHandle`
-      //	(~48 dp) ve `SafeArea` alt centigi biner.
-      //	OLCULDU (gercek `flutter test`, uygulamanin kendi temasi):
-      //	  360x640 · olcek 1.0 -> **24 px tasma**
-      //	  360x640 · olcek 1.3 -> **54 px**
-      //	  360x640 · olcek 1.5 -> **94 px**, son madde
-      //	  ("Toplulukları keşfet") EKRAN DISINDA ve `tester.tap` ISKALIYOR
-      //	  = ozellik ULASILAMAZ.
-      //	411x896 (test cihazi) TASMIYOR — bu yuzden sahada gorunmezdi.
-      // ⚠️ Ayni hata turu 90b'de `olustur_menusu.dart`ta OLCULUP
-      //    duzeltilmis ve orada `isScrollControlled` "ZORUNLU" diye
-      //    isaretlenmisti; bu sheet o dersi ALMAMISTI.
-      isScrollControlled: true,
-      // ⚠️⚠️ TURU 115b — MODERNLESTIRME (kullanici emri: *"chat bolumunu daha
-      //    profesyonel modern bir gorunume getir"*). Tutamac + baslik +
-      //    ikonlarin renkli kutulari; `olustur_menusu.dart` ile AYNI DIL —
-      //    iki sheet ayni uygulamada farkli gorunuyordu.
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (c) => SafeArea(
-        // ⚠️⚠️⚠️ TURU 115c — `SingleChildScrollView` **SEVK ENGELIYDI**
-        //	(gercek `showModalBottomSheet` ile OLCULDU):
-        //	  360x640 · olcek 2.0 -> **34 px TASMA**
-        //	  320x568 · olcek 1.8 -> **59 px**
-        //	  320x568 · olcek 2.0 -> **149 px**, son madde
-        //	  ("Toplulukları keşfet") **EKRAN DISINDA** = ULASILAMAZ.
-        //
-        // ⚠️⚠️ **TURU 114'UN BIREBIR TEKRARIYDI.** O turda olculup
-        //	`isScrollControlled: true` eklenmisti — ama o bayrak yalnizca
-        //	**TAVANI KALDIRIR**, icerigi KAYDIRILABILIR YAPMAZ. Kardes
-        //	`olustur_menusu.dart` iki parcayi da (bayrak + kaydirma)
-        //	tasiyordu; bu dosyaya YALNIZ BIRI kopyalanmisti.
-        //	**ASIMETRININ KENDISI HATAYDI.**
-        // ⚠️ YAPMA: bu sarmali kaldirma; `isScrollControlled`i tek basina
-        //    yeterli sayma.
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-            const Padding(
-              padding: EdgeInsets.fromLTRB(20, 0, 20, 10),
-              child: Text(
-                'Yeni',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
-              ),
-            ),
-            _yeniMadde(
-              c,
-              LucideIcons.messageCirclePlus,
-              'Yeni sohbet',
-              'Bir kişiyle mesajlaş',
-              'sohbet',
-            ),
-            _yeniMadde(
-              c,
-              LucideIcons.users,
-              'Yeni grup',
-              'Birden fazla kişiyle mesajlaş',
-              'grup',
-            ),
-            // ⚠️⚠️⚠️ TURU 114 — **TOPLULUK** (kullanici emri: *"mesajlar
-            //	kisminda topluluk yok, topluluk olusturma ekle"*).
-            //
-            // ⚠️⚠️ YENI TABLO/TIP **ACILMADI**: topluluk = **KANAL**
-            //	(`chats.type='channel'`). Yasak testi ("ayni kavram + ayni
-            //	gorunurluk + ayni aktorler") tutuyor — ikisi de *"bir kisi
-            //	yazar, cok kisi okur"* iliskisidir ve `internal/kanal`
-            //	paketi (olustur · abone ol · gonderi · kesfet) turu 75'ten
-            //	beri CANLI. Ikinci bir kavram acmak, ayni mantigin ikinci
-            //	kopyasi olurdu ve KACINILMAZ olarak drift ederdi.
-            //
-            // ⚠️⚠️ ASIL SORUN KESFEDILEBILIRLIKTI: kanal olusturmanin TEK
-            //	girisi menu > Kanallar > "+" idi; kullanici mesajlar
-            //	ekraninda arayip bulamiyordu. Yeni giris o ekrani acar —
-            //	IKINCI BIR AKIS YAZILMADI.
-            _yeniMadde(
-              c,
-              LucideIcons.radio,
-              'Topluluk oluştur',
-              // ⚠️⚠️ TURU 114 (denetim) — **"ve yorumlar" KALDIRILDI.**
-              //	`channel_posts` (022) yalniz `begeni_sayisi` ve
-              //	`goruntulenme` tutuyor; YORUM TABLOSU YOK ve `internal/
-              //	kanal/handler.go` yorum ucu ACMIYOR. Var olmayan bir
-              //	ozelligi vaat etmek, projedeki "ozellik var gorunup
-              //	fiilen yok" sinifinin ta kendisi.
-              'Sen yazarsın, üyeler okur',
-              'topluluk',
-            ),
-            _yeniMadde(
-              c,
-              LucideIcons.compass,
-              'Toplulukları keşfet',
-              'Var olan topluluklara katıl',
-              'kesfet',
-            ),
-            const SizedBox(height: 10),
-            ],
-          ),
-        ),
-      ),
-    );
-    if (!context.mounted || secim == null) return;
-    if (secim == 'sohbet') {
-      context.push('/search');
-      return;
-    }
-    // ⚠️ TURU 114 — topluluk dallari: ikisi de MEVCUT kanal ekranlarini acar.
-    if (secim == 'topluluk') {
-      // ⚠️⚠️⚠️ TURU 114 (denetim) — **DONEN ID OKUNUR.**
-      //
-      //	Ilk yazimda `await push<String>(...)` yazilip donen id ATILIYORDU.
-      //	Kanallar `chats` DEGIL, AYRI `channels` tablosunda yasiyor ve
-      //	`ListChats` yalniz `chats`ten okuyor — yani olusturulan topluluk
-      //	mesaj listesinde **YAPISAL OLARAK GORUNEMEZ**. Kullanici
-      //	degismemis listeye donuyor, olusturmanin basarisiz oldugunu
-      //	saniyor ve TEKRAR TEKRAR deniyordu; her deneme GERCEK bir kanal
-      //	aciyor ve 10. denemede *"en fazla 10 kanal acabilirsiniz"*
-      //	hatasi geliyor — arkada 10 YETIM topluluk kaliyordu.
-      // ⚠️ Turu 90b'nin *"menu DONEN ID'yi ATIYORDU"* dersinin tekrari.
-      // ⚠️ Kardes cagri yeri (`kanallar_sekmesi.dart`) ZATEN boyle yapiyor;
-      //    asimetrinin kendisi hataydi.
-      final id = await Navigator.of(
-        context,
-      ).push<String>(MaterialPageRoute(builder: (_) => const KanalOlustur()));
-      if (id != null && context.mounted) {
-        await Navigator.of(context).push<void>(
-          MaterialPageRoute(
-            builder: (_) => KanalEkrani(kanalId: id, onIsim: 'Topluluk'),
-          ),
-        );
-      }
-      return;
-    }
-    if (secim == 'kesfet') {
-      await Navigator.of(
-        context,
-      ).push<void>(MaterialPageRoute(builder: (_) => const KanallarSayfasi()));
-      return;
-    }
-    final chatId = await Navigator.of(context).push<String>(
-      MaterialPageRoute(builder: (_) => const GrupOlusturEkrani()),
-    );
-    if (chatId != null && context.mounted) {
-      context.push('/chat/$chatId', extra: {'title': 'Grup'});
-    }
-  }
-
   /// Cip etiketi. Okunmamis ve arsiv icin SAYI da gosterilir — kullanici
   /// filtreye dokunmadan kac tane oldugunu gorsun.
   String _filtreAdi(_Filtre f, List<Chat>? liste) {
@@ -222,8 +66,15 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
   Widget build(BuildContext context) {
     final chats = ref.watch(chatsProvider);
 
-    return Scaffold(
-      body: Column(
+    // ⚠️⚠️ TURU 180t — `removeTop` ZORUNLU. Ekran artik `Scaffold` DEGIL
+    //	(FAB kalkinca govde duz `Column` oldu) ve `ListView` dolgusu YOKKEN
+    //	`MediaQuery.padding.top`u KENDI ust dolgusu yapiyor -> listenin
+    //	basinda durum cubugu kadar BOS ALAN kaliyordu (emulatorde olculdu).
+    //	Ust bosluk zaten `_MesajSekmesi` header'indaki `SafeArea`da.
+    return MediaQuery.removePadding(
+      context: context,
+      removeTop: true,
+      child: Column(
         children: [
           // ARAMA INPUT'u (Gebzem altinda — kullanici istegi): sohbet basligina gore filtreler
           Padding(
@@ -288,11 +139,45 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
           Expanded(
             child: chats.when(
               loading: () => const Center(child: CircularProgressIndicator()),
-              error: (e, _) => _ErrorRetry(
-                message: apiErrorMessage(e),
-                onRetry: () => ref.read(chatsProvider.notifier).load(),
-              ),
-              data: (list) {
+              // ⚠️⚠️⚠️ TURU 180t — **HATA DALINDA DA ORNEKLER.**
+              //	Onceden ag hatasi TUM listeyi yutuyordu; emulatorde
+              //	olculdu: sunucuya ulasilamayinca ekranda YALNIZ hata
+              //	metni kaliyor ve kullanicinin ACIKCA istedigi ornek
+              //	sohbetler HIC gorunmuyordu.
+              // ⚠️ Hata SAKLANMIYOR: ustte ince bir serit + "Tekrar dene"
+              //	KALIR — ornekleri gercek veri gibi gostermek yalan olurdu.
+              error: (e, _) {
+                final ornek = demoSohbetler();
+                if (ornek.isEmpty) {
+                  return _ErrorRetry(
+                    message: apiErrorMessage(e),
+                    onRetry: () => ref.read(chatsProvider.notifier).load(),
+                  );
+                }
+                return Column(
+                  children: [
+                    _HataSeridi(
+                      mesaj: apiErrorMessage(e),
+                      onRetry: () => ref.read(chatsProvider.notifier).load(),
+                    ),
+                    Expanded(
+                      child: ListView(
+                        padding: const EdgeInsets.only(bottom: 24),
+                        children: [
+                          for (final c in ornek) _ChatTile(chat: c),
+                        ],
+                      ),
+                    ),
+                  ],
+                );
+              },
+              data: (ham) {
+                // ⚠️⚠️⚠️ TURU 180t — **ORNEK SOHBETLER** (kullanici emri).
+                //	Sunucudan gelenler ONCE, ornekler SONA eklenir.
+                // ⚠️ Ornekler suzgeclerden ve aramadan **AYNI YOLDAN**
+                //	gecer: turu 121d'de olculdu, demo kayitlari suzgecin
+                //	DISINDA tutmak "filtre calismiyor" gibi gorunuyordu.
+                final list = [...ham, ...demoSohbetler()];
                 // ⚠️⚠️ TURU 76 — FILTRE (kullanici emri: "tümü / okunmamış vs").
                 //    TAMAMEN ISTEMCI TARAFINDA: sunucu zaten `unread`, `type` ve
                 //    `archived` donduruyor, yani YENI UC GEREKMEZ. Liste kullanicinin
@@ -348,6 +233,7 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
                 return YenileSarmali(
                   onRefresh: () => ref.read(chatsProvider.notifier).load(),
                   child: ListView(
+                    padding: const EdgeInsets.only(bottom: 24),
                     children: [
                       if (sik.isNotEmpty)
                         _SikGorusulenSerit(kisiler: sik.take(12).toList()),
@@ -360,33 +246,10 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
           ),
         ],
       ),
-      // FAB: mor-gradient DAIRE + (kalem yerine — kullanici istegi). FloatingActionButton
-      // gradient desteklemez -> Container decoration + saydam FAB.
-      floatingActionButton: Container(
-        decoration: const BoxDecoration(
-          shape: BoxShape.circle,
-          gradient: morGradient,
-          boxShadow: [
-            BoxShadow(
-              color: Color(0x556C2BD9),
-              blurRadius: 12,
-              offset: Offset(0, 4),
-            ),
-          ],
-        ),
-        child: FloatingActionButton(
-          heroTag: 'fabYeniSohbet', // TURU 76: bkz. akis_ekrani hero serhi
-          // ⚠️⚠️ TURU 76: + artik SECENEK SUNUYOR (yeni sohbet / YENI GRUP).
-          //    Grup olusturma ekranini yalniz "uzun bas" gibi gizli bir hareketin
-          //    arkasina koymak, bu projede iki kez yasanan "OLU DOGMUS OZELLIK"
-          //    sinifidir: kod yazilir, kullanici varligini HIC ogrenemez.
-          onPressed: () => _yeniSecenek(context),
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          highlightElevation: 0,
-          child: const Icon(LucideIcons.plus, color: Colors.white, size: 28),
-        ),
-      ),
+      // ⚠️⚠️⚠️ TURU 180t — **FAB KALDIRILDI** (kullanici emri: *"sohbet
+      //	sagdaki + butonu daire kaldir ... sagda + olsun"*). Islev
+      //	KAYBOLMADI: ayni sheet'i `_MesajSekmesi` header'indaki "+"
+      //	`ChatsScreen.yeniSohbetSecenegiAc` ile aciyor.
     );
   }
 }
@@ -716,27 +579,55 @@ class _ChatTile extends ConsumerWidget {
             maintainSize: true,
             maintainAnimation: true,
             maintainState: true,
+            // ⚠️⚠️⚠️ TURU 180t — `alignment` KALDIRILDI (emulatorde OLCULDU).
+            //	`Container`a `alignment` verilince cocugu bir `Align`e sarar
+            //	ve `Align` GEVSEK kisitta **EN BUYUK BOYUTU** alir; rozet
+            //	satirin TAM GENISLIGINE (olculdu: 328 dp) yayiliyordu.
+            //	`ListTile` bunu `tileWidth == trailingSize.width` ile
+            //	yakalayip yerlesimi PATLATIYOR -> *"RenderBox was not laid
+            //	out"* zinciri -> **SOHBET LISTESI EKRANDA HIC CIZILMIYORDU**
+            //	(ekran bombos siyah kaliyordu, hicbir sey gorunmuyordu).
+            // ⚠️ Turu 138'deki *"Container alignment verilince EN BUYUGU
+            //	alir"* tuzaginin BIREBIR tekrari.
+            // ⚠️ Ortalama KAYBOLMADI: `Center(widthFactor: 1)` cocuga
+            //	SARILIR; minWidth 20 devreye girdiginde tek haneli sayi
+            //	yine ORTADA durur.
+            // ⚠️ YAPMA: buraya tekrar `alignment:` koyma.
             child: Container(
               constraints: const BoxConstraints(minWidth: 20),
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              alignment: Alignment.center,
               decoration: BoxDecoration(
                 color: scheme.primary,
                 borderRadius: BorderRadius.circular(11),
               ),
-              child: Text(
-                chat.unread > 99 ? '99+' : '${chat.unread}',
-                style: TextStyle(
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.w700,
-                  color: scheme.onPrimary,
+              child: Center(
+                widthFactor: 1,
+                heightFactor: 1,
+                child: Text(
+                  chat.unread > 99 ? '99+' : '${chat.unread}',
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w700,
+                    color: scheme.onPrimary,
+                  ),
                 ),
               ),
             ),
           ),
         ],
       ),
-      onTap: () => context.push(
+      // ⚠️⚠️⚠️ TURU 180t — **ORNEK SOHBET ACILMAZ.** `demo-` onekli
+      //	kayitlarin sunucuda karsiligi YOK; `/chat/<id>` BOS bir ekran
+      //	acar ve kullanici uygulamayi KIRIK sanardi (turu 113'te gonderi
+      //	demosunda olculen sinif).
+      onTap: () {
+        if (chat.id.startsWith('demo-')) {
+          rootMessengerKey.currentState?.showSnackBar(
+            const SnackBar(content: Text('Bu bir örnek sohbet.')),
+          );
+          return;
+        }
+        context.push(
         '/chat/${chat.id}',
         extra: {
           'avatar_media_id': chat.avatarMediaId,
@@ -747,7 +638,8 @@ class _ChatTile extends ConsumerWidget {
           //    sanilir ve "Grup bilgisi" menusu yanlis yerde cikar).
           'is_group': chat.type == 'group',
         },
-      ),
+        );
+      },
     );
 
     // ⚠️⚠️ TURU 76 — KAYDIRMA AKSIYONLARI (kullanici emri: "mesaj sol sag
@@ -872,6 +764,50 @@ class _ChatTile extends ConsumerWidget {
   }
 }
 
+/// Liste ustunde ince hata seridi (ornekler alta cizilmeye devam eder).
+///
+/// ⚠️ Tam sayfa `_ErrorRetry` YERINE: o, altindaki her seyi yutuyordu.
+class _HataSeridi extends StatelessWidget {
+  const _HataSeridi({required this.mesaj, required this.onRetry});
+  final String mesaj;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final ks = Theme.of(context).colorScheme;
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 2, 12, 8),
+      padding: const EdgeInsets.fromLTRB(12, 8, 6, 8),
+      decoration: BoxDecoration(
+        color: ks.error.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        children: [
+          Icon(LucideIcons.triangleAlert, size: 16, color: ks.error),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              mesaj,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 12.5, color: ks.onSurface),
+            ),
+          ),
+          TextButton(
+            onPressed: onRetry,
+            style: TextButton.styleFrom(
+              visualDensity: VisualDensity.compact,
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+            ),
+            child: const Text("Tekrar dene", style: TextStyle(fontSize: 12.5)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _ErrorRetry extends StatelessWidget {
   const _ErrorRetry({required this.message, required this.onRetry});
 
@@ -961,4 +897,213 @@ Widget _yeniMadde(
       ),
     ),
   );
+}
+
+
+/// + dugmesi: yeni sohbet mi, yeni grup mu.
+///
+/// ⚠️⚠️ TURU 180t — **DOSYA SEVIYESINE TASINDI.** "+" artik FAB degil,
+///	`_MesajSekmesi`nin 44 dp header'inda (kullanici emri) ve o header
+///	`ChatsScreen`in DISINDA yasiyor — sheet'i acan yolun disaridan
+///	cagrilabilmesi gerekiyordu.
+/// ⚠️ Ikinci bir kopya YAZILMADI: sheet govdesi TEK KAYNAK; State icindeki
+///	Cagiran: `_MesajSekmesi` header'indaki "+".
+Future<void> yeniSohbetSecenegiAc(BuildContext context) async {
+    final secim = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      // ⚠️⚠️⚠️ TURU 114 (denetim) — **`isScrollControlled` ZORUNLU.**
+      //
+      //	Sheet bu turda IKI maddeden DORDE cikti. Bayrak verilmediginde
+      //	Flutter tavani `ekran * 9/16` yapar; ustune `showDragHandle`
+      //	(~48 dp) ve `SafeArea` alt centigi biner.
+      //	OLCULDU (gercek `flutter test`, uygulamanin kendi temasi):
+      //	  360x640 · olcek 1.0 -> **24 px tasma**
+      //	  360x640 · olcek 1.3 -> **54 px**
+      //	  360x640 · olcek 1.5 -> **94 px**, son madde
+      //	  ("Toplulukları keşfet") EKRAN DISINDA ve `tester.tap` ISKALIYOR
+      //	  = ozellik ULASILAMAZ.
+      //	411x896 (test cihazi) TASMIYOR — bu yuzden sahada gorunmezdi.
+      // ⚠️ Ayni hata turu 90b'de `olustur_menusu.dart`ta OLCULUP
+      //    duzeltilmis ve orada `isScrollControlled` "ZORUNLU" diye
+      //    isaretlenmisti; bu sheet o dersi ALMAMISTI.
+      isScrollControlled: true,
+      // ⚠️⚠️ TURU 115b — MODERNLESTIRME (kullanici emri: *"chat bolumunu daha
+      //    profesyonel modern bir gorunume getir"*). Tutamac + baslik +
+      //    ikonlarin renkli kutulari; `olustur_menusu.dart` ile AYNI DIL —
+      //    iki sheet ayni uygulamada farkli gorunuyordu.
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (c) => SafeArea(
+        // ⚠️⚠️⚠️ TURU 115c — `SingleChildScrollView` **SEVK ENGELIYDI**
+        //	(gercek `showModalBottomSheet` ile OLCULDU):
+        //	  360x640 · olcek 2.0 -> **34 px TASMA**
+        //	  320x568 · olcek 1.8 -> **59 px**
+        //	  320x568 · olcek 2.0 -> **149 px**, son madde
+        //	  ("Toplulukları keşfet") **EKRAN DISINDA** = ULASILAMAZ.
+        //
+        // ⚠️⚠️ **TURU 114'UN BIREBIR TEKRARIYDI.** O turda olculup
+        //	`isScrollControlled: true` eklenmisti — ama o bayrak yalnizca
+        //	**TAVANI KALDIRIR**, icerigi KAYDIRILABILIR YAPMAZ. Kardes
+        //	`olustur_menusu.dart` iki parcayi da (bayrak + kaydirma)
+        //	tasiyordu; bu dosyaya YALNIZ BIRI kopyalanmisti.
+        //	**ASIMETRININ KENDISI HATAYDI.**
+        // ⚠️ YAPMA: bu sarmali kaldirma; `isScrollControlled`i tek basina
+        //    yeterli sayma.
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(20, 0, 20, 10),
+              child: Text(
+                'Yeni',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+              ),
+            ),
+            _yeniMadde(
+              c,
+              LucideIcons.messageCirclePlus,
+              'Yeni sohbet',
+              'Bir kişiyle mesajlaş',
+              'sohbet',
+            ),
+            _yeniMadde(
+              c,
+              LucideIcons.users,
+              'Yeni grup',
+              'Birden fazla kişiyle mesajlaş',
+              'grup',
+            ),
+            // ⚠️⚠️⚠️ TURU 114 — **TOPLULUK** (kullanici emri: *"mesajlar
+            //	kisminda topluluk yok, topluluk olusturma ekle"*).
+            //
+            // ⚠️⚠️ YENI TABLO/TIP **ACILMADI**: topluluk = **KANAL**
+            //	(`chats.type='channel'`). Yasak testi ("ayni kavram + ayni
+            //	gorunurluk + ayni aktorler") tutuyor — ikisi de *"bir kisi
+            //	yazar, cok kisi okur"* iliskisidir ve `internal/kanal`
+            //	paketi (olustur · abone ol · gonderi · kesfet) turu 75'ten
+            //	beri CANLI. Ikinci bir kavram acmak, ayni mantigin ikinci
+            //	kopyasi olurdu ve KACINILMAZ olarak drift ederdi.
+            //
+            // ⚠️⚠️ ASIL SORUN KESFEDILEBILIRLIKTI: kanal olusturmanin TEK
+            //	girisi menu > Kanallar > "+" idi; kullanici mesajlar
+            //	ekraninda arayip bulamiyordu. Yeni giris o ekrani acar —
+            //	IKINCI BIR AKIS YAZILMADI.
+            _yeniMadde(
+              c,
+              LucideIcons.radio,
+              'Topluluk oluştur',
+              // ⚠️⚠️ TURU 114 (denetim) — **"ve yorumlar" KALDIRILDI.**
+              //	`channel_posts` (022) yalniz `begeni_sayisi` ve
+              //	`goruntulenme` tutuyor; YORUM TABLOSU YOK ve `internal/
+              //	kanal/handler.go` yorum ucu ACMIYOR. Var olmayan bir
+              //	ozelligi vaat etmek, projedeki "ozellik var gorunup
+              //	fiilen yok" sinifinin ta kendisi.
+              'Sen yazarsın, üyeler okur',
+              'topluluk',
+            ),
+            _yeniMadde(
+              c,
+              LucideIcons.compass,
+              'Toplulukları keşfet',
+              'Var olan topluluklara katıl',
+              'kesfet',
+            ),
+            const SizedBox(height: 10),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (!context.mounted || secim == null) return;
+    if (secim == 'sohbet') {
+      context.push('/search');
+      return;
+    }
+    // ⚠️ TURU 114 — topluluk dallari: ikisi de MEVCUT kanal ekranlarini acar.
+    if (secim == 'topluluk') {
+      // ⚠️⚠️⚠️ TURU 114 (denetim) — **DONEN ID OKUNUR.**
+      //
+      //	Ilk yazimda `await push<String>(...)` yazilip donen id ATILIYORDU.
+      //	Kanallar `chats` DEGIL, AYRI `channels` tablosunda yasiyor ve
+      //	`ListChats` yalniz `chats`ten okuyor — yani olusturulan topluluk
+      //	mesaj listesinde **YAPISAL OLARAK GORUNEMEZ**. Kullanici
+      //	degismemis listeye donuyor, olusturmanin basarisiz oldugunu
+      //	saniyor ve TEKRAR TEKRAR deniyordu; her deneme GERCEK bir kanal
+      //	aciyor ve 10. denemede *"en fazla 10 kanal acabilirsiniz"*
+      //	hatasi geliyor — arkada 10 YETIM topluluk kaliyordu.
+      // ⚠️ Turu 90b'nin *"menu DONEN ID'yi ATIYORDU"* dersinin tekrari.
+      // ⚠️ Kardes cagri yeri (`kanallar_sekmesi.dart`) ZATEN boyle yapiyor;
+      //    asimetrinin kendisi hataydi.
+      final id = await Navigator.of(
+        context,
+      ).push<String>(MaterialPageRoute(builder: (_) => const KanalOlustur()));
+      if (id != null && context.mounted) {
+        await Navigator.of(context).push<void>(
+          MaterialPageRoute(
+            builder: (_) => KanalEkrani(kanalId: id, onIsim: 'Topluluk'),
+          ),
+        );
+      }
+      return;
+    }
+    if (secim == 'kesfet') {
+      await Navigator.of(
+        context,
+      ).push<void>(MaterialPageRoute(builder: (_) => const KanallarSayfasi()));
+      return;
+    }
+    final chatId = await Navigator.of(context).push<String>(
+      MaterialPageRoute(builder: (_) => const GrupOlusturEkrani()),
+    );
+    if (chatId != null && context.mounted) {
+      context.push('/chat/$chatId', extra: {'title': 'Grup'});
+    }
+}
+
+/// ⚠️⚠️⚠️ TURU 180t — **ORNEK SOHBETLER** (kullanici emri: *"ornek
+///	sohbetler ekle"*).
+///
+/// ⚠️⚠️ `kDemoAkis` bayragina baglidir (akis/hikaye demosuyla AYNI
+///	anahtar): yayin oncesi TEK YERDEN kapanir.
+/// ⚠️⚠️ Kimlikler **`demo-` onekli**: `chats_screen` bunlara dokununca
+///	sohbeti ACMAZ, durustce "ornek kayit" der — gercek bir sohbet
+///	rotasina gitseydi BOS ekran acilir, kullanici KIRIK sanardi
+///	(turu 113'te gonderi demosunda olculen sinif).
+/// ⚠️ Sunucudan gelen sohbetler DAIMA ONCE gelir: ornekler listenin
+///	SONUNA eklenir ve gercek veri varken bile gorunur (kullanici
+///	"ornek sohbetler ekle" dedi, "bosken goster" demedi).
+List<Chat> demoSohbetler() {
+  if (!kDemoAkis) return const [];
+  Chat y(String id, String ad, String son, String tur, int okunmamis,
+          {int dkOnce = 0}) =>
+      Chat(
+        id: 'demo-sohbet-$id',
+        type: tur,
+        title: ad,
+        avatarUrl: '',
+        pinned: false,
+        archived: false,
+        lastMessage: son,
+        lastType: 'text',
+        lastSenderId: '',
+        // ⚠️ Zaman SABIT DEGIL, GORELI: sabit bir tarih yazilsaydi
+        //	liste "2 gun once" gibi eskiyen bir sey gosterirdi.
+        lastAt: DateTime.now().subtract(Duration(minutes: dkOnce)),
+        unread: okunmamis,
+      );
+  return [
+    y('1', 'Ayşe Demir', 'Yarın sahilde buluşalım mı?', 'direct', 2, dkOnce: 4),
+    y('2', 'Mehmet Kaya', 'Fotoğrafları attım, baktın mı?', 'direct', 0,
+        dkOnce: 38),
+    y('3', 'Gebze Komşuları', 'Zeynep: Pazar kaçta açılıyor?', 'group', 5,
+        dkOnce: 95),
+    y('4', "McDonald's", 'Siparişiniz hazırlanıyor.', 'direct', 0,
+        dkOnce: 210),
+    y('5', 'Kuaför Serkan', 'Randevunuzu onayladık.', 'direct', 1,
+        dkOnce: 400),
+  ];
 }

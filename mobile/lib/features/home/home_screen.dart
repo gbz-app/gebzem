@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/api.dart';
-import '../../core/theme.dart' show kAiZemin;
+import '../../core/theme.dart' show kAiZemin, kKoyuTema, koyuSayfa;
 import '../auth/auth_provider.dart';
 import '../medya/medya_gorsel.dart';
 import 'engellenenler.dart';
@@ -15,8 +15,8 @@ import '../chats/chats_screen.dart';
 import '../ilan/ilan_ekranlari.dart';
 import '../randevu/randevu_listeleri.dart';
 import '../isletme/isletme_duzenle.dart';
+import '../live/live_start_screen.dart';
 import '../live/live_tab.dart';
-import '../rooms/rooms_tab.dart';
 import '../sosyal/akis_ekrani.dart';
 import '../sosyal/bildirimler_sayfasi.dart';
 import '../sosyal/kesfet_ekrani.dart';
@@ -145,6 +145,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   static const _akis = 0;
   static const _ara = 1;
   static const _reels = 2;
+  static const _mesaj = 3;
+  static const _canli = 4;
 
   /// ⚠️ TURU 108 — profil sekmesi artik KENDI ust duzenini ciziyor
   ///    (seffaf header), bu yuzden dis AppBar muafiyetine girdi.
@@ -188,10 +190,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       //	kalsaydi alt menunun 20 dp'lik yuvarlak ust koselerindeki
       //	ucgenlerden **BEYAZ CENTIK** gorunurdu (turu 98n'de sahada
       //	IKI KEZ bildirilen hata).
-      backgroundColor: _index == _reels
-          ? Colors.black
-          : _index == 0
-          ? kAiZemin
+      // ⚠️ TURU 180t — Mesaj ve Canli sekmeleri de siyah: ikisi de artik
+      //	akisla ayni dilde (yemek header'i + koyu zemin).
+      backgroundColor:
+          (_index == _reels ||
+              _index == _akis ||
+              _index == _mesaj ||
+              _index == _canli)
+          ? (_index == _reels ? Colors.black : kAiZemin)
           : null,
       // ⚠️ AKIS, ARA ve REELS KENDI ust duzenlerini cizer — ust AppBar OLMAZ.
       //    Akista bolme secici + bildirim ikonu kendi seridinde; ARA'da ustte
@@ -199,10 +205,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       //    kaplar hem Instagram deseninden sapar); reels tam ekran video.
       // ⚠️ AppBar'i olmayan sekmeler KENDI `SafeArea`sini koymak ZORUNDA
       //    (yoksa icerik durum cubugunun ALTINA girer).
+      // ⚠️⚠️⚠️ TURU 180t — **MESAJ ve CANLI da KENDI header'ini cizer**
+      //	(kullanici emri: yemek header'i). Dis `AppBar` KALSAYDI ekranda
+      //	**IKI BASLIK** olurdu — emulatorde goruldu: ustte "Mesaj",
+      //	altinda yine "Mesaj".
+      // ⚠️ Boylece `_titles` yalniz bir sekme icin kaldi; dizi SILINMEDI
+      //	(bir sekme daha geri gelirse tek satir).
       appBar:
           (_index == _akis ||
               _index == _ara ||
               _index == _reels ||
+              _index == _mesaj ||
+              _index == _canli ||
               _index == _profil)
           ? null
           // ⚠️⚠️ TURU 76b — AppBar'DAKI "+" KALDIRILDI (kullanici bulgusu:
@@ -308,23 +322,101 @@ class _MesajSekmesi extends StatefulWidget {
 class _MesajSekmesiState extends State<_MesajSekmesi> {
   int _alt = 0;
 
+  // ⚠️⚠️⚠️ `koyuSayfa` TEK BASINA YETMEZ (turu 135c/138/178 — SEKIZINCI
+  //	tekrar): bu bir `Column`, `Scaffold` DEGIL; Material'in sagladigi
+  //	`DefaultTextStyle` YOK ve `const Text`ler HATA BICIMINDE (soluk)
+  //	cizilyordu — emulatorde "Mesaj / Sohbet / Aramalar" siyah zeminde
+  //	OKUNMUYORDU. `Builder` + `DefaultTextStyle` ZORUNLU.
+  // ⚠️ Renk okuyan yerler `_ks`ten beslenir: `State`in `context`i
+  //	`build`in DONDURDUGU `Theme`in USTUNDE kalir.
+  ColorScheme get _ks => kKoyuTema.colorScheme;
+
   @override
-  Widget build(BuildContext context) => Column(
+  Widget build(BuildContext context) => koyuSayfa(
+    Builder(
+      builder: (bc) => DefaultTextStyle(
+        style: Theme.of(bc).textTheme.bodyMedium!,
+        child: Column(
     children: [
-      // ⚠️⚠️ TURU 115b — `SegmentedButton` YERINE **HAP SECICI**.
-      //	M3 `SegmentedButton` her segmentin cevresine kenarlik ve aralarina
-      //	dikey ayrac cizer; ekranin en ustunde, arama kutusunun hemen
-      //	uzerinde iki cerceveli kutu "form alani" gibi duruyordu.
-      //	Yeni hal: tek bir hap, secili taraf dolu. Uygulamadaki diger
-      //	seciciler (`akis_ekrani` bolme secici) de bu dilde.
-      // ⚠️ Genislik TAM EKRAN: iki segment esit paylasir (`Expanded`),
-      //    yani etiket uzunlugu degisse de kutu OYNAMAZ.
+      // ⚠️⚠️⚠️ TURU 180t — **YEMEK HEADER'I** (kullanici emri: *"sohbet
+      //	sagdaki + butonu daire kaldir, yemek header gibi yap: sagda +
+      //	olsun solda geri ortada mesaj"*).
+      // ⚠️ `AppBar` KULLANILMIYOR: Material'in kendi `BackButton`u
+      //	PLATFORMA gore degisir ve baslik SOLA yaslidir (urun katalogu,
+      //	isletme sihirbazi, gonderi detayi hepsi bu desende).
+      // ⚠️⚠️ Geri oku `Navigator.pop` YAPMAZ: bu ekran alt menunun KOK
+      //	route'u, yigindа ustunde bir sey YOK — pop HICBIR SEY yapmazdi.
+      //	Bunun yerine anasayfa sekmesine doner (`aktifSekme.value = 0`).
+      SafeArea(
+        bottom: false,
+        child: SizedBox(
+          height: 44,
+          child: Stack(
+            children: [
+              Align(
+                alignment: Alignment.centerLeft,
+                child: IconButton(
+                  icon: const Icon(LucideIcons.arrowLeft),
+                  tooltip: 'Geri',
+                  onPressed: () => aktifSekme.value = 0,
+                ),
+              ),
+              const Center(
+                child: Text(
+                  'Mesaj',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    height: 1.0,
+                  ),
+                ),
+              ),
+              Align(
+                alignment: Alignment.centerRight,
+                child: IconButton(
+                  icon: const Icon(LucideIcons.plus),
+                  tooltip: 'Yeni sohbet',
+                  // KOYU PANEL (turu 138 dersi): sheet ACAN context,
+                  //	build in DONDURDUGU Theme in ALTINDA olmali; State in
+                  //	kendi context i ile acilsaydi panel ACIK TEMADA
+                  //	cizilir ve siyah ekranin ustune beyaz bir blok binerdi.
+                  onPressed: () => yeniSohbetSecenegiAc(bc),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      // ⚠️⚠️ TURU 180t — **HAP SECICI YERINE DUZ METIN** (kullanici:
+      //	*"Sohbet aramalar bunlar text olarak olsun"*). Akis ekranindaki
+      //	"Arkadaş · Keşfet · Mahalle" secicisiyle AYNI dil: secili kalin
+      //	ve tam opak, digeri soluk.
+      // ⚠️ Kalinlik SABIT w700: secimle degisseydi metnin genisligi
+      //	degisir ve serit her dokunusta KAYARDI (turu 140).
       Padding(
-        padding: const EdgeInsets.fromLTRB(12, 6, 12, 8),
-        child: _HapSecici(
-          etiketler: const ['Sohbetler', 'Aramalar'],
-          secili: _alt,
-          onSec: (i) => setState(() => _alt = i),
+        padding: const EdgeInsets.fromLTRB(16, 2, 16, 10),
+        child: Row(
+          children: [
+            for (var i = 0; i < 2; i++) ...[
+              if (i > 0) const SizedBox(width: 22),
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => setState(() => _alt = i),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Text(
+                    ['Sohbet', 'Aramalar'][i],
+                    style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w700,
+                      color: _ks.onSurface
+                          .withValues(alpha: _alt == i ? 1 : 0.38),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ],
         ),
       ),
       // ⚠️ IndexedStack: sekme degistirince ChatsScreen'in WS dinleyicisi ve
@@ -335,7 +427,10 @@ class _MesajSekmesiState extends State<_MesajSekmesi> {
           children: const [ChatsScreen(), CallsTab()],
         ),
       ),
-    ],
+          ],
+        ),
+      ),
+    ),
   );
 }
 
@@ -345,6 +440,7 @@ class _MesajSekmesiState extends State<_MesajSekmesi> {
 ///    bir dolgu, hangi tarafa gecildigini gozle takip ettirmez.
 /// ⚠️ Kalinlik IKI TARAFTA DA w600: secimle degisseydi etiket genisligi
 ///    degisir ve kayan kutu etiketin altindan kayardi (turu 97c olcumu).
+// ignore: unused_element
 class _HapSecici extends StatelessWidget {
   const _HapSecici({
     required this.etiketler,
@@ -427,30 +523,71 @@ class _CanliSekmesi extends StatefulWidget {
 }
 
 class _CanliSekmesiState extends State<_CanliSekmesi> {
-  int _alt = 0;
-
   @override
-  Widget build(BuildContext context) => Column(
+  Widget build(BuildContext context) => koyuSayfa(
+    Builder(
+      builder: (bc) => DefaultTextStyle(
+        style: Theme.of(bc).textTheme.bodyMedium!,
+        child: Column(
     children: [
-      Padding(
-        padding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
-        child: SegmentedButton<int>(
-          segments: const [
-            ButtonSegment(value: 0, label: Text('Canlı yayınlar')),
-            ButtonSegment(value: 1, label: Text('Sesli odalar')),
+      // ⚠️⚠️⚠️ TURU 180t — **SEGMENT KALDIRILDI, SADECE CANLI YAYIN**
+      //	(kullanici emri: *"canli yayin alttan tikladigimda burada sadece
+      //	canli yayin olacak ... canli yayin sesli odalar butonlarini
+      //	kaldir"*).
+      // ⚠️⚠️ **`RoomsTab` ULASILAMAZ KALMADI**: sesli odaya giris
+      //	`olustur_menusu.dart` ("+" > Sesli oda) uzerinden DURUYOR.
+      //	Bu, turu 114'te `LiveStartScreen` icin kurulan desenin AYNISI —
+      //	ekrandan cikarilan sey "+" menusunde yasar.
+      // ⚠️ `RoomsTab` sinifi SILINMEDI: `mesgulMu` muhafizlari `oda_`
+      //	onekine bagli ve oda akisi orada (turu 76b).
+      // ⚠️ Header yemek ekranindakiyle AYNI: solda geri (anasayfaya
+      //	doner — bu kok route, `pop` HICBIR SEY yapmazdi), ortada baslik,
+      //	sagda "+" (yayin baslatma).
+      SafeArea(
+        bottom: false,
+        child: SizedBox(
+          height: 44,
+          child: Stack(
+            children: [
+              Align(
+                alignment: Alignment.centerLeft,
+                child: IconButton(
+                  icon: const Icon(LucideIcons.arrowLeft),
+                  tooltip: 'Geri',
+                  onPressed: () => aktifSekme.value = 0,
+                ),
+              ),
+              const Center(
+                child: Text(
+                  'Canlı Yayın',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    height: 1.0,
+                  ),
+                ),
+              ),
+              Align(
+                alignment: Alignment.centerRight,
+                child: IconButton(
+                  icon: const Icon(LucideIcons.plus),
+                  tooltip: 'Yayın başlat',
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const LiveStartScreen(),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      const Expanded(child: LiveTab()),
           ],
-          selected: {_alt},
-          showSelectedIcon: false,
-          onSelectionChanged: (s) => setState(() => _alt = s.first),
         ),
       ),
-      Expanded(
-        child: IndexedStack(
-          index: _alt,
-          children: const [LiveTab(), RoomsTab()],
-        ),
-      ),
-    ],
+    ),
   );
 }
 

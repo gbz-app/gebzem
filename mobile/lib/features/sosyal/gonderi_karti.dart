@@ -20,7 +20,6 @@ import 'gorunurluk.dart';
 import '../isletme/isletme_kart.dart' show kYuzeyGri, kYanBosluk;
 import 'demo_veri.dart';
 import 'demo_yorum.dart';
-import 'thread_cizgi.dart';
 import 'yorum_satiri.dart';
 import 'gonderi_detay.dart';
 import 'gonderi_menusu.dart';

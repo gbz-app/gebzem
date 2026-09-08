@@ -7,6 +7,7 @@ import 'package:sentry_flutter/sentry_flutter.dart';
 
 import "../../core/yenile.dart";
 
+import '../../core/theme.dart' show koyuSayfa;
 import '../medya/medya_gorsel.dart';
 import 'bildirim_sayaci.dart';
 import 'gonderi_detay.dart';
@@ -331,18 +332,57 @@ class _BildirimlerSayfasiState extends ConsumerState<BildirimlerSayfasi> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Bildirimler'),
-        actions: [
-          IconButton(
-            icon: const Icon(LucideIcons.userRoundCheck),
-            tooltip: 'Takip istekleri',
-            onPressed: () => Navigator.of(
-              context,
-            ).push(MaterialPageRoute(builder: (_) => const TakipIstekleri())),
+    // KOYU SAYFA (turu 180t): bildirimler AKIS ekranindan aciliyor ve akis
+    //	SIYAH; acik temada acilinca gecis KOR EDICI beyaz oluyordu.
+    return koyuSayfa(
+      Scaffold(
+      // ⚠️⚠️⚠️ TURU 180t — **YEMEK HEADER'I** (kullanici emri:
+      //	*"bildirimler header ayni yemek header gibi yap"*).
+      //	44 dp · ortada baslik · solda `arrowLeft` · sagda eylem.
+      // ⚠️ `AppBar` KULLANILMIYOR: Material'in kendi `BackButton`u
+      //	PLATFORMA gore degisir ve baslik SOLA yaslidir.
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(44),
+        child: SafeArea(
+          bottom: false,
+          child: SizedBox(
+            height: 44,
+            child: Stack(
+              children: [
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: IconButton(
+                    icon: const Icon(LucideIcons.arrowLeft),
+                    tooltip: 'Geri',
+                    onPressed: () => Navigator.of(context).maybePop(),
+                  ),
+                ),
+                const Center(
+                  child: Text(
+                    'Bildirimler',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      height: 1.0,
+                    ),
+                  ),
+                ),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: IconButton(
+                    icon: const Icon(LucideIcons.userRoundCheck),
+                    tooltip: 'Takip istekleri',
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => const TakipIstekleri(),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
-        ],
+        ),
       ),
       body: YenileSarmali(
         onRefresh: _yukle,
@@ -391,7 +431,7 @@ class _BildirimlerSayfasiState extends ConsumerState<BildirimlerSayfasi> {
                   Center(
                     child: Text(
                       'Henüz bildirim yok',
-                      style: TextStyle(color: Colors.grey),
+                      style: TextStyle(color: Color(0xFF9A9AA0)),
                     ),
                   ),
                 ],
@@ -446,6 +486,7 @@ class _BildirimlerSayfasiState extends ConsumerState<BildirimlerSayfasi> {
                   );
                 },
               ),
+      ),
       ),
     );
   }

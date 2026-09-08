@@ -7,7 +7,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../home/home_screen.dart' show myProfileProvider;
 import 'demo_veri.dart' show kDemoAkis, demoKimlik;
 import 'demo_yorum.dart';
-import 'gonderi_hareketleri.dart';
 import 'yorum_satiri.dart';
 import '../isletme/isletme_kart.dart' show kYanBosluk;
 import '../isletme/isletme_listesi.dart' show IsletmeListesiEkrani;

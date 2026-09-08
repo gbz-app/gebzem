@@ -902,7 +902,16 @@ class _HavaDovizCipleriDurumu extends State<HavaDovizCipleri> {
             //	Sabit genislik KALIR (zıplamayi o onluyor) ama artik
             //	icerige daha yakin ve ortali duruyor.
             en: widget.kompakt ? 88 : 110,
-            ic: Row(
+            // ⚠️⚠️ TURU 180t — `FittedBox` ZORUNLU (emulatorde olculdu:
+            //	*"A RenderFlex overflowed by 0.256 pixels on the right"*
+            //	-> anasayfanin en ustunde SARI-SIYAH serit).
+            //	Kutu genisligi SABIT (zıplamayi o onluyor, turu 171c) ve
+            //	simge+rakam+ok en genis kurda 88 dp'yi kil payi asiyordu.
+            // ⚠️ `scaleDown`: yalniz gerektiginde kuculur, normalde
+            //	olcek 1.0 kalir. Genisligi buyutme (kutu ziplar).
+            ic: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Row(
               mainAxisSize: MainAxisSize.min,
               // UYARI Sabit genislikte icerik SOLA yaslaniyordu ve sagda
               //    bos bir seri kaliyordu (kullanici bunu gordu).
@@ -952,7 +961,8 @@ class _HavaDovizCipleriDurumu extends State<HavaDovizCipleri> {
                         : const Color(0xFFE0523F),
                   ),
                 ],
-              ],
+                ],
+              ),
             ),
           ),
       ],

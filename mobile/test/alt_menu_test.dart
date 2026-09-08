@@ -98,17 +98,22 @@ Finder get _cubukBulucu =>
 ///	kullanici ust kenarlik istedi (*"alt menude sadece border olsun"*) ve
 ///	`ColoredBox` kenarlik cizemez. Muhafizin AMACI degismedi (zemin siyah
 ///	ve TEMAYA BAGLI DEGIL); yalnizca okundugu widget tipi degisti.
-Color _zeminRengi(WidgetTester t) {
-  final kutu = t.widget<DecoratedBox>(
-    find
-        .descendant(
-          of: find.byType(ClipRRect),
-          matching: find.byType(DecoratedBox),
-        )
-        .first,
-  );
-  return (kutu.decoration as BoxDecoration).color!;
-}
+/// ⚠️⚠️ TURU 180t — cubuk artik `ClipRRect` DEGIL, kirpan ve kenarlik
+///	cizen tek bir `Container`. Olcut o `Container`in `decoration`i.
+Container _cubukKutusu(WidgetTester t) => t.widget<Container>(
+      find
+          .descendant(
+            of: find.byType(AltMenu),
+            matching: find.byWidgetPredicate((w) =>
+                w is Container &&
+                w.decoration is BoxDecoration &&
+                (w.decoration as BoxDecoration).borderRadius != null),
+          )
+          .first,
+    );
+
+Color _zeminRengi(WidgetTester t) =>
+    (_cubukKutusu(t).decoration as BoxDecoration).color!;
 
 void main() {
   testWidgets('zemin SIYAH — acik temada da (temaya baglanmaz)', (t) async {
@@ -264,25 +269,28 @@ void main() {
         reason: 'widget cubuktan UZUN olmamali (ustte serit yok)');
 
     // ⚠️ UST KOSE RADIUSU **KULLANICI ISTEGI** — kaldirilamaz.
-    final kirpici = t.widget<ClipRRect>(find.descendant(
-        of: find.byType(AltMenu), matching: find.byType(ClipRRect)));
-    final r = kirpici.borderRadius as BorderRadius;
+    final r = (_cubukKutusu(t).decoration as BoxDecoration).borderRadius
+        as BorderRadius;
     expect(r.topLeft.x, greaterThan(0), reason: 'sol ust radius DURMALI');
     expect(r.topRight.x, greaterThan(0), reason: 'sag ust radius DURMALI');
 
-    // ⚠️ "Kenarlik yok" (kullanici: *"sadece alt menude border vb kalinlik
-    //    olmayacak"*): zemin duz renk, `Border`/`BoxShadow` YOK.
-    expect(
-      find.descendant(
-          of: find.byType(AltMenu),
-          matching: find.byWidgetPredicate((w) =>
-              w is Container &&
-              w.decoration is BoxDecoration &&
-              ((w.decoration as BoxDecoration).border != null ||
-                  (w.decoration as BoxDecoration).boxShadow != null))),
-      findsNothing,
-      reason: 'alt menude kenarlik/golge OLMAMALI',
-    );
+    // ⚠️⚠️⚠️ TURU 180t — **KURAL TERSINE DONDU.**
+    //	Turu 96p'de kullanici *"sadece alt menude border vb kalinlik
+    //	olmayacak"* demisti; turu 180r'de **border ISTEDI** ve 180t'de
+    //	*"sol sag radus border gorunmuyor"* diye duzeltti.
+    //	Muhafiz artik kenarligin VARLIGINI kilitler.
+    // ⚠️⚠️ Kenarlik `foregroundDecoration`DA olmali: `decoration`da
+    //	olsaydi cocugun kisitindan 2 x width duser ve ikon/logo konumlari
+    //	kayardi (turu 150 dersi; bu dosyadaki konum testleri kirmizi duser).
+    final on = _cubukKutusu(t).foregroundDecoration as BoxDecoration?;
+    expect(on?.border, isNotNull,
+        reason: 'alt menude UST KENARLIK olmali (kullanici emri)');
+    expect(on?.borderRadius, isNotNull,
+        reason: 'kenarlik yuvarlak koseleri de DOLASMALI');
+    expect((_cubukKutusu(t).decoration as BoxDecoration).border, isNull,
+        reason: 'kenarlik `decoration`da OLMAMALI (yerlesimi kaydirir)');
+    expect((_cubukKutusu(t).decoration as BoxDecoration).boxShadow, isNull,
+        reason: 'golge OLMAMALI');
   });
 
   testWidgets('CANLI (radio) ikonu optik olarak BUYUK cizilir', (t) async {

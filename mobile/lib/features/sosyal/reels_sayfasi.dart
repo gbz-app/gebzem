@@ -210,12 +210,13 @@ class _ReelsSayfasiState extends ConsumerState<ReelsSayfasi> {
                 size: 54,
                 color: Colors.white54,
               ),
-              const SizedBox(height: 14),
-              const Text(
-                'Henüz reels yok.',
-                style: TextStyle(color: Colors.white70),
-              ),
-              const SizedBox(height: 14),
+              // ⚠️⚠️ TURU 180t — **"Henüz reels yok." METNI KALKTI**
+              //	(kullanici emri: *"reels videolarda video yoksa henuz
+              //	reels yok vs bunu kaldir"*).
+              // ⚠️ Ikon ve paylas dugmesi KALDI: ekran bombos kalsaydi
+              //	kullanici YUKLENMIYOR sanardi ve paylasma yolu da
+              //	kaybolurdu.
+              const SizedBox(height: 18),
               FilledButton.icon(
                 onPressed: _olustur,
                 icon: const Icon(LucideIcons.plus, size: 18),

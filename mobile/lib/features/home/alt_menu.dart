@@ -118,7 +118,14 @@ const double kAltMenuLogoBosluk = 30;
 ///      kaldirma 17 dp · tasmasiz tavan 4 dp -> **ust tasma 13 dp**
 ///      cubuk icinde kalan **45 dp** (dokunma hedefi; Material 48'e yakin)
 ///    ⚠️ Eski serh "tasan ~10 / kalan ~42" diyordu — cap 52 iken dogruydu.
-const double kAltMenuLogoKaldir = kAltMenuIkonKaldir + 12;
+/// ⚠️⚠️ TURU 180t — kullanici *"alt menude ortadaki logoyu 5px daha
+///	alta indir"* dedi: **+12 -> +7**.
+/// ⚠️ Deger yine `kAltMenuIkonKaldir`e BAGLI (turu 96z): ikonlar
+///	kaydirilirsa logo onlarla birlikte kayar.
+/// ⚠️ Logo HALA cubuktan TASAR ((66-52)/2 = 7 tavaninda), yani
+///	`alt_menu_test.dart`in "tasma KASITLI" kurali bozulmaz — tam
+///	sinirda. Daha fazla indirilirse tasma biter ve o test kirmizi duser.
+const double kAltMenuLogoKaldir = kAltMenuIkonKaldir + 7;
 
 /// Alt menu — **3 sol · LOGO · 3 sag**.
 ///
@@ -219,31 +226,53 @@ class AltMenu extends ConsumerWidget {
       child: Stack(
         clipBehavior: Clip.none,
         children: [
-          ClipRRect(
-            // ALT MENU sol/sag (ust kose) RADIUS (test turu 7).
-            borderRadius: const BorderRadius.only(
-              topLeft: Radius.circular(20),
-              topRight: Radius.circular(20),
-            ),
-            // ⚠️⚠️⚠️ TURU 180r — **UST KENARLIK** (kullanici emri: *"alt
-            //	menude sadece border olsun beyaz hafif soluk, arka plan
-            //	rengi kalsin"*).
-            // ⚠️ `DecoratedBox` + `Border(top:)` kullanildi, `ColoredBox`
-            //	YERINE: `ColoredBox` kenarlik cizemez.
-            // ⚠️⚠️ Kenarlik `ClipRRect`in **ICINDE**: disinda olsaydi cizgi
-            //	yuvarlak koselerin disina tasar ve iki ucta duz uzanirdi.
-            // ⚠️ Zemin DEGISMEDI (`kAltMenuZemin`, sabit siyah — turu 96m):
-            //	kullanici acikca *"arka plan rengi kalsin"* dedi.
-            // ⚠️ %14 beyaz: %25'te cizgi "beyaz serit" gibi duruyor,
-            //	%8'de siyah cubukta GORUNMUYOR (emulatorde bakildi).
-            child: DecoratedBox(
-              decoration: const BoxDecoration(
-                color: kAltMenuZemin,
-                border: Border(
-                  top: BorderSide(color: Color(0x24FFFFFF), width: 1),
-                ),
+          // ⚠️⚠️⚠️ TURU 180t — **KENARLIK KOSELERI DE DOLASIR** (kullanici:
+          //	*"sosyalde alt menude sol sag radus border gorunmuyor"*).
+          //
+          //	Turu 180r'de `ClipRRect` + `Border(top:)` kullanilmisti:
+          //	`Border(top:)` DUZ bir ust cizgi cizer ve iki uctaki 20 dp'lik
+          //	yaylarda **HICBIR SEY yoktur** — cizgi koselere varmadan
+          //	biter, kullanicinin gordugu tam buydu.
+          // ⚠️ `ClipRRect` KALDIRILDI: `Container` hem kirpar
+          //	(`clipBehavior`) hem kenarlik cizer ve kenarlik **ICERIDE**
+          //	kaldigi icin kirpilmaz. `ClipRRect` icindeki bir border ise
+          //	tam sinirda olacagi icin dis yarisi KESILIRDI.
+          // ⚠️⚠️ `Border.all` ZORUNLU: `BoxDecoration` yuvarlak kose ile
+          //	**tek yonlu** kenarlik kabul etmez ("A borderRadius can only
+          //	be given for a uniform Border"). Alt kenar da cizilir ama
+          //	ekranin EN DIBINDE, jest cubugunun arkasinda kalir.
+          // ⚠️ Zemin DEGISMEDI (`kAltMenuZemin`, sabit siyah — turu 96m):
+          //	kullanici *"arka plan rengi kalsin"* dedi.
+          // ⚠️ %14 beyaz: %25'te cizgi "beyaz serit" gibi duruyor,
+          //	%8'de siyah cubukta GORUNMUYOR (emulatorde bakildi).
+          Container(
+            clipBehavior: Clip.antiAlias,
+            decoration: const BoxDecoration(
+              color: kAltMenuZemin,
+              // ALT MENU sol/sag (ust kose) RADIUS (test turu 7).
+              borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(20),
+                topRight: Radius.circular(20),
               ),
-              child: SafeArea(
+            ),
+            // ⚠️⚠️⚠️ KENARLIK **`foregroundDecoration`DA** — `decoration`da
+            //	DEGIL. `Container.decoration` kenarligi DOLGUNUN DISINA
+            //	koyar ve cocugun kisitindan **2 x width** duser: 1 dp'lik
+            //	cizgi ikonlari ve logoyu 1 dp kaydiriyordu ve
+            //	`alt_menu_test.dart` bunu OLCUP kirmizi dustu (turu 150'de
+            //	yakinimda kartinda yasanan hatanin AYNISI).
+            // ⚠️ `foregroundDecoration` cocugun USTUNE cizer, yerlesime
+            //	DOKUNMAZ.
+            foregroundDecoration: const BoxDecoration(
+              borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(20),
+                topRight: Radius.circular(20),
+              ),
+              border: Border.fromBorderSide(
+                BorderSide(color: Color(0x24FFFFFF), width: 1),
+              ),
+            ),
+            child: SafeArea(
                 top: false,
                 child: SizedBox(
                   height: kAltMenuBoy,
@@ -303,7 +332,6 @@ class AltMenu extends ConsumerWidget {
                   ),
                 ),
               ),
-            ),
           ),
           // ⚠️⚠️⚠️ TURU 96z — LOGO **CUBUGUN USTUNE TASAR** ve bu yuzden
           //	`ClipRRect`in DISINDA, dis `Stack`te cizilir.

@@ -33,11 +33,10 @@
 library;
 
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
-import '../../router.dart' show rootNavigatorKey;
-import '../chats/grup_olustur.dart';
+import '../../core/theme.dart' show kAiZemin, kKoyuTema;
+import '../../router.dart' show rootMessengerKey;
 import '../live/live_start_screen.dart';
 import 'gonderi_olustur.dart';
 
@@ -75,7 +74,22 @@ Future<void> olusturMenusuAc(
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
     ),
-    builder: (c) => SafeArea(
+    // KOYU ZEMIN (turu 180t): panel akisin uzerinde aciliyor ve akis
+    //	SIYAH; tema rengiyle cizilince ekranin altina BEYAZ bir blok
+    //	biniyordu (emulatorde goruldu).
+    // Renkler TEMADAN gelmeye devam eder: govde kKoyuTema ile sarildi,
+    //	yani kart yuzeyi/ikon/yazi ayrica elle boyanmiyor.
+    backgroundColor: kAiZemin,
+    builder: (c) => Theme(
+      data: kKoyuTema,
+      // ONEMLI (turu 129 dersi): sheet in Material i DIS temayla kurulur,
+      //	yani DefaultTextStyle ACIK temadan gelir ve renk vermeyen
+      //	Text ler koyu zeminde KOYU cizilir (emulatorde olculdu: butun
+      //	etiketler okunmuyordu). Builder + DefaultTextStyle ZORUNLU.
+      child: Builder(
+        builder: (tc) => DefaultTextStyle(
+          style: Theme.of(tc).textTheme.bodyMedium!,
+          child: SafeArea(
       child: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -111,7 +125,7 @@ Future<void> olusturMenusuAc(
                   children: [
                     Expanded(
                       child: _kart(
-                        c,
+                        tc,
                         LucideIcons.imagePlus,
                         'Gönderi',
                         () => const GonderiOlustur(),
@@ -121,7 +135,7 @@ Future<void> olusturMenusuAc(
                     const SizedBox(width: 10),
                     Expanded(
                       child: _kart(
-                        c,
+                        tc,
                         LucideIcons.clapperboard,
                         'Reels',
                         () => const GonderiOlustur(reels: true),
@@ -131,7 +145,7 @@ Future<void> olusturMenusuAc(
                     const SizedBox(width: 10),
                     Expanded(
                       child: _kart(
-                        c,
+                        tc,
                         LucideIcons.radio,
                         'Canlı',
                         () => const LiveStartScreen(),
@@ -141,56 +155,59 @@ Future<void> olusturMenusuAc(
                 ),
               ),
             ),
-            const SizedBox(height: 16),
-            // ⚠️ HIKAYE: editor bir DOSYA bekliyor ve secici mantigi
-            //    `story_seridi.dart`ta (izin + boyut tavani + yukleme
-            //    ilerlemesi). O mantigi BURAYA KOPYALAMAK ikinci bir kopya
-            //    olurdu; kullanici "Hikâyen" halkasina yonlendirilir.
-            //    ⚠️ YAPMA: secici/yukleme kodunu buraya kopyalama.
-            _satir(
-              c,
-              LucideIcons.circlePlus,
-              'Hikâye',
-              'Anasayfadaki "Hikâyen" halkasından',
-              null,
-              ipucu: 'Anasayfadaki "Hikâyen" halkasına dokun',
-            ),
-            // ⚠️ SESLI ODA: olusturma akisi `rooms_tab.dart` icinde private
-            //    (`_odaAc`) ve oda kurulumu ses birimi/mesgulluk kapilariyla
-            //    ic ice. Disari cikarmak o kapilari ikinci kez yazmak demekti.
-            _satir(
-              c,
-              LucideIcons.audioLines,
-              'Sesli oda',
-              'Canlı sekmesi > Odalar > "+"',
-              null,
-              ipucu: 'Canlı sekmesi > Odalar > "+"',
-            ),
-            // ⚠️⚠️ TURU 90c — GRUP KURULUNCA SOHBETE GIDILIR.
-            //    `GrupOlusturEkrani` `pop(chatId)` donduruyor; menu onu
-            //    ATIYORDU: kullanici grubu kuruyor ve **hicbir yere
-            //    gitmiyordu**. Turu 90b'nin GONDERI icin duzelttigi "donen id
-            //    atiliyor" hatasinin GRUP kopyasiydi.
-            _satir(
-              c,
-              LucideIcons.users,
-              'Grup',
-              'Yeni grup sohbeti',
-              () => const GrupOlusturEkrani(),
-              sonrasinda: (chatId) {
-                if (chatId == null || chatId.isEmpty) return;
-                // ⚠️ `call_screen.dart:286-290` ile BIREBIR AYNI desen:
-                //    kok context alinir, `mounted` kontrol edilir, `GoRouter`
-                //    ile push edilir. Ciplak `Navigator` KULLANILMAZ — sohbet
-                //    rotasi GoRouter'da tanimli.
-                final ctx = rootNavigatorKey.currentContext;
-                if (ctx != null && ctx.mounted) {
-                  GoRouter.of(ctx).push('/chat/$chatId');
-                }
-              },
+            const SizedBox(height: 10),
+            // ⚠️⚠️⚠️ TURU 180t — **HEPSI KART, "Grup" KALKTI** (kullanici
+            //	emri: *"olusturdaki grup kaldir, hepsi kart seklinde olsun
+            //	ve arayuzu daha modern hale getir"*).
+            //
+            //	Onceki hal KARMA idi: ustte uc kart, altta uc `ListTile`
+            //	benzeri satir — ayni sheet'te iki farkli dil.
+            // ⚠️⚠️ **GRUP OLUSTURMA ULASILAMAZ KALMADI**: `Mesaj`
+            //	sekmesindeki "+" (`yeniSohbetSecenegiAc`) "Yeni grup"
+            //	seceneginI tasiyor. Grup kurunca sohbete gitme davranisi
+            //	(turu 90c) o yolda ZATEN var.
+            // ⚠️ `_satir` govdesi `ignore: unused_element` ile DURUYOR:
+            //	bu dosyada uye silmek komsu uyeyi goturebiliyor ve karar
+            //	tek satirla geri alinabilsin.
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(
+                      child: _kart(
+                        tc,
+                        LucideIcons.circlePlus,
+                        'Hikâye',
+                        null,
+                        ipucu: 'Anasayfadaki "Hikâyen" halkasına dokun',
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _kart(
+                        tc,
+                        LucideIcons.audioLines,
+                        'Sesli oda',
+                        null,
+                        ipucu: '"+" > Sesli oda yakında',
+                      ),
+                    ),
+                    // ⚠️ UCUNCU HUCRE BOS: iki kart tam genislige
+                    //	yayilsaydi ust siradaki uc kartla AYNI IZGARADA
+                    //	durmaz, alt sira "farkli bir blok" gibi gorunurdu.
+                    const SizedBox(width: 10),
+                    const Expanded(child: SizedBox()),
+                  ],
+                ),
+              ),
             ),
             const SizedBox(height: 10),
           ],
+        ),
+      ),
+          ),
         ),
       ),
     ),
@@ -198,27 +215,55 @@ Future<void> olusturMenusuAc(
 }
 
 /// Ust siradaki buyuk kart.
+/// ⚠️⚠️ TURU 180t — `ekran` **NULLABLE** ve `ipucu` eklendi: Hikâye ve
+///	Sesli oda dogrudan bir ekran ACMAZ (secici/oda kurulumu baska yerde
+///	yasiyor, bkz. eski `_satir` serhleri) ama artik onlar da KART.
+///	Ekran yoksa dokunus kullaniciya YOLU SOYLER — sessizce hicbir sey
+///	yapan bir kart "bozuk" okunurdu.
 Widget _kart(
   BuildContext c,
   IconData ikon,
   String baslik,
-  Widget Function() ekran, {
+  Widget Function()? ekran, {
   void Function(String? id)? sonrasinda,
+  String? ipucu,
 }) {
   final scheme = Theme.of(c).colorScheme;
   return Material(
     color: scheme.primary.withValues(alpha: 0.10),
-    borderRadius: BorderRadius.circular(16),
+    borderRadius: BorderRadius.circular(18),
     child: InkWell(
-      borderRadius: BorderRadius.circular(16),
-      onTap: () => _ac(c, ekran, sonrasinda: sonrasinda),
+      borderRadius: BorderRadius.circular(18),
+      onTap: () {
+        if (ekran != null) {
+          _ac(c, ekran, sonrasinda: sonrasinda);
+          return;
+        }
+        Navigator.of(c).pop();
+        if (ipucu != null) {
+          rootMessengerKey.currentState?.showSnackBar(
+            SnackBar(content: Text(ipucu)),
+          );
+        }
+      },
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(ikon, size: 25, color: scheme.primary),
-            const SizedBox(height: 9),
+            // ⚠️ TURU 180t — ikon artik KENDI dairesinde: kart yuzeyi
+            //	%10 mor ve ciplak ikon onun uzerinde SOLUK duruyordu.
+            DecoratedBox(
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: scheme.primary.withValues(alpha: 0.16),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(10),
+                child: Icon(ikon, size: 22, color: scheme.primary),
+              ),
+            ),
+            const SizedBox(height: 10),
             // ⚠️⚠️ TURU 115b — `FittedBox` OLCUMLE EKLENDI. 360 dp ekranda
             //	kart ic alani **86,7 dp**; "Gönderi" yazi olcegi 2.0'da
             //	**102,1 dp** istiyor -> ellipsis ile "Gönd…" oluyordu.
@@ -252,6 +297,7 @@ Widget _kart(
 ///    alti kez yasandi) KACINMANIN durust yoludur: kullanici yine de yolu
 ///    ogrenir. O satirlarda ok (chevron) CIZILMEZ — ok "seni bir yere
 ///    goturecegim" demektir ve goturmuyoruz.
+// ignore: unused_element
 Widget _satir(
   BuildContext c,
   IconData ikon,
