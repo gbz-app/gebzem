@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -10,6 +11,25 @@ import '../../core/api.dart';
 ///    mesajda UYE BASINA `message_receipts` satiri yaziyor; 10.000 aboneli
 ///    kanalda tek gonderi 10.000 sorgu demek olurdu.
 /// ⚠️ YAPMA: kanali `chats_provider` uzerinden gecirmeye calisma.
+///
+/// ⚠️⚠️⚠️ TURU 180x — **ABONELIK DEGISIM SINYALI** (`kanalDegisimi`).
+///
+///	Topluluklar artik SOHBET LISTESINDE de cizilyor (kullanici emri) ve o
+///	liste `initState`te BIR KEZ cekiliyor. Emulatorde olculdu: kullanici
+///	"Yeni mesaj > Topluluk oluştur" ile topluluk kurup geri dondugunde
+///	sohbet listesinde **HICBIR SEY GORUNMUYORDU** — `ChatsScreen` sokulmus
+///	degil, yani `initState` bir daha kosmuyor ve kurulan seyi gormenin tek
+///	yolu asagi-cek yenilemekti. Kullanici "olusmadi" sanip TEKRAR kurmaya
+///	calisirdi (turu 114'te olculdu: arkada YETIM topluluklar birikti).
+///
+/// ⚠️ `ValueNotifier` secildi, provider DEGIL: `aktifSekme` ile AYNI desen;
+///	dinleyici kurmak icin `ref` gerekmiyor ve servis Riverpod agacindan
+///	BAGIMSIZ kalsin.
+/// ⚠️ Sinyali **SERVIS** atar, cagri yerleri DEGIL: uc ayri ekran (olustur ·
+///	kanal ekrani · kesfet) abonelik degistiriyor; birine eklemeyi unutmak
+///	listeyi sessizce bayat birakirdi.
+final kanalDegisimi = ValueNotifier<int>(0);
+
 class KanalServisi {
   KanalServisi(this._ref);
   final Ref _ref;
@@ -31,6 +51,8 @@ class KanalServisi {
         'avatar_media_id': avatarMediaId,
       },
     );
+    // ⚠️ Kanal kuran KENDILIGINDEN ABONE olur (sunucu) -> sohbet listesi TAZELENIR.
+    _bildir();
     return r.data['id'] as String;
   }
 
@@ -46,7 +68,10 @@ class KanalServisi {
     );
   }
 
-  Future<void> kapat(String id) => _api.delete('/channels/$id');
+  Future<void> kapat(String id) async {
+    await _api.delete('/channels/$id');
+    _bildir();
+  }
 
   /// Abone oldugum kanallar (okunmamis sayisiyla).
   Future<List<Kanal>> listem() async {
@@ -71,9 +96,20 @@ class KanalServisi {
     return Kanal.json((r.data as Map).cast<String, dynamic>());
   }
 
-  Future<void> aboneOl(String id) => _api.post('/channels/$id/subscribe');
-  Future<void> abonelikBirak(String id) =>
-      _api.delete('/channels/$id/subscribe');
+  Future<void> aboneOl(String id) async {
+    await _api.post('/channels/$id/subscribe');
+    _bildir();
+  }
+
+  Future<void> abonelikBirak(String id) async {
+    await _api.delete('/channels/$id/subscribe');
+    _bildir();
+  }
+
+  /// ⚠️ Sinyal YALNIZ BASARIDA atilir: istek patlarsa liste degismedi,
+  ///	gereksiz bir yeniden yukleme kullanicinin gordugu veriyi bir de
+  ///	spinner'la sallardi.
+  void _bildir() => kanalDegisimi.value++;
   Future<void> sessizAyarla(String id, bool sessiz) =>
       _api.patch('/channels/$id/mute', data: {'sessiz': sessiz});
   Future<void> okundu(String id) => _api.post('/channels/$id/read');

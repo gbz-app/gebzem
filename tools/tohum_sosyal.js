@@ -329,6 +329,53 @@ async function sosyalTohum(j, kullanicilar, isletmeler) {
     }
   }
 
+  // ── 7) TOPLULUKLAR (turu 180x)
+  //
+  // ⚠️ Topluluk = `channels` tablosu; `GET /chats` onlari YAPISAL OLARAK
+  //    dondurmez. Sohbet listesindeki "Topluluklar" bolumu ve "Yeni mesaj"
+  //    ekranindaki oneriler `/channels` ve `/channels/kesfet` ile besleniyor
+  //    -> tohumda EN AZ IKI topluluk olmali:
+  //      · A'nin kurdugu   -> A'nin listesinde (ABONE oldugu icin)
+  //      · B'nin kurdugu   -> A'nin KESFET listesinde (abone DEGIL)
+  //    Tek topluluk olsaydi iki yuzeyden biri DAIMA bos gorunur ve ozellik
+  //    kirik sanilirdi.
+  const TOPLULUKLAR = [
+    [A, {
+      ad: 'Gebze Komsulari',
+      kullanici_adi: 'gebzekomsulari',
+      aciklama: 'Mahalle duyurulari, kayip esya, komsu yardimlasmasi.',
+    }, [
+      'Cumartesi 10:00da parkta temizlik etkinligi var, bekleriz.',
+      'Sokak lambasi arizasi belediyeye bildirildi.',
+    ]],
+    [B, {
+      ad: 'Gebze Etkinlik',
+      kullanici_adi: 'gebzeetkinlik',
+      aciklama: 'Sehirdeki konser, tiyatro ve festival duyurulari.',
+    }, [
+      'Bu hafta sonu sahilde acik hava sinemasi var.',
+    ]],
+  ];
+  ozet.topluluk = 0;
+  ozet.toplulukGonderi = 0;
+  for (const [h, govde, gonderiler] of TOPLULUKLAR) {
+    const k = await j('/channels', { yontem: 'POST', token: h.token, govde });
+    // ⚠️ 409 = ad ALINMIS (betik ikinci kez kosuldu). Tohum PATLAMAZ:
+    //    diger adimlar calismaya devam etmeli.
+    if (k.kod !== 201 && k.kod !== 200) continue;
+    const kid = k.d && (k.d.id || k.d.channel_id);
+    if (!kid) continue;
+    ozet.topluluk++;
+    for (const metin of gonderiler) {
+      const g = await j(`/channels/${kid}/posts`, {
+        yontem: 'POST',
+        token: h.token,
+        govde: { metin, media_ids: [] },
+      });
+      if (g.kod === 201 || g.kod === 200) ozet.toplulukGonderi++;
+    }
+  }
+
   return ozet;
 }
 

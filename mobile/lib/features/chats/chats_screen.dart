@@ -16,7 +16,8 @@ import 'chats_provider.dart';
 import '../calls/calls_tab.dart' show CallsTab;
 import '../kanal/kanal_ekrani.dart' show KanalEkrani;
 import '../kanal/kanal_olustur.dart' show KanalOlustur;
-import '../kanal/kanal_servisi.dart' show Kanal, kanalServisiProvider;
+import '../kanal/kanal_servisi.dart'
+    show Kanal, kanalDegisimi, kanalServisiProvider;
 import '../kanal/kanallar_sekmesi.dart' show KanallarSayfasi;
 import 'grup_olustur.dart';
 import '../sosyal/demo_veri.dart' show kDemoAkis;
@@ -61,10 +62,15 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
     //    guvenli (Riverpod'un yasakladigi sey `ref.watch`); istek zaten
     //    asenkron ve sonucu `setState` ile yaziyoruz.
     _topluluklariYukle();
+    // ⚠️⚠️ TURU 180x — ABONELIK DEGISIMINDE TAZELE (emulatorde olculdu:
+    //	topluluk kurulup geri donulunce listede HICBIR SEY gorunmuyordu —
+    //	bu ekran sokulmadigi icin `initState` bir daha kosmuyor).
+    kanalDegisimi.addListener(_topluluklariYukle);
   }
 
   @override
   void dispose() {
+    kanalDegisimi.removeListener(_topluluklariYukle);
     _aramaCtrl.dispose();
     super.dispose();
   }
