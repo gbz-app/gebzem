@@ -11,6 +11,7 @@ import 'gonderi_hareketleri.dart';
 import 'yorum_satiri.dart';
 import '../isletme/isletme_kart.dart' show kYanBosluk;
 import '../isletme/isletme_listesi.dart' show IsletmeListesiEkrani;
+import '../../core/theme.dart' show koyuSayfa, kKoyuTema, kAiZemin;
 import 'gonderi_karti.dart';
 import 'profil_sayfasi.dart';
 import 'sosyal_servisi.dart';
@@ -38,6 +39,10 @@ class GonderiDetay extends ConsumerStatefulWidget {
 }
 
 class _GonderiDetayState extends ConsumerState<GonderiDetay> {
+  /// ⚠️⚠️ TURU 180r — `State` metotlari `build`in dondurdugu `Theme`i
+  ///	GORMEZ (turu 135c/138/178). Renkler BURADAN okunur.
+  ColorScheme get _ks => kKoyuTema.colorScheme;
+
   Gonderi? _g;
 
   /// ⚠️ TURU 99 — yanit siralamasi (Threads: "Başlıca" / "Yakınlarda").
@@ -189,7 +194,7 @@ class _GonderiDetayState extends ConsumerState<GonderiDetay> {
     final s = await showModalBottomSheet<String>(
       context: context,
       showDragHandle: true,
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      backgroundColor: kAiZemin,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -218,6 +223,7 @@ class _GonderiDetayState extends ConsumerState<GonderiDetay> {
 
   /// ⚠️⚠️ KONU ETIKETI — **sunucuda karsiligi YOK** (bkz. cagri yerindeki
   ///	serh). Dokunus GERCEK arama ekranini acar; sayi demo verisidir.
+  // ignore: unused_element
   Widget _konuEtiketi(BuildContext context, Gonderi g) {
     const konu = 'Gebze';
     return InkWell(
@@ -233,7 +239,7 @@ class _GonderiDetayState extends ConsumerState<GonderiDetay> {
             Icon(
               LucideIcons.search,
               size: 15,
-              color: Theme.of(context).colorScheme.primary,
+              color: _ks.primary,
             ),
             const SizedBox(width: 6),
             Text(
@@ -241,7 +247,7 @@ class _GonderiDetayState extends ConsumerState<GonderiDetay> {
               style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
-                color: Theme.of(context).colorScheme.primary,
+                color: _ks.primary,
               ),
             ),
             const SizedBox(width: 6),
@@ -249,18 +255,14 @@ class _GonderiDetayState extends ConsumerState<GonderiDetay> {
               '· 146 gönderi',
               style: TextStyle(
                 fontSize: 14,
-                color: Theme.of(
-                  context,
-                ).colorScheme.onSurface.withValues(alpha: 0.55),
+                color: _ks.onSurface.withValues(alpha: 0.55),
               ),
             ),
             const SizedBox(width: 2),
             Icon(
               LucideIcons.chevronRight,
               size: 15,
-              color: Theme.of(
-                context,
-              ).colorScheme.onSurface.withValues(alpha: 0.55),
+              color: _ks.onSurface.withValues(alpha: 0.55),
             ),
           ],
         ),
@@ -282,9 +284,7 @@ class _GonderiDetayState extends ConsumerState<GonderiDetay> {
             height: 30,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: Theme.of(
-                context,
-              ).colorScheme.onSurface.withValues(alpha: 0.10),
+              color: _ks.onSurface.withValues(alpha: 0.10),
             ),
           ),
           const SizedBox(width: 10),
@@ -295,9 +295,7 @@ class _GonderiDetayState extends ConsumerState<GonderiDetay> {
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 fontSize: 15,
-                color: Theme.of(
-                  context,
-                ).colorScheme.onSurface.withValues(alpha: 0.45),
+                color: _ks.onSurface.withValues(alpha: 0.45),
               ),
             ),
           ),
@@ -311,30 +309,56 @@ class _GonderiDetayState extends ConsumerState<GonderiDetay> {
     final benimId = (ref.watch(myProfileProvider).valueOrNull?['id'] ?? '')
         .toString();
     final g = _g;
-    return Scaffold(
+    // ⚠️⚠️⚠️ TURU 180r — **DETAY DA SIYAH** (kullanici: *"sosyalde arka
+    //	plan siyah olacak"*). Akis siyahken detay beyaz kalsaydi gecis
+    //	KOPUK olurdu — turu 178'de menu ekrani icin olculen ayni sinif.
+    return koyuSayfa(Scaffold(
+      backgroundColor: kAiZemin,
       // ⚠️⚠️⚠️ TURU 98i — THREADS DUZENI (kullanici ekran goruntusu):
       //	baslik **Yazışma**, altinda goruntulenme sayisi; sagda bildirim
       //	ve ••• dugmeleri.
       // ⚠️ Goruntulenme YALNIZ demoda yazilir; gercek gonderide sunucudan
       //    gelen goruntulenme alani kullanilir ve 0 ise HIC yazilmaz
       //    (uydurma sayi YOK).
-      appBar: AppBar(
-        centerTitle: true,
-        title: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('Yazışma', style: TextStyle(fontSize: 17)),
-            if ((g?.goruntulenme ?? 0) > 0)
-              Text(
-                '${sayiBicimle(g!.goruntulenme)} görüntüleme',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.onSurface.withValues(alpha: 0.55),
+      // ⚠️⚠️⚠️ TURU 180r — **HEADER YEMEK EKRANIYLA AYNI** (kullanici
+      //	emri: *"gonderi detaylarini yemek ust header gibi yap"* ve
+      //	*"yazisma/goruntulenme yerine sadece Gönderi yazsin"*).
+      //	44 dp · ortada baslik · solda `arrowLeft`.
+      // ⚠️ `AppBar` KULLANILMIYOR: Material'in kendi `BackButton`u
+      //	PLATFORMA gore degisir (Android ok / iOS chevron) ve baslik
+      //	SOLA yaslidir.
+      // ⚠️⚠️ Goruntulenme sayisi BASLIKTAN CIKTI — veri KAYBOLMADI:
+      //	gonderi kartinin istatistik yolunda ve `•••` menusunde
+      //	duruyor. Kullanici basligin TEK KELIME olmasini istedi.
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(44),
+        child: SafeArea(
+          bottom: false,
+          child: SizedBox(
+            height: 44,
+            child: Stack(
+              children: [
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: IconButton(
+                    icon: const Icon(LucideIcons.arrowLeft),
+                    tooltip: 'Geri',
+                    onPressed: () => Navigator.of(context).maybePop(),
+                  ),
                 ),
-              ),
-          ],
+                const Center(
+                  child: Text(
+                    'Gönderi',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      height: 1.0,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
       bottomNavigationBar: g == null ? null : _yanitKutusu(context, g),
@@ -384,14 +408,19 @@ class _GonderiDetayState extends ConsumerState<GonderiDetay> {
                 //	acan bir baglanti olur (turu 93b sinifi).
                 // ⚠️ Demoda bile dokunus GERCEK arama ekranini acar —
                 //    sahte sonuc uydurulmaz.
-                if (kDemoAkis) _konuEtiketi(context, g),
+                // ⚠️⚠️⚠️ TURU 180r — **KONU ETIKETI KALDIRILDI**
+                //	(kullanici: *"gebze 146 gonderi vs yaziyor bunu da
+                //	kaldir"*). Satir zaten SUNUCUDA KARSILIGI OLMAYAN bir
+                //	vitrindi (tablo yok, uc yok, sayac yok) ve sayi
+                //	SABIT 146 idi.
+                // ⚠️ `_konuEtiketi` govdesi `ignore: unused_element` ile
+                //	DURUYOR: konu alt sistemi yazilirsa tek satirla geri
+                //	gelir.
                 if (kDemoAkis) ...[
                   Divider(
                     height: 1,
                     thickness: 0.5,
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.onSurface.withValues(alpha: 0.08),
+                    color: _ks.onSurface.withValues(alpha: 0.08),
                   ),
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
@@ -424,42 +453,11 @@ class _GonderiDetayState extends ConsumerState<GonderiDetay> {
                             ),
                           ),
                         ),
-                        const Spacer(),
-                        InkWell(
-                          onTap: () => Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => GonderiHareketleri(gonderi: g),
-                            ),
-                          ),
-                          borderRadius: BorderRadius.circular(8),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              vertical: 4,
-                              horizontal: 2,
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  'Hareketi gör',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .onSurface
-                                        .withValues(alpha: 0.55),
-                                  ),
-                                ),
-                                Icon(
-                                  LucideIcons.chevronRight,
-                                  size: 16,
-                                  color: Theme.of(context).colorScheme.onSurface
-                                      .withValues(alpha: 0.55),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
+                        // ⚠️⚠️⚠️ TURU 180r — **"Hareketi gör" KALDIRILDI** (kullanici
+                        //	emri). `GonderiHareketleri` ekrani ve `Spacer` ile birlikte
+                        //	CIKTI; siralama secici artik satirin TEK ogesi ve sola dayali.
+                        // ⚠️ `GonderiHareketleri` sinifi SILINMEDI: istatistik uc'u ve
+                        //	ekran duruyor, girisi kapandi. Geri istenirse tek blok.
                       ],
                     ),
                   ),
@@ -467,9 +465,7 @@ class _GonderiDetayState extends ConsumerState<GonderiDetay> {
                     Divider(
                       height: 1,
                       thickness: 0.5,
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.onSurface.withValues(alpha: 0.06),
+                      color: _ks.onSurface.withValues(alpha: 0.06),
                     ),
                     // ⚠️ TURU 99b — cizgi GRUBUN olugunda cizilir.
                     YorumGrubu(
@@ -493,9 +489,7 @@ class _GonderiDetayState extends ConsumerState<GonderiDetay> {
                   Divider(
                     height: 1,
                     thickness: 0.5,
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.onSurface.withValues(alpha: 0.08),
+                    color: _ks.onSurface.withValues(alpha: 0.08),
                   ),
                   if (_gercek == null)
                     const Padding(
@@ -510,9 +504,7 @@ class _GonderiDetayState extends ConsumerState<GonderiDetay> {
                           'Henüz yanıt yok',
                           style: TextStyle(
                             fontSize: 15,
-                            color: Theme.of(
-                              context,
-                            ).colorScheme.onSurface.withValues(alpha: 0.55),
+                            color: _ks.onSurface.withValues(alpha: 0.55),
                           ),
                         ),
                       ),
@@ -532,6 +524,6 @@ class _GonderiDetayState extends ConsumerState<GonderiDetay> {
                 ],
               ],
             ),
-    );
+    ));
   }
 }

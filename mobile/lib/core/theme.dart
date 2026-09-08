@@ -57,10 +57,20 @@ const kYaziAilesi = 'Google Sans Flex';
 ///	  mor->kirmizi->turuncu
 ///	Turu 117de logo halkasina YANLIS OLAN (turuncu iceren) verilmisti.
 /// ⚠️ YAPMA: ikisini birbirinin yerine kullanma.
-const kHikayePaylasGradient = <Color>[
-  Color(0xFF14101C), // siyah
-  Color(0xFF8B3FFF), // mor
-];
+/// ⚠️⚠️⚠️ TURU 180r — **ANASAYFANIN MORUYLA HIZALANDI** (kullanici emri:
+///	*"sol ustteki story paylasma anasayfadaki mor gradientteki mor rengin
+///	de olsun"*).
+///
+/// Onceden `[#14101C siyah, #8B3FFF mor]` idi: `#8B3FFF` uygulamanin
+/// HICBIR YERINDE kullanilmayan, yalniz hikaye seridine ait bir mordu
+/// (marka moru `morLogo` = #6C2BD9). Daire anasayfadaki FAB'in yanindayken
+/// IKI FARKLI MOR yan yana duruyordu.
+/// ⚠️ Artik `morGradient` ile **TEK KAYNAK** — FAB, vurgu daireleri ve
+///	bu daire ayni ikiliyi kullanir; biri degisirse hepsi birlikte doner.
+/// ⚠️ `kHikayeHalkaGradient` (baskasinin hikayesi) DOKUNULMADI: o
+///	Instagram dilinde mor->kirmizi->turuncu olmak ZORUNDA, yoksa
+///	"izlenmemis hikaye" ile "kendi hikayeni paylas" ayirt edilemez.
+const kHikayePaylasGradient = <Color>[morLogoAcik, morLogo];
 
 const kHikayeHalkaGradient = <Color>[
   Color(0xFF8B3FFF), // mor
@@ -389,12 +399,44 @@ const Color kAiZemin = Color(0xFF050308);
 /// ⚠️ `ThemeData.dark()` uygulamanin **"dokunma dairesi YOK"** kararini
 ///	(turu 7 kullanici emri) SIFIRLAR — uc alan ACIKCA geri konuyor
 ///	(turu 140 dersi).
+/// ⚠️⚠️⚠️ TURU 180r — **`fontFamily` EKLENDI (SESSIZ REGRESYON).**
+///
+///	`ThemeData.dark()` `fontFamily` TASIMAZ ve `Theme(data: kKoyuTema)`
+///	`MaterialApp.theme`daki `fontFamily: kYaziAilesi` satirini **EZER**.
+///	Yani `koyuSayfa` ile sarilan HER ekran (menu, kategori, profil,
+///	katalog, urun formu, isletme sihirbazi, arama…) sessizce
+///	**SISTEM FONTUNA** dusuyordu. Bu, turu 180d'de kullanicinin
+///	*"herseyin canina okumussun"* dedigi ve turu 180i'de TEK KAYNAGA
+///	(`kYaziAilesi`) alinan kararin ihlali.
+/// ⚠️ YAPMA: bu satiri kaldirma.
+///
+/// ⚠️⚠️ `appBarTheme`/`bottomSheetTheme`/`dialogTheme` de ACIKCA
+///	veriliyor: `ThemeData.dark()` bunlar icin M3 varsayilanini
+///	(`colorScheme.surface` = #141218) kullanir ve govdedeki #050308 ile
+///	arada **GORUNUR DIKIS** birakir — emulatorde akis ekraninin AppBar'i
+///	tam bunu yapiyordu.
 final ThemeData kKoyuTema = ThemeData.dark().copyWith(
   scaffoldBackgroundColor: kAiZemin,
   splashFactory: NoSplash.splashFactory,
   splashColor: Colors.transparent,
   highlightColor: Colors.transparent,
-);
+  appBarTheme: const AppBarTheme(
+    backgroundColor: kAiZemin,
+    surfaceTintColor: Colors.transparent,
+    elevation: 0,
+    scrolledUnderElevation: 0,
+  ),
+  bottomSheetTheme: const BottomSheetThemeData(
+    backgroundColor: kAiZemin,
+    surfaceTintColor: Colors.transparent,
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+    ),
+  ),
+  dialogTheme: const DialogThemeData(backgroundColor: kAiZemin),
+).copyWith(textTheme: ThemeData.dark().textTheme.apply(
+  fontFamily: kYaziAilesi,
+));
 
 /// Koyu sayfa sarmalayicisi — durum cubugu ikonlarini da ACIK yapar.
 /// ⚠️ `AnnotatedRegion` ZORUNLU: siyah zeminde koyu durum cubugu ikonlari

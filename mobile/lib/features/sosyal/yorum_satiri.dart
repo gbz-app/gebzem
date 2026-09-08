@@ -175,27 +175,25 @@ class YorumGrubu extends StatelessWidget {
   ///	uzunluguna gore degisir. Parcali cizimde her satir KENDI payini cizer,
   ///	son satir yalnizca avatar merkezine kadar iner ve hesap SABIT olur.
   /// ⚠️ Parcalar bitisiktir; ekranda TEK bir cizgi gorunur.
+  /// ⚠️⚠️⚠️ TURU 180r — **THREAD CIZGISI KALDIRILDI** (kullanici emri:
+  ///	*"yorumlardaki asagi dogru inen cizgide nokta vs var, onu kaldir"*).
+  ///
+  /// ⚠️ Metot ve parametreleri (`renk`/`bas`/`boy`/`kivrimli`) **DURUYOR**:
+  ///	dort cagri yeri var ve imzayi degistirmek dordunu birden
+  ///	dokundururdu. Govde artik yalnizca cocugu donduruyor, yani karar
+  ///	TEK SATIRLA geri alinabilir.
+  /// ⚠️ `ThreadCizgi` boyayicisi ve `threadCizgiRengi` SILINMEDI —
+  ///	`YanitlariGosterSatiri` hala `ThreadCizgi.yaricap`/`yatay`
+  ///	sabitlerini SOL DOLGU hesabinda okuyor; silinseydi o satirin
+  ///	girintisi bozulurdu.
+  // ignore: unused_element_parameter
   Widget _segment({
     required Color renk,
     required Widget cocuk,
     double bas = 0,
     double? boy,
     bool kivrimli = false,
-  }) => Stack(
-    children: [
-      Positioned(
-        left: kYanBosluk,
-        top: bas,
-        bottom: boy == null ? 0 : null,
-        height: boy,
-        width: kYorumAvatar,
-        child: CustomPaint(
-          painter: ThreadCizgi(kivrimli: kivrimli, renk: renk),
-        ),
-      ),
-      cocuk,
-    ],
-  );
+  }) => cocuk;
 
   /// Kok satirin ust dolgusu (10) + avatar (34) + 6 dp nefes.
   static const double _cizgiBasi = 10 + kYorumAvatar + 6;
@@ -603,37 +601,10 @@ class YanitlariGosterSatiri extends StatelessWidget {
                   clipBehavior: Clip.none,
                   children: [
                     const MiniAvatar(cap: kYanitAvatar),
-                    // ⚠️ Rozet avatarin SAG ALT kosesine BINER (-2/-2);
-                    //    sifirda kutunun icinde kalip "yanda duruyor" gibi
-                    //    gorunuyordu.
-                    Positioned(
-                      right: -2,
-                      bottom: -2,
-                      child: Container(
-                        width: 14,
-                        height: 14,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: Theme.of(context).colorScheme.onSurface,
-                          border: Border.all(
-                            color: Theme.of(context).scaffoldBackgroundColor,
-                            width: 1.5,
-                          ),
-                        ),
-                        child: Center(
-                          // ⚠️ Turu 101'de burada `AnimatedRotation(turns: 0)`
-                          //    vardi; deger hic degismedigi icin OLU
-                          //    animasyondu (satir zaten acilinca kalkiyor).
-                          child: Builder(
-                            builder: (_) => Icon(
-                              LucideIcons.chevronDown,
-                              size: 9,
-                              color: Theme.of(context).scaffoldBackgroundColor,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
+                    // ⚠️⚠️ TURU 180r — **OK ROZETI (NOKTA) KALDIRILDI**
+                    //	(kullanici: *"cizgide nokta vs var, onu kaldir"*).
+                    //	Thread cizgisi kalkinca rozet de anlamini
+                    //	yitirdi: sonlandirici gorevi vardi.
                   ],
                 ),
               ),

@@ -94,16 +94,20 @@ Finder get _cubukBulucu =>
 ///	kutusu (`ClipRRect` DISINDA). Ayirt etmeden `widget<ColoredBox>`
 ///	cagirmak *"Bad state: Too many elements"* ile PATLIYORDU.
 /// ⚠️ Olcut CUBUGUN zemini: `ClipRRect`in ICINDEKI kutu.
+/// ⚠️⚠️ TURU 180r — cubuk zemini `ColoredBox` DEGIL **`DecoratedBox`**:
+///	kullanici ust kenarlik istedi (*"alt menude sadece border olsun"*) ve
+///	`ColoredBox` kenarlik cizemez. Muhafizin AMACI degismedi (zemin siyah
+///	ve TEMAYA BAGLI DEGIL); yalnizca okundugu widget tipi degisti.
 Color _zeminRengi(WidgetTester t) {
-  final kutu = t.widget<ColoredBox>(
+  final kutu = t.widget<DecoratedBox>(
     find
         .descendant(
           of: find.byType(ClipRRect),
-          matching: find.byType(ColoredBox),
+          matching: find.byType(DecoratedBox),
         )
         .first,
   );
-  return kutu.color;
+  return (kutu.decoration as BoxDecoration).color!;
 }
 
 void main() {

@@ -1139,33 +1139,14 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
         //	kivrim yalniz detaydaki "Yanıtları göster" hedefinde olur).
         // ⚠️ Cizgi gonderi avatarinin ALTINDAN baslar ve yanit avatarinin
         //    MERKEZINDE biter; iki ucu da avatar merkezine hizali.
-        if (_akisYaniti != null)
-          Stack(
-            children: [
-              // ⚠️⚠️ GEOMETRI **HEDEFTEN** TURER (turu 102 kurali):
-              //	cizgi yanit avatarinin MERKEZINDEN gecer ve TAM O
-              //	MERKEZDE biter. Turu 101'de sol dolgu gonderi avatarina
-              //	(38 dp) gore hesaplaniyordu; cizgi merkezi 35, yanit
-              //	avatarinin merkezi 33 idi -> **2 dp saga kacik**.
-              // ⚠️ Yukseklik `bottom` ile verilemez: yigin yuksekligi yanit
-              //	satirinin (medyaya gore degisen) boyudur; `bottom: 0`
-              //	cizgiyi ICERIGIN ALTINA indirirdi. `height` ile avatar
-              //	merkezinde durdurulur: ust dolgu (10) + capin yarisi.
-              Positioned(
-                left: kYanBosluk,
-                top: 0,
-                height: 10 + kYorumAvatar / 2,
-                width: kYorumAvatar,
-                child: CustomPaint(
-                  painter: ThreadCizgi(
-                    kivrimli: false,
-                    renk: threadCizgiRengi(context),
-                  ),
-                ),
-              ),
-              YorumSatiri(y: _akisYanitGorunum!),
-            ],
-          ),
+        // ⚠️⚠️⚠️ TURU 180r — **THREAD CIZGISI KALDIRILDI** (kullanici:
+        //	*"yorumlardaki asagi dogru inen cizgide nokta vs var, onu
+        //	kaldir"*). Yanit artik CIZGISIZ, dogrudan cizilir.
+        // ⚠️ `Stack` de KALKTI: tek cocuklu bir yigin kalirdi.
+        // ⚠️ `ThreadCizgi` boyayicisi ve `threadCizgiRengi` SILINMEDI —
+        //	`yorum_satiri.dart` sabitlerini (yaricap/yatay) hala sol dolgu
+        //	hesabinda okuyor.
+        if (_akisYaniti != null) YorumSatiri(y: _akisYanitGorunum!),
 
         // ⚠️⚠️ TURU 98b — KART SONU ILE AYRAC ARASI **12** (kullanici:
         //	*"ilk gonderinin sonu ile profil ismi bitisik olmus"*).

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/api.dart';
+import '../../core/theme.dart' show kAiZemin;
 import '../auth/auth_provider.dart';
 import '../medya/medya_gorsel.dart';
 import 'engellenenler.dart';
@@ -181,7 +182,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       //    dogru renge oturtur.
       // ⚠️ YAPMA: cozumu `AltMenu` icine sabit renk koyarak arama (98h oyle
       //    yapildi ve acik ekranlarda da siyah/beyaz yanlisi uretti).
-      backgroundColor: _index == _reels ? Colors.black : null,
+      // ⚠️⚠️ TURU 180r — **AKIS SEKMESINDE DE SIYAH** (kullanici:
+      //	*"sosyalde arka plan siyah olacak"*). Akis ekrani artik
+      //	`koyuSayfa` + `kAiZemin` kullaniyor; DIS Scaffold acik gri
+      //	kalsaydi alt menunun 20 dp'lik yuvarlak ust koselerindeki
+      //	ucgenlerden **BEYAZ CENTIK** gorunurdu (turu 98n'de sahada
+      //	IKI KEZ bildirilen hata).
+      backgroundColor: _index == _reels
+          ? Colors.black
+          : _index == 0
+          ? kAiZemin
+          : null,
       // ⚠️ AKIS, ARA ve REELS KENDI ust duzenlerini cizer — ust AppBar OLMAZ.
       //    Akista bolme secici + bildirim ikonu kendi seridinde; ARA'da ustte
       //    zaten arama kutusu var ("Ara" baslikli bir cubuk hem gereksiz yer

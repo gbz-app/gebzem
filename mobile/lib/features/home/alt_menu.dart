@@ -225,9 +225,24 @@ class AltMenu extends ConsumerWidget {
               topLeft: Radius.circular(20),
               topRight: Radius.circular(20),
             ),
-            child: ColoredBox(
-              // ⚠️ TURU 96m — zemin TEMADAN DEGIL sabit siyah (`theme.dart`).
-              color: kAltMenuZemin,
+            // ⚠️⚠️⚠️ TURU 180r — **UST KENARLIK** (kullanici emri: *"alt
+            //	menude sadece border olsun beyaz hafif soluk, arka plan
+            //	rengi kalsin"*).
+            // ⚠️ `DecoratedBox` + `Border(top:)` kullanildi, `ColoredBox`
+            //	YERINE: `ColoredBox` kenarlik cizemez.
+            // ⚠️⚠️ Kenarlik `ClipRRect`in **ICINDE**: disinda olsaydi cizgi
+            //	yuvarlak koselerin disina tasar ve iki ucta duz uzanirdi.
+            // ⚠️ Zemin DEGISMEDI (`kAltMenuZemin`, sabit siyah — turu 96m):
+            //	kullanici acikca *"arka plan rengi kalsin"* dedi.
+            // ⚠️ %14 beyaz: %25'te cizgi "beyaz serit" gibi duruyor,
+            //	%8'de siyah cubukta GORUNMUYOR (emulatorde bakildi).
+            child: DecoratedBox(
+              decoration: const BoxDecoration(
+                color: kAltMenuZemin,
+                border: Border(
+                  top: BorderSide(color: Color(0x24FFFFFF), width: 1),
+                ),
+              ),
               child: SafeArea(
                 top: false,
                 child: SizedBox(

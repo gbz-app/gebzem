@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import "../../core/theme.dart";
 import "../../core/yenile.dart";
 
 import '../home/home_screen.dart' show myProfileProvider;
@@ -41,6 +42,10 @@ class AkisEkrani extends ConsumerStatefulWidget {
 
 class _AkisEkraniState extends ConsumerState<AkisEkrani>
     with AutomaticKeepAliveClientMixin {
+  /// ⚠️⚠️ TURU 180r — `State` metotlari `build`in dondurdugu `Theme`i
+  ///	GORMEZ (turu 135c/138/178). Renkler BURADAN okunur.
+  ColorScheme get _ks => kKoyuTema.colorScheme;
+
   final _kaydirma = ScrollController();
 
   /// ⚠️ TURU 80 — AKTIF bolmenin listesi. Alan DEGIL GETTER: iki bolme ayri
@@ -517,7 +522,7 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
   ///	yaparken oynuyor"* dedi ve ayrim yalniz RENGE dusuruldu.
   /// ⚠️ YAPMA: kalinligi tekrar secime bagli yapma.
   Widget _bolmeOgesi(String metin, bool secili, VoidCallback onTap) {
-    final renk = Theme.of(context).colorScheme.onSurface;
+    final renk = _ks.onSurface;
     return Semantics(
       button: true,
       selected: secili,
@@ -647,8 +652,22 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
     final benimId = (ref.watch(myProfileProvider).valueOrNull?['id'] ?? '')
         .toString();
 
-    return Scaffold(
+    // ⚠️⚠️⚠️ TURU 180r — **SOSYAL EKRAN SIYAH** (kullanici emri:
+    //	*"sosyalde arka plan siyah olacak"*).
+    // ⚠️⚠️ `koyuSayfa` TEK BASINA YETMEZ: `State` metotlarinin `context`i
+    //	`build`in DONDURDUGU `Theme`in USTUNDE kalir ve UYGULAMANIN
+    //	temasini cozer (turu 135c/138/178 — sekizinci tekrar). Bu yuzden
+    //	`_ks` getter'i var ve renk okuyan metotlar ORADAN besleniyor.
+    // ⚠️ Gonderi kartlari `Scaffold`un ALTINDA, yani `Theme`in ICINDE:
+    //	onlarin `Theme.of(context)` okumalari KOYU temayi dogru cozer,
+    //	dokunulmasina gerek YOK.
+    return koyuSayfa(Scaffold(
+      backgroundColor: kAiZemin,
       appBar: AppBar(
+        backgroundColor: kAiZemin,
+        foregroundColor: _ks.onSurface,
+        elevation: 0,
+        scrolledUnderElevation: 0,
         // ⚠️⚠️ TURU 76b — SOL UST HAMBURGER (kullanici emri: "anasayfada sol
         //    ustte menu ikonu olsun, 2 satir cizgi").  KULLANILDI:
         //    Akis kok route oldugu icin AppBar oraya geri oku KOYMAZ, cakisma YOK.
@@ -789,7 +808,7 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
       //    widget agacinda DEGIL. Boylece gorunmeyen bolmenin videosu
       //    yasamiyor ve akista otomatik oynatmanin dort kapisi bozulmuyor.
       body: YenileSarmali(onRefresh: _elleYenile, child: _govde(benimId)),
-    );
+    ));
   }
 
   Widget _govde(String benimId) {
@@ -888,9 +907,9 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
               },
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: Theme.of(
-                  context,
-                ).colorScheme.onSurface.withValues(alpha: 0.6),
+                // ⚠️ TURU 180r — `_ks`: State metodunun `context`i
+                //    `koyuSayfa`nin USTUNDE kalir (turu 135c/138/178).
+                color: _ks.onSurface.withValues(alpha: 0.6),
               ),
             ),
           ),
