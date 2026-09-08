@@ -15,7 +15,7 @@ import '../home/home_screen.dart' show myProfileProvider;
 // ⚠️ TURU 121 — kategori ekranlarinin ORTAK KABUGU (Yemek referansi).
 import '../isletme/kategori_kabuk.dart';
 import '../isletme/isletme_kart.dart'
-    show kYanBosluk, kYaricapBuyuk, kYuzeyGri, kYaricap, kVurgu;
+    show kYanBosluk, kYaricapBuyuk, kYuzeyGri, kYuzeyGriKoyu, kYaricap, kVurguKoyu;
 import '../isletme/isletme_listesi.dart'
     show kBosluk, kCipPay, kIzgaraAralik, kKesifKutu;
 import '../randevu/randevu_servisi.dart' show kAyAdlari;
@@ -470,12 +470,12 @@ class _EtkinlikListesiEkraniState extends ConsumerState<EtkinlikListesiEkrani> {
                     height: kKesifKutu,
                     child: DecoratedBox(
                       decoration: BoxDecoration(
-                        color: kYuzeyGri(context),
+                        color: kYuzeyGriKoyu,
                         borderRadius: BorderRadius.circular(
                           kYaricap(kKesifKutu),
                         ),
                         border: Border.all(
-                          color: secili ? kVurgu(context) : Colors.transparent,
+                          color: secili ? kVurguKoyu : Colors.transparent,
                           width: 1.6,
                         ),
                       ),

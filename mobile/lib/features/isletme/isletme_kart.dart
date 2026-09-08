@@ -130,6 +130,21 @@ Color kVurgu(BuildContext c) => Theme.of(c).brightness == Brightness.dark
     ? Colors.white
     : const Color(0xFF1A1A1A);
 
+/// TURU 180w — `koyuSayfa` ALTINDAKI State METOTLARI icin SABIT degerler.
+///
+/// UYARI NEDEN GEREKLI: `koyuSayfa` temayi `build`in DONDURDUGU agaca
+///    koyar; bir `State` metodunun ciplak `context`i o `Theme`in
+///    USTUNDE kalir ve `kYuzeyGri(context)` **ACIK** temayi cozup
+///    kutulari BEYAZ cizer (emulatorde olculdu — turu 135c/138/178
+///    tuzaginin ONUNCU tekrari).
+/// UYARI Degerler `kYuzeyGri`/`kVurgu`nin KOYU DALIYLA BIREBIR ayni;
+///    biri degisirse OTEKI DE degismeli.
+/// UYARI Yalniz DAIMA koyu cizilen ekranlarda kullan (ilan · etkinlik ·
+///    talep · yemek). Tema duyarli bir ekranda kullanmak ACIK temada
+///    okunmayan bir yuzey birakir.
+const kYuzeyGriKoyu = Color(0xFF2A2A2E);
+const kVurguKoyu = Colors.white;
+
 /// Liste gorunumundeki genis kart.
 class IsletmeKarti extends ConsumerStatefulWidget {
   const IsletmeKarti({super.key, required this.o, this.favoriDegisti});

@@ -30,6 +30,8 @@ import '../isletme/isletme_kart.dart'
     show
         kYanBosluk,
         kYuzeyGri,
+        kYuzeyGriKoyu,
+        kVurguKoyu,
         kYaricap,
         kYaricapBuyuk,
         kKartAralik,
@@ -415,12 +417,12 @@ class _IlanListesiEkraniState extends ConsumerState<IlanListesiEkrani> {
         // ⚠️⚠️ Favori/İlanlarım eskiden AppBar'da IKON dugmesiydi ve secili
         //	olduklari YALNIZCA renkten anlasiliyordu (renk tek basina
         //	bilgi tasimaz). Artik kategori ekranindaki gibi CIP.
-        SliverToBoxAdapter(child: _filtreSatiri()),
+        SliverToBoxAdapter(child: _filtreSatiri(context)),
         const SliverToBoxAdapter(child: SizedBox(height: kBosluk - kCipPay)),
 
         // ── "İlanlar (N)" ──
         if (l != null && l.isNotEmpty) ...[
-          SliverToBoxAdapter(child: _listeBasligi(l.length)),
+          SliverToBoxAdapter(child: _listeBasligi(context, l.length)),
           const SliverToBoxAdapter(child: SizedBox(height: kBaslikBosluk)),
         ],
 
@@ -562,7 +564,7 @@ class _IlanListesiEkraniState extends ConsumerState<IlanListesiEkrani> {
                     height: kKesifKutu,
                     child: DecoratedBox(
                       decoration: BoxDecoration(
-                        color: kYuzeyGri(context),
+                        color: kYuzeyGriKoyu,
                         borderRadius: BorderRadius.circular(
                           kYaricap(kKesifKutu),
                         ),
@@ -574,7 +576,7 @@ class _IlanListesiEkraniState extends ConsumerState<IlanListesiEkrani> {
                         // ⚠️ `kVurgu` serhi (isletme_kart.dart) bu
                         //    ekranlarda `primary` kullanmayi ACIKCA yasakliyor.
                         border: Border.all(
-                          color: secili ? kVurgu(context) : Colors.transparent,
+                          color: secili ? kVurguKoyu : Colors.transparent,
                           width: 1.6,
                         ),
                       ),
@@ -640,7 +642,7 @@ class _IlanListesiEkraniState extends ConsumerState<IlanListesiEkrani> {
                     height: kAltKutu,
                     child: DecoratedBox(
                       decoration: BoxDecoration(
-                        color: kYuzeyGri(context),
+                        color: kYuzeyGriKoyu,
                         borderRadius: BorderRadius.circular(kYaricap(kAltKutu)),
                         // ⚠️⚠️ TURU 121c — REFERANSLA (Yemek) BIREBIR:
                         //    `kVurgu` + **1.6 dp**. Onceden `scheme.primary`
@@ -650,7 +652,7 @@ class _IlanListesiEkraniState extends ConsumerState<IlanListesiEkrani> {
                         // ⚠️ `kVurgu` serhi (isletme_kart.dart) bu
                         //    ekranlarda `primary` kullanmayi ACIKCA yasakliyor.
                         border: Border.all(
-                          color: secili ? kVurgu(context) : Colors.transparent,
+                          color: secili ? kVurguKoyu : Colors.transparent,
                           width: 1.6,
                         ),
                       ),
@@ -760,7 +762,13 @@ class _IlanListesiEkraniState extends ConsumerState<IlanListesiEkrani> {
     }
   }
 
-  Widget _filtreSatiri() => kabukCipSeridi(context, [
+  // TURU 180w — **TEMALI `context` DISARIDAN** (emulatorde olculdu:
+  //   cipler ve bolum basligi siyah zemine SIYAH cizilyordu).
+  //   `koyuSayfa` temayi `build`in DONDURDUGU agaca koyar; bir State
+  //   metodunun ciplak `context`i o Theme in USTUNDE kalir ve
+  //   `kabukYazi`/`kabukKenar` ACIK temayi cozer (turu 135c/138/178).
+  // UYARI YAPMA: buradaki `c` yerine ciplak `context` yazma.
+  Widget _filtreSatiri(BuildContext c) => kabukCipSeridi(c, [
     // ⚠️ Cip METNI secili siralamayi yazar: kullanici hangi sirada
     //    baktigini paneli acmadan gorur (Yemek ekranindaki kural).
     KabukCip(
@@ -965,8 +973,14 @@ class _IlanListesiEkraniState extends ConsumerState<IlanListesiEkrani> {
 
   /// ⚠️ TURU 121c — basligin SAGINDA buyuk/kucuk kart secicisi
   ///    (Yemek ekranindaki duzenin aynisi).
-  Widget _listeBasligi(int adet) => kabukBolumBasligi(
-    context,
+  // TURU 180w — **TEMALI `context` DISARIDAN** (emulatorde olculdu:
+  //   cipler ve bolum basligi siyah zemine SIYAH cizilyordu).
+  //   `koyuSayfa` temayi `build`in DONDURDUGU agaca koyar; bir State
+  //   metodunun ciplak `context`i o Theme in USTUNDE kalir ve
+  //   `kabukYazi`/`kabukKenar` ACIK temayi cozer (turu 135c/138/178).
+  // UYARI YAPMA: buradaki `c` yerine ciplak `context` yazma.
+  Widget _listeBasligi(BuildContext c, int adet) => kabukBolumBasligi(
+    c,
     // ⚠️ TURU 180m — **'İlanlar' -> '2. El İlan'** (kullanici: *"İlan,
     //	2. El İlan olarak degisecek"*). Bu ekran IS ILANLARINI da
     //	listeleyebiliyor (`_tur == 'is'`), o yuzden baslik TURDEN
@@ -1961,7 +1975,7 @@ class _IlanDetayEkraniState extends ConsumerState<IlanDetayEkrani> {
                       //	alanlarindan cizilir, TAHMIN EDILMEZ (turu 114 kurali).
                       DecoratedBox(
                         decoration: BoxDecoration(
-                          color: kYuzeyGri(context),
+                          color: kYuzeyGriKoyu,
                           borderRadius: BorderRadius.circular(kYaricapBuyuk),
                         ),
                         child: ListTile(

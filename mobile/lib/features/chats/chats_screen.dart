@@ -263,8 +263,28 @@ class _SikGorusulenSerit extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // ⚠️ `scheme` KALDIRILDI: harf rengini artik ortak `Avatar` belirliyor.
+    // TURU 180w — YUKSEKLIK **YAZI OLCEGINDEN TURETILIR**, sabit dp DEGIL.
+    //   Emulatorde olculdu: sabit 96 dp ile serit *"BOTTOM OVERFLOWED BY
+    //   5.0 PIXELS"* veriyordu (sari-siyah serit) ve kisi adi KIRPILIYORDU.
+    // UYARI Satir kutusu carpani 1.25: uygulamanin fontu Roboto DEGIL
+    //   **Google Sans Flex** ve kutusu daha yuksek (turu 121/173 dersi).
+    // UYARI +1 dp pay: `TextPainter` satir yuksekligini YUKARI yuvarlar,
+    //   `fontSize * height` carpimi TAM vermez (turu 137).
+    // UYARI Serit demo verisiyle HIC cizilmiyordu; gercek sohbet gelince
+    //   (turu 180w) sahaya cikti.
+    final olcek = MediaQuery.textScalerOf(context);
+    final boy =
+        4 + // ust dolgu
+        6 + // alt dolgu
+        2 +
+        4 + // baslik dolgusu
+        olcek.scale(12) * 1.25 + // baslik satiri
+        48 + // avatar
+        4 + // avatar - ad araligi
+        olcek.scale(11) * 1.25 + // ad satiri
+        1;
     return Container(
-      height: 96,
+      height: boy,
       padding: const EdgeInsets.only(top: 4, bottom: 6),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

@@ -328,7 +328,7 @@ class _TalepAkisiState extends ConsumerState<TalepAkisiEkrani> {
               const SliverToBoxAdapter(
                 child: SizedBox(height: kBaslikBosluk),
               ),
-              SliverToBoxAdapter(child: _altSerit(alanlar)),
+              SliverToBoxAdapter(child: _altSerit(context, alanlar)),
               kabukBosluk(),
             ],
             // ══════════ HIZMET VERENLER (Yemek karti ile AYNI) ══════════
@@ -444,8 +444,15 @@ class _TalepAkisiState extends ConsumerState<TalepAkisiEkrani> {
   ///    iki satirlik ad tasardi.
   /// ⚠️ Ayni oge tekrar secilince suzgec KALKAR; secim arama kutusunu
   ///    doldurur, yani sonuc GORUNUR bir yerden geri alinabilir.
-  Widget _altSerit(List<({String ad, String ara})> ogeler) {
-    final olcek = MediaQuery.textScalerOf(context);
+  // TURU 180w — **`BuildContext` DISARIDAN GECIRILIR** (emulatorde
+  //   goruldu: kutular BEYAZ ciziliyordu).
+  //   `koyuSayfa` temayi `build`in DONDURDUGU agaca koyar; bu bir State
+  //   metodu ve govdesindeki ciplak `context` State in KENDI context i,
+  //   yani o Theme in USTUNDE. `kYuzeyGri(context)` ACIK temayi cozup
+  //   `#E7E7EA` donduruyordu (turu 135c/138/178 tuzagi, ONUNCU tekrar).
+  // UYARI YAPMA: buradaki `c` yerine ciplak `context` yazma.
+  Widget _altSerit(BuildContext c, List<({String ad, String ara})> ogeler) {
+    final olcek = MediaQuery.textScalerOf(c);
     final boy = kAltKutu + kAltIcBosluk + olcek.scale(13) * 1.15 * 2 + 1;
     return SizedBox(
       height: boy,
@@ -485,13 +492,13 @@ class _TalepAkisiState extends ConsumerState<TalepAkisiEkrani> {
                       width: kAltKutu,
                       height: kAltKutu,
                       decoration: BoxDecoration(
-                          color: kYuzeyGri(context),
+                          color: kYuzeyGri(c),
                           borderRadius: BorderRadius.circular(
                             kYaricap(kAltKutu),
                           ),
                           border: Border.all(
                             color: secili
-                                ? kVurgu(context)
+                                ? kVurgu(c)
                                 : Colors.transparent,
                             width: 1.6,
                           ),
