@@ -1,3 +1,96 @@
+# Oturum — Turu 180x (9 Eyl 2026) — MESAJ SEKMESI ARAYUZU
+
+## Kullanici emri (ekran goruntusu: Instagram "Yeni mesaj")
+
+*"chat bolumunde arama yukarida sohbet aramalar altta olsun ... bundan sonra
+da yine sadece ARAYUZ degisikligi yapacagiz, backend sonra, hizli prototip
+almamiz gerekiyor ... burada Tumu Grup Arsiv Aramalar olsun, butonlara gerek
+yok ... birde sohbetler olsun, sohbet detaylari resim video gonderme iban
+paylasma hepsi olsun ... sik gorusulen kisiler vs ... birde sagda + tikladigimda
+whatsapp gibi ekran gelsin: Kime, Ara, grup sohbeti, topluluk olustur, altinda
+onerilenler kisiler topluluk gorunecek ... bu sohbetlerde topluluklarda olsun,
+bunlari da olustur icinde detaylar olsun ... dikkatli bir sekilde SADECE ARAYUZ,
+backend sonra, step step derinlemesine dikkatli test ederek, yaptigina emin
+olduktan sonra ios build al test edeyim"*
+
+## Yapilanlar (BACKEND DEGISMEDI — deploy YOK, migration YOK)
+
+### 1) Mesaj sekmesi yeniden kuruldu
+- `_MesajSekmesi`teki **"Sohbet | Aramalar" metin secicisi KALDIRILDI**
+  ("butonlara gerek yok"). Govde artik dogrudan `ChatsScreen`.
+- `ChatsScreen`: arama kutusu **EN USTTE**, cip seridi **ALTINDA**.
+- Cipler: **Tumu · Grup · Arsiv · Aramalar** (`okunmamis` CIKTI — okunmamis
+  rozeti her satirda zaten var; `aramalar` GIRDI).
+- "Aramalar" cipi bir sohbet suzgeci DEGIL: govdeyi `CallsTab` ile degistirir.
+  Arama kutusu ustte KALIR ve sorgu `CallsTab.arama` ile o listeyi suzer
+  (gorunur ama hicbir sey yapmayan bir kutu birakilamaz); ipucu da degisir.
+
+### 2) Topluluklar sohbet listesinde
+- `GET /chats` topluluklari **YAPISAL OLARAK** dondurmez (`ListChats` yalniz
+  `chats` tablosundan okur). Abone olunan topluluklar `GET /channels` ile
+  cekilip listeye **ISTEMCIDE** karistiriliyor: "Topluluklar" + "Sohbetler"
+  bolum basliklari, megafon rozetli satir, dokununca `KanalEkrani`.
+- YALNIZ "Tumu" cipinde: `Grup` = `chats.type=='group'` (topluluk grup DEGIL),
+  `Arsiv` sohbet bazli bir bayrak ve toplulukta karsiligi YOK.
+
+### 3) Yeni tam sayfa "Yeni mesaj" ekrani (`chats/yeni_mesaj_ekrani.dart`)
+Ekran goruntusuyle birebir: geri + ortada baslik · **Kime: Ara** · **Grup
+sohbeti** · **Topluluk olustur** · **Onerilen** (gorustugun kisiler) ·
+**Topluluklar**. Header'daki "+" artik BUNU aciyor.
+- Uc kaynak da MEVCUT uclardan: `/users/search` · `chatsProvider` (gorusulen
+  kisiler) · `/channels` + `/channels/kesfet`.
+- "Onerilen" bir SIRALAMA IDDIASI DEGIL (sunucuda oneri/skor yok) — baslik
+  bilincli olarak notr.
+- Eski `yeniSohbetSecenegiAc` sheet'i artik CAGRILMIYOR (govde silinmedi,
+  serhi yazildi); dort girisi de yeni ekran kapsiyor.
+
+### 4) Sohbette VIDEO gonderme (kullanici emri)
+- Atac panelinde **Video** satiri; secim `MedyaSecici.video` TEK KAYNAGINDAN
+  (boyut + SURE kapisi orada), tavan **5 dk** (reels'in 90 sn'si degil).
+- Yukleme zinciri video dalinda **SIKISTIRMAZ** (`gorseliHazirla` bir JPEG
+  uretir, videoyu BOZARDI), `kind:'video'` + `type:'video'`.
+- Balonda oynatici KURULMAZ (iOS ses oturumu + isinma): oynat rozeti ->
+  `TamEkranVideo`. Poster UYDURULMAZ (sunucu kapak karesi uretmiyor).
+- ⚠️ Backend `'video'` tipini **ZATEN** kabul ediyordu (beyaz liste, turu 59b).
+
+### 5) Varsayilan tema KOYU
+`tercihler.temaModu` varsayilani `ThemeMode.system` -> **`dark`**.
+Ana yuzeyler turu 174'ten beri `koyuSayfa` ile zorla siyah; cihaz acik
+temadaysa GERIYE KALANLAR (sohbet detayi · topluluk · grup olustur · kisi
+arama · ayarlar) BEYAZ aciliyordu. Ekranlari tek tek sarmaktan daha guvenli:
+sarma yontemi her ekranda "State metodunun ciplak `context`i Theme'in
+USTUNDE kalir" tuzagini yeniden acar (bu projede ONBIR kez sahaya cikti).
+- Kullanicinin kendi secimi ('acik'/'sistem') DAIMA ustundur; acik tema
+  SILINMEDI. Kimlik ekranlari (`AuthSayfa` -> `lightTheme`) ve onboarding
+  (`_kOnboardZemin`) temadan BAGIMSIZ, beyaz kalir.
+
+## Emulatorde BULUNAN ve DUZELTILEN kusurlar
+
+| # | Kusur | Kok neden |
+|---|---|---|
+| 1 | "Topluluk ac" ekrani **BEYAZ** | acik temada kaliyordu -> `koyuSayfa` + `YemekHeader` (+ tema varsayilani) |
+| 2 | Topluluk kurulup donunce listede **HICBIR SEY** yok | `ChatsScreen` sokulmuyor, `initState` bir daha kosmuyor -> yeni `kanalDegisimi` sinyali (servis atar, cagri yerleri degil) |
+| 3 | Atac paneli **199 px TASIYORDU** | Video ile 7 -> 8 satir; **IBAN ve Anket EKRAN DISINDA** kaliyordu -> `isScrollControlled` + `SingleChildScrollView` (IKISI DE zorunlu, turu 90b/114'un UCUNCU tekrari) |
+| 4 | "Yeni mesaj"da Topluluklar bolumu **HIC gorunmuyordu** | yalniz `kesfet()` cagriliyordu; kendi kurdugun topluluga sunucu OTOMATIK abone yapiyor -> `listem()` + `kesfet()` birlestirildi (id ile tekilleme) |
+
+## Gozle dogrulanan (emulator, gercek sunucu)
+
+akis · mesaj sekmesi (dort cip) · sik gorusulenler seridi · topluluk satiri ·
+Yeni mesaj (oneri + arama + topluluk) · Grup sohbeti · Topluluk ac + gonderi ·
+sohbet detayi · atac paneli (8 satir) · **IBAN gonderme (balon + Kopyala)** ·
+**VIDEO gonderme (yukleme + balon + tam ekran oynatma)** · sohbet listesi
+onizlemesi ("Video") · profil · Hesabim · Ara · Canli.
+
+## Tohum
+
+`tools/tohum_sosyal.js` artik **iki topluluk** kurup gonderi atiyor: biri
+A'nin (A'nin listesinde gorunur), digeri B'nin (A'nin kesfetinde gorunur).
+Tek topluluk olsaydi iki yuzeyden biri DAIMA bos gorunurdu.
+
+## Olcumler
+
+`flutter analyze` **0 hata 0 uyari** · `flutter test` **86/86**.
+
 # Oturum — Turu 163 (3 Eyl 2026, 14:00 YAYINLANDI)
 
 ## Kullanici bildirimi

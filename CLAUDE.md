@@ -41,6 +41,93 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
       kaybettiriyorsun"*. **Üçüncüsü olmayacak.**
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
+- **KALDIGIMIZ YER (9 Eyl): TURU 180x — MESAJ SEKMESI ARAYUZU, iOS BUILD ALINIYOR.**
+  Arayuz turu: **BACKEND DEGISMEDI**, migration YOK, deploy YOK.
+  ✅ analyze **0/0** · test **86/86** · emulatorde ON ALTI madde gozle dogrulandi.
+
+- 💬 **TURU 180x — MESAJ SEKMESI YENIDEN KURULDU** (kullanici emri + Instagram
+  "Yeni mesaj" ekran goruntusu).
+  · **"Sohbet | Aramalar" metin secicisi KALKTI** (*"butonlara gerek yok"*);
+    govde artik dogrudan `ChatsScreen`.
+  · Arama kutusu **EN USTTE**, cip seridi **ALTINDA** (*"arama yukarida,
+    sohbet aramalar altta"*).
+  · Cipler **Tümü · Grup · Arşiv · Aramalar**. `okunmamis` CIKTI (rozet her
+    satirda ZATEN var), `aramalar` GIRDI.
+  ⚠️⚠️ **"Aramalar" bir SOHBET SUZGECI DEGIL — GOVDEYI DEGISTIRIR** (`CallsTab`).
+     `chats.when(...)` dalina HIC girilmez; girseydi "Eşleşen sohbet yok" yazip
+     arama gecmisini gizlerdi.
+  ⚠️ Arama kutusu ustte KALIR ve sorgu **`CallsTab.arama`ya GECER** + ipucu
+     degisir: gorunur ama hicbir sey yapmayan bir kutu birakilamaz.
+
+- 🏘️ **TURU 180x — TOPLULUKLAR SOHBET LISTESINDE** (kullanici emri).
+  ⚠️⚠️ **YENI UC YOK:** `GET /chats` topluluklari **YAPISAL OLARAK** dondurmez
+     (`ListChats` yalniz `chats`ten okur — turu 75). Abone olunanlar
+     `GET /channels` ile cekilip listeye **ISTEMCIDE** karistiriliyor:
+     "Topluluklar" + "Sohbetler" bolum basliklari, megafon rozetli satir.
+  ⚠️ `_ChatTile` YENIDEN KULLANILMADI: o satir `Chat` modeline, kaydirma
+     eylemlerine (arsivle/sil) ve `/chat/{id}` rotasina bagli; sahte bir `Chat`
+     uretmek satiri kaydirinca var olmayan bir sohbeti arsivlemeye calisirdi.
+  ⚠️ YALNIZ "Tümü"de: `Grup` = `chats.type=='group'` (topluluk GRUP DEGIL),
+     `Arşiv` sohbet bazli bir bayrak — toplulukta karsiligi YOK.
+  ⚠️⚠️ **`kanalDegisimi` SINYALI ZORUNLU** (emulatorde olculdu): topluluk kurup
+     geri donunce listede **HICBIR SEY GORUNMUYORDU** — `ChatsScreen` sokulmuyor,
+     `initState` bir daha kosmuyor. Sinyali **SERVIS** atar (olustur/kapat/
+     aboneOl/abonelikBirak), cagri yerleri DEGIL: uc ayri ekran abonelik
+     degistiriyor, birine eklemeyi unutmak listeyi sessizce bayat birakirdi.
+
+- ➕ **TURU 180x — YENI TAM SAYFA "YENI MESAJ" EKRANI**
+  (`features/chats/yeni_mesaj_ekrani.dart`). Geri + ortada baslik · **Kime: Ara**
+  · **Grup sohbeti** · **Topluluk oluştur** · **Önerilen** · **Topluluklar**.
+  ⚠️⚠️ **ALT SAYFA (sheet) DEGIL:** sheet tavani (ekranin 9/16'si) yuzunden
+     "Önerilen" listesi oraya YAPISAL OLARAK sigmazdi.
+  ⚠️ Uc kaynak da MEVCUT: `/users/search` · `chatsProvider` (gorusulen kisiler)
+     · `/channels` **+** `/channels/kesfet`.
+  ⚠️⚠️ **IKI TOPLULUK UCU BIRDEN** (emulatorde olculdu): yalniz `kesfet()`
+     cagrilinca kendi kurdugun topluluk gorunmuyordu — sunucu kurani OTOMATIK
+     abone yapiyor ve `kesfet` "abone OLMADIKLARINI" doner. `listem()` ONCE,
+     `kesfet()` SONRA; `id` ile tekilleme.
+  ⚠️ "Önerilen" bir SIRALAMA IDDIASI DEGIL (sunucuda oneri/skor YOK) — baslik
+     bilincli olarak notr (turu 135 uydurma-veri dersi).
+  ⚠️ Eski `yeniSohbetSecenegiAc` sheet'i artik CAGRILMIYOR (govde SILINMEDI);
+     dort girisi de yeni ekran kapsiyor, ekranda OLU dugme YOK.
+
+- 🎥 **TURU 180x — SOHBETTE VIDEO GONDERME** (kullanici emri: *"resim video
+  gonderme iban paylasma hepsi olsun"*).
+  ⚠️ Secim **`MedyaSecici.video` TEK KAYNAGINDAN** (boyut + SURE kapisi orada);
+     tavan **5 dakika** — reels'in 90 sn'si burada mesru bir videoyu haksiz
+     yere reddederdi.
+  ⚠️⚠️ Video **SIKISTIRILMAZ**: `gorseliHazirla` bir JPEG uretir, videoya
+     uygulansaydi dosya BOZULUR ve karsi tarafta acilmayan bir balon cizilirdi.
+  ⚠️⚠️ Balonda **OYNATICI KURULMAZ** (turu 76b/77b: listede canli `video_player`
+     iOS'ta AVAudioSession'a dokunur ve SUREN ARAMAYI sagirlastirir) — oynat
+     rozeti + dokununca `TamEkranVideo`. Poster UYDURULMAZ.
+  ⚠️ Backend `'video'` tipini **ZATEN** kabul ediyordu (beyaz liste, turu 59b).
+  ⚠️⚠️⚠️ **ATAC PANELI 199 px TASIYORDU** (emulatorde olculdu): Video ile satir
+     7 -> 8 oldu ve varsayilan sheet tavani asildi; **IBAN ve Anket EKRAN
+     DISINDA** kaliyordu, yani kullanicinin ACIKCA istedigi "iban paylasma"
+     fiilen ULASILAMAZ olacakti. FIX: `isScrollControlled` **VE**
+     `SingleChildScrollView` — **IKISI DE ZORUNLU** (turu 90b/114'un UCUNCU
+     tekrari: bayrak yalnizca TAVANI kaldirir, icerigi kaydirilabilir YAPMAZ).
+
+- 🌑 ⚠️⚠️⚠️ **TURU 180x — VARSAYILAN TEMA ARTIK KOYU** (`tercihler.temaModu`
+  varsayilani `ThemeMode.system` -> **`dark`**).
+  Ana yuzeyler turu 174'ten beri `koyuSayfa` ile zorla siyah; cihaz acik
+  temadaysa GERIYE KALANLAR (sohbet detayi · topluluk · grup olustur · kisi
+  arama · ayarlar) **BEYAZ** aciliyor ve kullanici siyah bir akisin ortasinda
+  goz alan beyaz sayfalara dusuyordu.
+  ⚠️ Ekranlari TEK TEK `koyuSayfa` ile sarmaktan DAHA GUVENLI: sarma yontemi
+     her ekranda *"State metodunun ciplak `context`i Theme'in USTUNDE kalir"*
+     tuzagini yeniden acar (bu projede **ONBIR** kez sahaya cikti).
+  ⚠️ Kullanicinin SECIMI DAIMA USTUNDUR ('acik'/'sistem' secilirse o yazilir);
+     `lightTheme` SILINMEDI.
+  ⚠️ Kimlik ekranlari (`AuthSayfa` -> `Theme(lightTheme)`) ve onboarding
+     (`_kOnboardZemin`) temadan **BAGIMSIZ**, beyaz KALIR — dogrulandi.
+  ⚠️ `kanal_olustur` ayrica `koyuSayfa` + `YemekHeader`e cevrildi.
+
+- 🌱 **TURU 180x — TOHUMDA IKI TOPLULUK** (`tools/tohum_sosyal.js`): biri A'nin
+  (A'nin LISTESINDE), digeri B'nin (A'nin KESFETINDE). Tek topluluk olsaydi iki
+  yuzeyden biri DAIMA bos gorunur ve ozellik kirik sanilirdi.
+
 - **KALDIGIMIZ YER (8 Eyl 22:43): TURU 180u+180v+180w YAYINLANDI — SADECE iOS.**
   ios **34268786606** (**4bfd4b9**), R2 ipa=**29065565** (md5 a5ce8680),
   index=7967 (4d908b53) surum.json=45 (88d615ce), purge OK, **CDN BIREBIR**
