@@ -54,6 +54,17 @@ Map<String, dynamic> _b({
 List<Map<String, dynamic>> demoBildirimler() {
   if (!kDemoAkis) return const [];
   return [
+    // TURU 180u — TAKIP ISTEGI EN USTTE ve OKUNMAMIS (kullanici emri:
+    //   "bildirimlere bir takip istegi mockup olustur"). Onceden listede
+    //   VARDI ama 3 saat oncesine ve okundu:true ya konmustu, yani
+    //   asagida solgun duruyordu ve Onayla/Sil dugmeleri gorunmuyordu.
+    _b(
+      tur: 'takip_istegi',
+      ad: 'Zeynep Kara',
+      once: const Duration(minutes: 2),
+      hedefTur: 'kullanici',
+      hedefId: 'demo-zeynepkara',
+    ),
     _b(tur: 'begeni', ad: 'Mehmet Kaya', once: const Duration(minutes: 4)),
     _b(
       tur: 'yorum',

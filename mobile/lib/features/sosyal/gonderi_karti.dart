@@ -21,14 +21,13 @@ import '../isletme/isletme_kart.dart' show kYuzeyGri, kYanBosluk;
 import 'demo_veri.dart';
 import 'demo_yorum.dart';
 import 'yorum_satiri.dart';
-import 'gonderi_detay.dart';
 import 'gonderi_menusu.dart';
 import 'konum_karti.dart';
 import 'medya_olcu.dart';
 import 'medya_video.dart';
 import 'paylas_sheet.dart';
 import 'sosyal_servisi.dart';
-import 'yorumlar_sayfasi.dart';
+import 'yorum_paneli.dart';
 
 /// ⚠️⚠️ TURU 98c — BASLIK SATIRININ **YAN DOLGUSU** (kullanici: *"sol sag
 ///	bosluklar yemekteki gibi olacak"*) — kategori ekraniyla ayni olcu.
@@ -246,24 +245,22 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
   }
 
   Future<void> _yorumlariAc() async {
-    // ⚠️⚠️ TURU 98i — DEMODA yorum dokunusu **GONDERI DETAYINI** acar
-    //	(kullanici: *"gonderiye tikladigimda gonderi detayini boyle
-    //	istiyorum"*). Gercek akista `YorumlarSayfasi` acilmaya devam
-    //	eder — o hat DEGISMEDI.
-    if (_demo) {
-      if (widget.detayda) return;
-      await Navigator.of(
-        context,
-      ).push(MaterialPageRoute(builder: (_) => GonderiDetay(gonderi: g)));
-      return;
-    }
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => YorumlarSayfasi(gonderi: g, benimId: widget.benimId),
-      ),
-    );
-    // ⚠️ TURU 75b: yorum sayfasi ARTIK deger DONDURMUYOR — sayaci PAYLASILAN
-    //    model uzerinden (`g.yorumSayisi`) guncelliyor. Sebep: geri donus degeri
+    // ⚠️⚠️⚠️ TURU 180u — **ALTTAN ACILAN YORUM PANELI** (kullanici emri:
+    //	*"gonderilerdeki yoruma tikladiginda instagram yorum paneli gibi
+    //	acilsin"*).
+    //
+    //	Onceden burada IKI AYRI TAM SAYFA aciliyordu: demoda `GonderiDetay`
+    //	(turu 98i), gercek akista `YorumlarSayfasi`. Ikisi de panele
+    //	cevrildi — yalniz birini degistirmek demo ile gercek arasinda
+    //	AYRI BIR DENEYIM birakirdi.
+    // ⚠️ `if (widget.detayda) return;` KAPISI KALKTI: o kapi "detaydayken
+    //	detayi tekrar acma" icindi. Panel bir SAYFA DEGIL, detayin
+    //	USTUNDE de acilabilir (Instagram da boyle).
+    // ⚠️ Ayrim `yorum_paneli.dart` icinde: demo kimlikli gonderi gercek
+    //	yorum ucuna GITMEZ.
+    await yorumPaneliAc(context, gonderi: g, benimId: widget.benimId);
+    // ⚠️ TURU 75b: panel deger DONDURMEZ — sayaci PAYLASILAN model
+    //    uzerinden (`g.yorumSayisi`) gunceller. Sebep: geri donus degeri
     //    icin gereken `PopScope(canPop:false)`, iPhone'da KENAR KAYDIRMA ile
     //    geri donusu tamamen kapatiyordu.
     // ⚠️ Bu yuzden burada yalniz YENIDEN CIZ; deger okuma YOK.

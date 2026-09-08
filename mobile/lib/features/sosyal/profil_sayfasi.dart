@@ -30,6 +30,7 @@ import '../home/home_screen.dart' show HesabimEkrani, myProfileProvider;
 import '../ilan/ilan_ekranlari.dart' show IlanDetayEkrani;
 import '../ilan/ilan_servisi.dart';
 import '../talep/talep_servisi.dart' show dugunKategorileri;
+import 'demo_veri.dart' show kDemoAkis, demoGonderiler;
 import 'sosyal_servisi.dart';
 import 'kaydedilenler_sayfasi.dart';
 import 'takip_listesi.dart';
@@ -76,6 +77,20 @@ enum ProfilSekmesi {
   ///	(Instagram da boyle) ve sunucu ucu `/users/me/begeniler`,
   ///	yani baskasi icin cagrilacak bir yol ZATEN YOK.
   begeni,
+
+  /// ⚠️⚠️⚠️ TURU 180u — **REPOST** (kullanici emri: *"revet yani tekrar
+  ///	paylasma profildeki alanla koy ... repost ekle yani tekrar
+  ///	paylasilan"*).
+  ///
+  /// ⚠️⚠️ **SUNUCUDA REPOST KAVRAMI YOK** (olculdu: `backend/` genelinde
+  ///	`repost|reshare|share_count` icin SIFIR eslesme; `posts.tur`
+  ///	CHECK'i yalniz foto/video/reels/yazi; repost ucu ve tablosu YOK).
+  ///	`Gonderi.repostSayisi` alani VAR ama `Gonderi.json` onu HIC
+  ///	OKUMUYOR — yani gercek akista DAIMA 0.
+  /// ⚠️ Bu yuzden sekme **`begeni`nin isletme dalindaki desenle** cizilir:
+  ///	icerik yoksa BOS LISTE degil **"Repost yakında"** denir. Bos liste
+  ///	"bu kisi hic repost yapmamis" YALANI olurdu (turu 176/179 dersi).
+  repost,
   // ⚠️⚠️ TURU 176 — **`ses` KALDIRILDI** (kullanici emri: *"sesi kaldir,
   //	ses paylasma vs kalksin; SADECE MESAJLARDA ses paylasimi
   //	olacak"*). Enum degeri SILINDI, cunku `switch`ler
@@ -104,6 +119,7 @@ extension ProfilSekmesiBilgi on ProfilSekmesi {
     ProfilSekmesi.video => 'Video',
     ProfilSekmesi.reels => 'Reels',
     ProfilSekmesi.begeni => 'Beğeniler',
+    ProfilSekmesi.repost => 'Repost',
     ProfilSekmesi.ilan => 'İlanlarım',
     ProfilSekmesi.isIlani => 'İş İlanları',
     ProfilSekmesi.dolap => 'Dolap',
@@ -119,6 +135,7 @@ extension ProfilSekmesiBilgi on ProfilSekmesi {
     ProfilSekmesi.video => LucideIcons.video,
     ProfilSekmesi.reels => LucideIcons.clapperboard,
     ProfilSekmesi.begeni => LucideIcons.heart,
+    ProfilSekmesi.repost => LucideIcons.repeat2,
     ProfilSekmesi.ilan => LucideIcons.tag,
     ProfilSekmesi.isIlani => LucideIcons.briefcase,
     ProfilSekmesi.dolap => LucideIcons.shirt,
@@ -134,6 +151,7 @@ extension ProfilSekmesiBilgi on ProfilSekmesi {
     ProfilSekmesi.video => 'Henüz video yok',
     ProfilSekmesi.reels => 'Henüz reels yok',
     ProfilSekmesi.begeni => 'Henüz beğendiğin gönderi yok',
+    ProfilSekmesi.repost => 'Henüz repost yok',
     ProfilSekmesi.ilan => 'Henüz ilan vermedin',
     ProfilSekmesi.isIlani => 'Henüz iş ilanı yok',
     ProfilSekmesi.dolap => 'Dolabında ürün yok',
@@ -218,6 +236,11 @@ class ProfilSayfasi extends ConsumerStatefulWidget {
 
 class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
   Profil? _p;
+
+  /// Kisayoldan (Ayarlar > İlanlarım/Hizmetlerim/Düğünüm/Taleplerim) gelinen
+  /// ve normal serit filtresinden GECMEYEN sekme — `initState`te bir kez
+  /// yakalanir, ekran yasadigi surece seritte cizilir.
+  ProfilSekmesi? _kisayolSekme;
 
   /// ⚠️⚠️ SEKME BASINA ONBELLEK. Sunucu profil gonderilerini **LIMIT 30**
   ///	ile donduruyor ve sayfalama YOK; tek listeyi istemcide suzmek uc
@@ -376,6 +399,13 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
     //    `_sekmeYukle` ile gelir (asagidaki cagri).
     final b = widget.baslangicSekmesi;
     if (b != null) _sekme = b;
+    // ⚠️⚠️ TURU 180u — kisayoldan gelinen sekme serit BES sekmeye indigi
+    //	icin artik filtreden GECMEYEBILIR. Burada BIR KEZ yakalanir ve
+    //	`_sekmeler` sonuna eklenir; boylece "İlanlarım" kisayolu hem
+    //	calisir hem de kullanici nerede oldugunu GORUR.
+    // ⚠️ `_sekme` uzerinden hesaplansaydi baska sekmeye dokunuldugunda
+    //	serit ORTADAN bir oge kaybederdi.
+    if (b != null && !_seritte(b)) _kisayolSekme = b;
     // ⚠️ `_sekmeler` `_benimMi`ye bagli ve o daha yuklenmedi; baslangic
     //    sayfasi TAM LISTEDEN hesaplanir (`ProfilSekmesi.values`).
     // ⚠️⚠️⚠️ TURU 180e — **INDEKS `_sekmeler`DEN, `values`TEN DEGIL.**
@@ -909,14 +939,23 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
                   ),
                 ),
               ),
-            // ⚠️⚠️ TURU 120 — KAYITTA SORULAN ALANLAR BURADA GORUNUR
-            //	(yas · takim · ilgi alanlari).
+            // ⚠️⚠️⚠️ TURU 180u — **ETIKET CIPLERI CAGRI YERINDEN CIKARILDI**
+            //	(kullanici emri: *"20 spor salonu gibi seyler profilde
+            //	gorunmesin"*).
             //
-            // ⚠️ Bu satir olmadan kayit akisindaki "Biraz da senden" adimi
-            //    **OLU BIR FORM** olurdu: veri toplanir, sunucuya yazilir ve
-            //    HICBIR YERDE gorunmezdi. Bu projede "sutun/uc var ama onu
-            //    kullanan yol yok" sinifi DOKUZ kez sahaya cikti.
-            _profilEtiketleri(p),
+            //	`_profilEtiketleri` yas + takim + **12'ye kadar ILGI ALANI**
+            //	cipi ciziyordu (`profil_secenekleri.dart` icinde "Spor
+            //	salonu" da var, `kEnFazlaIlgi = 12`). 14 cip alt alta
+            //	sariyor ve profilin ustunu dolduruyordu.
+            //
+            // ⚠️⚠️ **KAYIT FORMU OLU KALMADI**: ayni alanlar
+            //	`profil_duzenle.dart` uzerinden HALA duzenlenebiliyor ve
+            //	`PATCH /users/me` ile sunucuya yaziliyor. Yani turu 120'nin
+            //	"veri toplanir ama hicbir yerde gorunmez" endisesi bu
+            //	kaldirmayla GECERLI DEGIL.
+            // ⚠️ Govde SILINMEDI (`ignore: unused_element`): karar tek
+            //	satirla geri alinabilsin — bu dosyada uye silmek BES kez
+            //	komsu uyeyi goturdu.
             // TURU 77 — ISLETME BILGI SERIDI. Profil bir ISLETME hesabiysa
             // kategori/adres/telefon/calisma saatleri ve Urunler/Menu girisi
             // burada cizilir. Kisisel hesapta HIC cizilmez.
@@ -1038,6 +1077,7 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
   ///    sabit renk koyu temada okunmaz olurdu (turu 81b kontrast dersi).
   /// ⚠️ `Wrap` — `Row` DEGIL: 12 ilgi alani tek satira sigmaz ve `Row`
   ///    RenderFlex tasma seridi cizerdi.
+  // ignore: unused_element
   Widget _profilEtiketleri(Profil p) {
     final yas = p.yas;
     final takim = p.takim.trim();
@@ -1616,12 +1656,42 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
       //	kullanici emri: *"backendi sonra yap, arayuzu hizli cikart"*).
       // ⚠️ YAPMA: sekmeyi bos liste ile cizme — "bu isletme hicbir sey
       //	begenmemis" YALANI olurdu (turu 176/179 dersi).
-      if (x != ProfilSekmesi.genel &&
-          x != ProfilSekmesi.video &&
-          (x != ProfilSekmesi.begeni || _benimMi || _isletme != null) &&
-          (x == ProfilSekmesi.isIlani || !x.ilanMi || _benimMi))
-        x,
+      // ⚠️⚠️⚠️ TURU 180u — **SERIT BES SEKMEYE INDI** (kullanici emri:
+      //	*"gonderiler resim reels begeni repost ekle yani tekrar
+      //	paylasilan DIGERLERINI KALDIR"*).
+      //
+      //	Kalanlar: `tumu` · `foto` · `reels` · `begeni` · `repost`.
+      //	Cikanlar: `ilan` · `isIlani` · `dolap` · `hizmet` · `talep` ·
+      //	`dugun` (turu 180'de eklenen `isIlani` DAHIL — kullanici
+      //	kararini GERI ALDI).
+      // ⚠️ Enum degerleri ve govdeleri (`_ilanListesi`, `_ilanKarti`,
+      //	`_sekmeYukle`in ilan dali) SILINMEDI: bu dosyada uye silmek
+      //	BES kez komsu uyeyi goturdu, ustelik asagidaki KISAYOL dali
+      //	onlari HALA cizdiriyor.
+      if (_seritte(x)) x,
+    // ⚠️⚠️⚠️ **KISAYOL SEKMESI SERITE GERI EKLENIR.**
+    //	`home_screen.dart`taki DORT ayar satiri (İlanlarım · Hizmetlerim ·
+    //	Düğünüm · Taleplerim) profili `baslangicSekmesi` ile aciyor.
+    //	O sekme seritte cizilmezse: (a) kullanici hangi listede oldugunu
+    //	GOREMEZ, (b) `_icerikAlani`nin yatay jesti `indexOf` -1 dondugu
+    //	icin OLUR, (c) `_seridiKaydir` hedef bulamaz.
+    // ⚠️ Deger `initState`te BIR KEZ yakalanir (`_kisayolSekme`); `_sekme`
+    //	uzerinden hesaplansaydi kullanici baska sekmeye dokununca serit
+    //	ORTADAN bir oge kaybeder ve liste ZIPLARDI.
+    if (_kisayolSekme != null) _kisayolSekme!,
   ];
+
+  /// Serit filtresinin TEK KAYNAGI (kisayol dali bunun DISINDA).
+  bool _seritte(ProfilSekmesi x) =>
+      // ⚠️⚠️ `begeni` ISLETME profilinde de cizilir (turu 180m, kullanici
+      //	UC KEZ istedi); kisisel hesabin begenisi GIZLI kalir.
+      // ⚠️⚠️ `repost` AYNI KAPIDAN gecer: sunucuda uc YOK, baskasinin
+      //	profilinde "yakinda" der (bkz. enum serhi).
+      x == ProfilSekmesi.tumu ||
+      x == ProfilSekmesi.foto ||
+      x == ProfilSekmesi.reels ||
+      ((x == ProfilSekmesi.begeni || x == ProfilSekmesi.repost) &&
+          (_benimMi || _isletme != null));
 
   /// TURU 176 — alttaki yuzen **Menü / Rezervasyon** geçisi.
   ///
@@ -1983,6 +2053,23 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
         final l = await ref.read(sosyalServisiProvider).begenilenler();
         if (!mounted) return;
         setState(() => _gonderiOnbellek[x] = l);
+      } else if (x == ProfilSekmesi.repost) {
+        // ⚠️⚠️⚠️ TURU 180u — **HICBIR AG ISTEGI ATILMAZ: REPOST UCU YOK.**
+        //	`kullaniciGonderileri`ye dusseydi `?tur=repost` giderdi ve
+        //	sunucunun beyaz listesi (foto/video/reels/yazi) bunu **400**
+        //	ile reddederdi -> sekme kalici "Yüklenemedi" gosterirdi.
+        // ⚠️ Onbellege YAZMAK ZORUNLU: yazilmazsa `_sekmeIcerigi` veriyi
+        //	`null` gorur ve sekme SONSUZ spinner'da kalir.
+        // ⚠️ Demo yalniz KENDI profilimde: baskasinin profilinde benim
+        //	demo repostlarimi cizmek turu 180m'de begeni icin yasanan
+        //	"yanlis kisinin verisi" hatasinin aynisi olurdu.
+        if (!mounted) return;
+        setState(
+          () => _gonderiOnbellek[x] = (kDemoAkis && _benimMi)
+              ? demoGonderiler().where((g) => g.repostSayisi > 0).toList()
+              : const <Gonderi>[],
+        );
+        return;
       } else {
         final l = await ref
             .read(sosyalServisiProvider)
@@ -2054,6 +2141,10 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
   /// Sekmenin icerigi BOS mu (`_sekmeIcerigi`nin bos daliyla BIREBIR).
   bool _sekmeBos(ProfilSekmesi x) {
     if (x == ProfilSekmesi.genel) return false;
+    // ⚠️ TURU 180u — "yakinda" dallari BOS SAYILMAZ: `_bosDurum` cizilmiyor,
+    //	yani serit alt kenari olcumu (`_gorunurSerit`) devreye girmemeli.
+    if (x == ProfilSekmesi.begeni && !_benimMi) return false;
+    if (x == ProfilSekmesi.repost && !(kDemoAkis && _benimMi)) return false;
     if (_sekmeYukleniyor.contains(x) || _sekmeHata[x] != null) return false;
     if (x.ilanMi) return (_ilanOnbellek[x] ?? const []).isEmpty;
     return (_gonderiOnbellek[x] ?? const []).isEmpty;
@@ -2102,6 +2193,12 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
     //	"bu isletme hicbir sey begenmemis" YALANI olurdu; durustce
     //	soyleniyor. ⏳ `GET /users/{id}/begeniler` BACKEND TURUNDA.
     if (x == ProfilSekmesi.begeni && !_benimMi) {
+      return _yakindaDurum(x, soluk);
+    }
+    // TURU 180u — REPOST: sunucuda uc YOK. Demo disinda (ya da baskasinin
+    //	profilinde) BOS LISTE degil durustce "yakinda" denir; bos liste
+    //	"bu kisi hic repost yapmamis" YALANI olurdu.
+    if (x == ProfilSekmesi.repost && !(kDemoAkis && _benimMi)) {
       return _yakindaDurum(x, soluk);
     }
     final l = _gonderiOnbellek[x] ?? const <Gonderi>[];
@@ -2190,8 +2287,13 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
                     child: Icon(x.ikon, size: 23, color: soluk),
                   ),
                   const SizedBox(height: 10),
+                  // ⚠️⚠️⚠️ TURU 180u — METIN **ENUM'DAN TURETILIR**, koda
+                  //	gomulu DEGIL. Onceden sabit "Beğeniler yakında"
+                  //	yaziyordu; repost sekmesi eklenince o sekmede de
+                  //	"Beğeniler yakında" cikacakti — `flutter analyze`
+                  //	TEMIZ gecer, hata YALNIZ EKRANDA gorunurdu.
                   Text(
-                    "Beğeniler yakında",
+                    '${x.etiket} yakında',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 13.5,

@@ -20,10 +20,17 @@ class YorumlarSayfasi extends ConsumerStatefulWidget {
     super.key,
     required this.gonderi,
     required this.benimId,
+    this.sheet = false,
   });
 
   final Gonderi gonderi;
   final String benimId;
+
+  /// Alttan acilan panel kipi (Instagram yorum paneli).
+  ///
+  /// Scaffold+AppBar YERINE tutamac + baslik + kaydirilabilir liste +
+  /// klavyeyi karsilayan yazma satiri cizilir.
+  final bool sheet;
 
   @override
   ConsumerState<YorumlarSayfasi> createState() => _YorumlarSayfasiState();
@@ -162,6 +169,16 @@ class _YorumlarSayfasiState extends ConsumerState<YorumlarSayfasi> {
     //    (`widget.gonderi` cagiranla AYNI nesne). Geri donus degerine gerek YOK,
     //    dolayisiyla jesti kisitlamaya da gerek yok.
     // ⚠️ YAPMA: buraya tekrar `canPop: false` koyma.
+    // ⚠️⚠️⚠️ TURU 180u — **SHEET KIPI** (kullanici emri: *"gonderilerdeki
+    //	yoruma tikladiginda instagram yorum paneli gibi acilsin"*).
+    //
+    //	Yorum mantigi (yukleme · gonderme · yanitlama · silme · sikayet)
+    //	KOPYALANMADI: ayni sinif iki KABUKTA cizilir. Ikinci bir kopya
+    //	yazilsaydi drift KACINILMAZDI — bu projede o sinif ALTI kez
+    //	yasandi (bkz. `yorum_satiri.dart` bas serhi).
+    // ⚠️ Sheet kipinde `Scaffold` YOK: sheet'in kendi `Material`i var ve
+    //	ic ice Scaffold ekranin altina IKINCI bir yuzey ekler.
+    if (widget.sheet) return _sheetGovde(context);
     return Builder(
       builder: (context) => Scaffold(
         appBar: AppBar(title: const Text('Yorumlar')),
@@ -226,6 +243,125 @@ class _YorumlarSayfasiState extends ConsumerState<YorumlarSayfasi> {
           ],
         ),
       ),
+    );
+  }
+
+  /// Instagram tarzi yorum PANELI govdesi (sheet kipi).
+  ///
+  /// ⚠️⚠️ **KLAVYE**: `showModalBottomSheet` klavyeyi KENDI KENDINE
+  ///	karsilamaz (randevu_al.dart:210 serhi). `viewInsets.bottom` dolgusu
+  ///	OLMADAN yazma satiri klavyenin ALTINDA kalir — hem gorunmez hem
+  ///	DOKUNULAMAZ olur.
+  /// ⚠️ `SafeArea(top: false)` DE gerekir: `viewInsets` YALNIZ klavyeyi
+  ///	olcer, sistem gezinme cubugunu OLCMEZ (ilan_ekranlari.dart:818).
+  /// ⚠️⚠️ `Expanded` kullanildigi icin panelin yuksekligi SINIRLI olmak
+  ///	ZORUNDA — cagiran `FractionallySizedBox` ile veriyor. Sinirsiz
+  ///	kisitta *"BoxConstraints forces an infinite height"* -> panel HIC
+  ///	cizilmez (olustur_menusu.dart:107 dersi).
+  Widget _sheetGovde(BuildContext context) {
+    final ks = Theme.of(context).colorScheme;
+    return Column(
+      children: [
+        // 44 dp baslik — uygulamanin her yerindeki yemek header'iyla ayni
+        // olcu; sheet'in kendi tutamaci ustte zaten cizilyor.
+        SizedBox(
+          height: 44,
+          child: Stack(
+            children: [
+              Center(
+                child: Text(
+                  'Yorumlar',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    height: 1.0,
+                    color: ks.onSurface,
+                  ),
+                ),
+              ),
+              Align(
+                alignment: Alignment.centerRight,
+                child: IconButton(
+                  icon: const Icon(LucideIcons.x, size: 20),
+                  tooltip: 'Kapat',
+                  onPressed: () => Navigator.of(context).maybePop(),
+                ),
+              ),
+            ],
+          ),
+        ),
+        Divider(height: 1, color: ks.onSurface.withValues(alpha: 0.10)),
+        Expanded(child: _govde()),
+        if (_yanitlanan != null)
+          Container(
+            color: ks.onSurface.withValues(alpha: 0.06),
+            padding: const EdgeInsets.fromLTRB(14, 4, 4, 4),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    '@${_yanitlanan!.yazarUsername} yanıtlanıyor',
+                    style: TextStyle(fontSize: 12, color: ks.onSurface),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(LucideIcons.x, size: 16),
+                  onPressed: () => setState(() => _yanitlanan = null),
+                ),
+              ],
+            ),
+          ),
+        SafeArea(
+          top: false,
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(
+              12,
+              6,
+              6,
+              6 + MediaQuery.viewInsetsOf(context).bottom,
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _kutu,
+                    focusNode: _odak,
+                    minLines: 1,
+                    maxLines: 4,
+                    maxLength: 1000,
+                    textInputAction: TextInputAction.newline,
+                    decoration: InputDecoration(
+                      hintText: 'Yorum yaz...',
+                      counterText: '',
+                      isDense: true,
+                      filled: true,
+                      fillColor: ks.onSurface.withValues(alpha: 0.06),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 11,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(22),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                  ),
+                ),
+                IconButton(
+                  icon: _gonderiliyor
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(LucideIcons.send),
+                  onPressed: _gonderiliyor ? null : _gonder,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 

@@ -8,6 +8,7 @@ import 'package:sentry_flutter/sentry_flutter.dart';
 import "../../core/yenile.dart";
 
 import '../../core/theme.dart' show koyuSayfa;
+import '../../router.dart' show rootMessengerKey;
 import '../medya/medya_gorsel.dart';
 import 'bildirim_sayaci.dart';
 import 'gonderi_detay.dart';
@@ -44,6 +45,11 @@ class _BildirimlerSayfasiState extends ConsumerState<BildirimlerSayfasi> {
   List<Map<String, dynamic>> _liste = [];
   bool _yukleniyor = true;
   String? _hata;
+
+  /// Takip istegi bildirimlerinde verilen YEREL karar (bildirim id -> durum).
+  /// Sunucu listesi bir sonraki yenilemede guncellenir; bu harita yalnizca
+  /// dokunus aninda GERI BILDIRIM icin.
+  final Map<String, String> _istekDurum = {};
 
   @override
   void initState() {
@@ -367,18 +373,18 @@ class _BildirimlerSayfasiState extends ConsumerState<BildirimlerSayfasi> {
                     ),
                   ),
                 ),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: IconButton(
-                    icon: const Icon(LucideIcons.userRoundCheck),
-                    tooltip: 'Takip istekleri',
-                    onPressed: () => Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => const TakipIstekleri(),
-                      ),
-                    ),
-                  ),
-                ),
+                // ⚠️⚠️⚠️ TURU 180u — **SAG IKON KALDIRILDI** (kullanici emri:
+                //	*"bildirimlerde de sagdaki takip istegi ikonu kaldir
+                //	gerek yok, onun yerine bildirimlere bir takip istegi
+                //	mockup olustur"*).
+                //
+                // ⚠️⚠️ `TakipIstekleri` ekrani ULASILAMAZ KALMADI — IKI
+                //	giris duruyor: (a) Profil > Ayarlar > "Takip istekleri"
+                //	(`home_screen.dart:908`), (b) takip istegi bildirimine
+                //	DOKUNMA (`_git`, asagida `tur == 'takip_istegi'` dali).
+                //	Bu projede bir ozelligi ulasilamaz birakmak YASAK.
+                // ⚠️ Ortadaki baslik KAYMAZ: `Center` sol/sag ogelerden
+                //	BAGIMSIZ ortalar.
               ],
             ),
           ),
@@ -443,12 +449,153 @@ class _BildirimlerSayfasiState extends ConsumerState<BildirimlerSayfasi> {
                   final b = _liste[i];
                   final t = _tur(b);
                   final okundu = b['okundu'] == true;
-                  return ListTile(
-                    tileColor: okundu
-                        ? null
-                        : Theme.of(
-                            context,
-                          ).colorScheme.primary.withValues(alpha: 0.06),
+                  final zemin = okundu
+                      ? null
+                      : Theme.of(
+                          context,
+                        ).colorScheme.primary.withValues(alpha: 0.06);
+                  // ⚠️⚠️⚠️ TURU 180u — **TAKIP ISTEGI SATIRI: ONAYLA / SIL**
+                  //	(kullanici emri: *"sagdaki takip istegi ikonu kaldir,
+                  //	onun yerine bildirimlere bir takip istegi mockup
+                  //	olustur"*).
+                  //
+                  // ⚠️⚠️ Dugmeler `ListTile.trailing`E KONMADI. SDK
+                  //	(`list_tile.dart:1569`) trailing'e GEVSEK kisit verir
+                  //	ve `tileWidth == trailingSize.width` olursa
+                  //	*"Trailing widget consumes the entire tile width"*
+                  //	assert'i TUM LISTEYI cizilmez yapar — turu 180t'de
+                  //	sohbet listesinde AYNEN yasandi. Ayrica trailing
+                  //	genisligi basligin kisitindan DUSULUR ve iki dugme
+                  //	(~160 dp) metni ellipsis'e ezerdi.
+                  // ⚠️ Dugmeler satirin ALTINDA ayri bir `Row`da: bu tuzak
+                  //	YAPISAL OLARAK imkansiz.
+                  final istek =
+                      (b['tur'] ?? '').toString() == 'takip_istegi' &&
+                      _istekDurum[(b['id'] ?? '').toString()] == null;
+                  if (istek || _istekDurum.containsKey((b['id'] ?? '').toString())) {
+                    // ⚠️⚠️ `Material` — `ColoredBox` DEGIL. `ListTile`
+                    //	zeminini ve dokunma dalgasini EN YAKIN `Material`
+                    //	uzerine cizer; araya renkli bir `ColoredBox`
+                    //	girerse Flutter *"ListTile background color or ink
+                    //	splashes may be invisible"* assert'i atar
+                    //	(emulatorde goruldu).
+                    return Material(
+                      color: zemin ?? Colors.transparent,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _satir(b, t, null),
+                          _istekDugmeleri(b),
+                        ],
+                      ),
+                    );
+                  }
+                  return _satir(b, t, zemin);
+                },
+              ),
+      ),
+      ),
+    );
+  }
+
+  /// Takip istegi satirinin altindaki Onayla / Sil dugmeleri.
+  ///
+  /// ⚠️ Karar YEREL tutulur (`_istekDurum`): sunucu listesi bir sonraki
+  ///	yenilemede zaten guncellenir, ama kullanici dokundugu anda
+  ///	GERI BILDIRIM gormeli.
+  /// ⚠️⚠️ Demo bildirimde (`demo-` onekli aktor) sunucuya ISTEK ATILMAZ:
+  ///	`aktor_id` "demo-Burak Şahin" gibi bir dize ve UUID DEGIL; uca
+  ///	gonderilseydi 400 donerdi.
+  Widget _istekDugmeleri(Map<String, dynamic> b) {
+    final id = (b['id'] ?? '').toString();
+    final durum = _istekDurum[id];
+    final ks = Theme.of(context).colorScheme;
+    if (durum != null) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(74, 0, 16, 12),
+        child: Text(
+          durum == 'onaylandi' ? 'İstek onaylandı' : 'İstek silindi',
+          style: TextStyle(
+            fontSize: 12.5,
+            fontWeight: FontWeight.w600,
+            color: ks.onSurface.withValues(alpha: 0.6),
+          ),
+        ),
+      );
+    }
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(74, 0, 16, 12),
+      child: Row(
+        children: [
+          Expanded(
+            child: FilledButton(
+              onPressed: () => _istekKarar(b, true),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size.fromHeight(36),
+                padding: EdgeInsets.zero,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              // ⚠️ `FittedBox(scaleDown)`: yazi olcegi 2.0'da iki dugme
+              //    yan yana sigmiyor ve etiket kirpiliyordu.
+              child: const FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text('Onayla', style: TextStyle(fontSize: 13.5)),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: OutlinedButton(
+              onPressed: () => _istekKarar(b, false),
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size.fromHeight(36),
+                padding: EdgeInsets.zero,
+                side: BorderSide(
+                  color: ks.onSurface.withValues(alpha: 0.22),
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              child: const FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text('Sil', style: TextStyle(fontSize: 13.5)),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _istekKarar(Map<String, dynamic> b, bool onay) async {
+    final id = (b['id'] ?? '').toString();
+    final aktor = (b['aktor_id'] ?? '').toString();
+    setState(() => _istekDurum[id] = onay ? 'onaylandi' : 'silindi');
+    if (demoKimlik(aktor)) return;
+    try {
+      final s = ref.read(sosyalServisiProvider);
+      if (onay) {
+        await s.istekOnayla(aktor);
+      } else {
+        await s.istekReddet(aktor);
+      }
+    } catch (_) {
+      if (!mounted) return;
+      // ⚠️ Yerel karar GERI ALINIR: aksi halde kullanici "onayladim"
+      //    saniyor ama sunucuda hicbir sey degismemis oluyor.
+      setState(() => _istekDurum.remove(id));
+      rootMessengerKey.currentState?.showSnackBar(
+        const SnackBar(content: Text('İşlem tamamlanamadı')),
+      );
+    }
+  }
+
+  Widget _satir(Map<String, dynamic> b, ({IconData ikon, Color renk, String metin}) t, Color? zemin) {
+    return ListTile(
+                    tileColor: zemin,
                     leading: Stack(
                       children: [
                         Avatar(
@@ -484,10 +631,5 @@ class _BildirimlerSayfasiState extends ConsumerState<BildirimlerSayfasi> {
                     ),
                     onTap: () => _git(b),
                   );
-                },
-              ),
-      ),
-      ),
-    );
   }
 }
