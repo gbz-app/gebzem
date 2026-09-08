@@ -41,8 +41,20 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
       kaybettiriyorsun"*. **Üçüncüsü olmayacak.**
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
-- **KALDIGIMIZ YER (9 Eyl): TURU 180x — MESAJ SEKMESI ARAYUZU, iOS BUILD ALINIYOR.**
-  Arayuz turu: **BACKEND DEGISMEDI**, migration YOK, deploy YOK.
+- **KALDIGIMIZ YER (9 Eyl 01:53): TURU 180x YAYINLANDI — SADECE iOS.**
+  ios **34287170007** (**4fada14**), R2 ipa=**29065242** (md5 255253dd),
+  index=7967 (818049ce) surum.json=45 (13a3d031), purge OK, **CDN BIREBIR**
+  (ucu de), `get-task-allow: false`, ad hoc profil, `MinimumOSVersion` +
+  `MapsApiKey` + `NSLocationWhenInUse` VAR.
+  IPAda dizeler VAR: `Yeni mesaj` · `Kime:` · `Grup sohbeti` ·
+  `Topluluk oluştur` · `Önerilen` · `Topluluklar` · `Aramalar` · `Arşiv` ·
+  `Arama geçmişinde ara` · `Galeriden seç` · `Video`;
+  **KALKAN YOK: `Okunmamış`**. Kontrol dizesi `Yakınımda` VAR.
+  ⚠️ **ADRES:** https://indir.gebzem.app/index.html?v=20260909-0153
+  Arayuz turu: **BACKEND DEGISMEDI**, migration YOK, deploy YOK. health ok.
+  ⚠️⚠️ **DB TRUNCATE EDILDI + `tools/tohum.js`** (+ `tohum_sosyal` artik IKI
+     TOPLULUK kuruyor: `Gebze Komsulari` A'nin listesinde, `Gebze Etkinlik`
+     A'nin kesfetinde — canli API ile dogrulandi).
   ✅ analyze **0/0** · test **86/86** · emulatorde ON ALTI madde gozle dogrulandi.
 
 - 💬 **TURU 180x — MESAJ SEKMESI YENIDEN KURULDU** (kullanici emri + Instagram
