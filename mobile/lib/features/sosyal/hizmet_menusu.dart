@@ -864,10 +864,15 @@ class _HizmetMenusuState extends ConsumerState<HizmetMenusu> {
     child: KategoriSlider(
       slaytlar: _bosSlaytlar,
       yuzey: kAiKartYuzey(context, alfa: kSlaytAlfa),
-      // TURU 177 - ilk slayt gorseli (kullanici emri). Kategori ekraniyla
-      //    AYNI sabit; iki yerde ayri yol yazilsaydi biri degisince oteki
-      //    geride kalirdi.
-      ilkGorsel: kSliderIlkGorsel,
+      // ⚠️⚠️ TURU 180q — **ANA SLIDER GORSELI KALDIRILDI** (kullanici
+      //	emri: *"ana sliderdeki resmi kaldir"*). Slaytlar yine
+      //	`_bosSlaytlar` — yer tutucu kutu duruyor, yalniz ilk slayttaki
+      //	fotograf cizilmiyor.
+      // ⚠️ `kSliderIlkGorsel` sabiti ve `assets/slider/slider1.jpg`
+      //	SILINMEDI: **kategori ekrani** (`isletme_listesi.dart`) onu
+      //	KULLANMAYA DEVAM EDIYOR. Varligi pubspec'ten cikarmak o ekrani
+      //	KIRIK GORSELE dusururdu.
+      // ⚠️ YAPMA: `ilkGorsel`i buraya geri koymadan varligi kaldirma.
     ),
   );
 
