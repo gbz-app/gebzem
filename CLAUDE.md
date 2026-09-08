@@ -41,7 +41,19 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
       kaybettiriyorsun"*. **Üçüncüsü olmayacak.**
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
-- **KALDIGIMIZ YER (8 Eyl 22:0x): TURU 180u+180v+180w — SOSYAL KATMAN
+- **KALDIGIMIZ YER (8 Eyl 22:43): TURU 180u+180v+180w YAYINLANDI — SADECE iOS.**
+  ios **34268786606** (**4bfd4b9**), R2 ipa=**29065565** (md5 a5ce8680),
+  index=7967 (4d908b53) surum.json=45 (88d615ce), purge OK, **CDN BIREBIR**
+  (ucu de), `MinimumOSVersion` + `MapsApiKey` + `NSLocationWhenInUse` VAR.
+  IPAda dizeler VAR: `Hizmet al` · `Ne hizmet almak istiyorsun?` ·
+  `Hizmet alanları` · `Sık görüştüklerin` · `Randevularım` · `Başvuranlar` ·
+  `Onayla` · `Repost` · ` yakında`. Kontrol dizesi `Yakınımda` VAR.
+  ⚠️ **ADRES:** https://indir.gebzem.app/index.html?v=20260908-2243
+  ⚠️ **BACKEND DEGISMEDI** (deploy YOK) — sunucu tarafi ZATEN calisiyordu;
+     bu turda degisen sey istemcinin ondan BESLENMESIYDI. health ok.
+  ⚠️⚠️ **DB TRUNCATE EDILDI + `tools/tohum.js` (+ yeni `tohum_sosyal.js`)**.
+
+- **(ONCEKI SATIR) TURU 180u+180v+180w — SOSYAL KATMAN
   GERCEK, BUILD ALINIYOR.**
   ⚠️⚠️ **`kDemoAkis = false`** (turu 180w): akis · hikaye seridi · sohbet
      listesi · bildirimler · ilan listesi · yorumlar artik **YALNIZ

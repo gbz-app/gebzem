@@ -10677,3 +10677,24 @@ cizilen ekranlarin State metotlari icin; (b) `_filtreSatiri`,
 birlestirilmis desenler ESLESMEDI ve betik "BULUNAMADI" dedi. Bu repoda
 satir sonlari KARISIK — metin degistiren her betik satir sonunu
 **DOSYADAN ALGILAMALI**.
+
+### ✅ Yayin (8 Eyl 22:43) — turu 180u + 180v + 180w
+ios **34268786606** (`4bfd4b9`), R2 ipa=**29065565** (md5 a5ce8680),
+index=7967 (4d908b53) surum.json=45 (88d615ce), purge OK, **CDN ucu de
+BIREBIR**, MinimumOSVersion + MapsApiKey + NSLocationWhenInUse VAR.
+IPAda VAR: `Hizmet al` · `Ne hizmet almak istiyorsun?` · `Hizmet alanları` ·
+`Sık görüştüklerin` · `Randevularım` · `Başvuranlar` · `Onayla` · `Repost`.
+Kontrol dizesi `Yakınımda` VAR.
+Adres: https://indir.gebzem.app/index.html?v=20260908-2243
+
+⚠️ **BACKEND DEGISMEDI** — sunucu tarafi ZATEN calisiyordu (404/404 e2e);
+   bu turda degisen sey istemcinin ondan BESLENMESIYDI (`kDemoAkis=false`).
+⚠️⚠️ DB TRUNCATE + `tools/tohum.js` (+ yeni `tohum_sosyal.js`).
+✅ analyze 0/0 · test 86/86 · emulatorde ON DORT ekran gozle dogrulandi.
+✅ Uygulamadan yazilan yorum sunucuya dustu ve **karsi tarafin
+   bildirimlerinde** goruldu (`yorum <- Ali Vural`).
+
+⏳ **DURUST SINIR:** "takip istegi" bildirimi artik MOCKUP DEGIL — gercek bir
+   istek ancak GIZLI HESABA gonderilince olusur. Onayla/Sil dugmeleri
+   yerinde ve calisiyor; tohumda gizli hesap YOK, o yuzden listede boyle bir
+   satir gorunmez.
