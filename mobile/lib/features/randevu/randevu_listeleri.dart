@@ -181,11 +181,16 @@ class _RandevuListesiEkraniState
                       physics: const AlwaysScrollableScrollPhysics(),
                       padding: const EdgeInsets.only(bottom: 30),
                       itemCount: _ajanda(l).length,
-                      itemBuilder: (_, i) {
+                      // UYARI `itemBuilder`in `c`si TEMALI (koyuSayfa nin
+                      //   ALTINDA); asagiya O gecirilir. State in kendi
+                      //   `context`i o Theme in USTUNDE kalir ve gun
+                      //   seridi BEYAZ, saat KOYU GRI cizilyordu
+                      //   (emulatorde olculdu — turu 135c/138/178).
+                      itemBuilder: (c, i) {
                         final o = _ajanda(l)[i];
                         return o.randevu == null
-                            ? _gunBasligi(o.gun!, o.adet)
-                            : _satir(o.randevu!);
+                            ? _gunBasligi(c, o.gun!, o.adet)
+                            : _satir(c, o.randevu!);
                       },
                     ),
                   ),
@@ -237,7 +242,7 @@ class _RandevuListesiEkraniState
 
   /// ⚠️ "Bugün"/"Yarın"/"Dün" GORELI etiketler: kullanici tarihi zihninde
   ///    cevirmek zorunda kalmasin. Gun adi da yazilir (takvim hissi).
-  Widget _gunBasligi(DateTime g, int adet) {
+  Widget _gunBasligi(BuildContext c, DateTime g, int adet) {
     final bugun = DateTime.now();
     final b0 = DateTime(bugun.year, bugun.month, bugun.day);
     final fark = g.difference(b0).inDays;
@@ -249,7 +254,7 @@ class _RandevuListesiEkraniState
     };
     final tarih =
         '${g.day} ${kAyAdlari[g.month - 1]} ${kGunUzun[g.weekday - 1]}';
-    final tema = Theme.of(context);
+    final tema = Theme.of(c);
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(14, 16, 14, 8),
@@ -297,7 +302,7 @@ class _RandevuListesiEkraniState
     );
   }
 
-  Widget _satir(Randevu r) {
+  Widget _satir(BuildContext c, Randevu r) {
     final bekliyor = r.durum == 'bekliyor';
     return Padding(
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
@@ -337,7 +342,7 @@ class _RandevuListesiEkraniState
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
                         color: Theme.of(
-                          context,
+                          c,
                         ).colorScheme.onSurface.withValues(alpha: 0.75),
                       ),
                     ),

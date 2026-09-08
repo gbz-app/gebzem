@@ -872,7 +872,7 @@ class _SihirbazState extends ConsumerState<TalepSihirbaziEkrani> {
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
                 children: _kategoriAdimda
-                    ? _kategoriGovde()
+                    ? _kategoriGovde(context)
                     : _sonAdim
                     ? _sonAdimGovde()
                     : _adimGovde(),
@@ -925,8 +925,12 @@ class _SihirbazState extends ConsumerState<TalepSihirbaziEkrani> {
   ///
   /// UYARI Kartlar bir FILTRE DEGIL EYLEM: dokunus hem secer hem bir
   ///    sonraki adima gecer.
-  List<Widget> _kategoriGovde() {
-    final scheme = Theme.of(context).colorScheme;
+  // UYARI TEMALI context DISARIDAN: bu bir State metodu ve ciplak
+  //   `context` `koyuSayfa`nin Theme inin USTUNDE kalir; alt yazi ACIK
+  //   temanin (siyaha yakin) onSurface u ile cizilip siyah zeminde
+  //   GORUNMUYORDU (emulatorde olculdu — turu 135c/138/178).
+  List<Widget> _kategoriGovde(BuildContext c) {
+    final scheme = Theme.of(c).colorScheme;
     return [
       const Text(
         'Ne hizmet almak istiyorsun?',

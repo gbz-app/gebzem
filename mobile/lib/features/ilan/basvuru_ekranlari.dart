@@ -605,7 +605,9 @@ class _BasvurularimState extends ConsumerState<BasvurularimEkrani> {
   ///    ikinci bir esleme yazmak "ayni kuralin iki kopyasi" olurdu ve
   ///    rozetlerle serit KACINILMAZ olarak ayrisirdi.
   /// ⚠️ SIRA SABIT: her acilista kovalarin yeri degismesin.
-  Widget _ozetSeridi(List<Basvuru> l) {
+  // UYARI TEMALI context DISARIDAN (turu 135c/138/178): State metodunun
+  //   ciplak context i koyuSayfa nin Theme inin USTUNDE kalir.
+  Widget _ozetSeridi(BuildContext c, List<Basvuru> l) {
     final sayim = <String, int>{};
     final etiket = <String, String>{};
     for (final b in l) {
@@ -658,7 +660,7 @@ class _BasvurularimState extends ConsumerState<BasvurularimEkrani> {
                 style: TextStyle(
                   fontSize: 12.5,
                   fontWeight: FontWeight.w700,
-                  color: Theme.of(context).colorScheme.onSurface,
+                  color: Theme.of(c).colorScheme.onSurface,
                 ),
               ),
             ),
@@ -733,7 +735,7 @@ class _BasvurularimState extends ConsumerState<BasvurularimEkrani> {
                         separatorBuilder: (_, i) =>
                             i == 0 ? const SizedBox.shrink() : const Divider(height: 1),
                         itemBuilder: (c, idx) {
-                          if (idx == 0) return _ozetSeridi(l);
+                          if (idx == 0) return _ozetSeridi(context, l);
                           final b = l[idx - 1];
                           return ListTile(
                             // ⚠️⚠️ TURU 113 (denetim) — **ILANA DONUS YOLU.**

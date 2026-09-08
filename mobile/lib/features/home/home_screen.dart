@@ -193,10 +193,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       //	IKI KEZ bildirilen hata).
       // ⚠️ TURU 180t — Mesaj ve Canli sekmeleri de siyah: ikisi de artik
       //	akisla ayni dilde (yemek header'i + koyu zemin).
+      // UYARI TURU 180w — **PROFIL de siyah**: profil sayfasi koyuSayfa
+      //   kullaniyor ama DIS Scaffold acik gri kaliyordu ve alt menunun
+      //   yuvarlak ust koselerinden BEYAZ CENTIK goruluyordu (emulatorde
+      //   olculdu — turu 98n/180r ile AYNI hata, ucuncu tekrar).
       backgroundColor:
           (_index == _reels ||
               _index == _akis ||
               _index == _mesaj ||
+              _index == _profil ||
               _index == _canli)
           ? (_index == _reels ? Colors.black : kAiZemin)
           : null,
