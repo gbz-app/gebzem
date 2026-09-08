@@ -1500,11 +1500,18 @@ class _HizmetMenusuState extends ConsumerState<HizmetMenusu> {
           //	kirpiliyordu ("Gül Eczane…"). Emulator 411 dp oldugu icin
           //	ORADA GORUNMUYORDU — turu 70b/98c dersinin tekrari.
           //	2.05 kur kartlariyla da AYNI bolen (iki serit alt alta).
+          // ⚠️⚠️ TURU 180p — bolen **2.05 -> 1.8** (kart GENISLEDI).
+          //	Sol ikon alani (34 + 9 = 43 dp) metinden yer aldi ve
+          //	emulatorde OLCULDU: "Gül Ecza…" / "Şen Mark…" diye
+          //	KIRPILIYORDU (turu 134'te ayni sinif dort adi birden
+          //	kirpmisti). 1.8 ile 360 dp ekranda metne ~104 dp kaliyor.
+          // ⚠️ Serit YATAY KAYDIRILIR: kart genislemesi ogeleri gizlemez,
+          //	yalniz ekranda 2 yerine ~1,9 kart gorunur.
           width:
               (MediaQuery.sizeOf(context).width -
                   kYanBosluk * 2 -
                   kIzgaraAralik * 2) /
-              2.05,
+              1.8,
           padding: const EdgeInsets.fromLTRB(11, 10, 11, 10),
           decoration: BoxDecoration(
             // ⚠️ TURU 129 — yuzey artik GebzemAI`daki kendi mesaj
@@ -1514,11 +1521,34 @@ class _HizmetMenusuState extends ConsumerState<HizmetMenusu> {
           ),
           child: Row(
             children: [
-              // ⚠️⚠️ TURU 142 — **IKON KALDIRILDI** (kullanici emri:
-              //	*"yakinimdaki ikonlari kaldir"*). Kart artik yalniz AD +
-              //	MESAFE tasiyor; `b.ikon` kaynak modelde DURUYOR (sehir
-              //	rehberi seridi ve baska cagri yerleri onu kullanabilir).
-
+              // ⚠️⚠️⚠️ TURU 180p — **SOLDA GORSEL/IKON KART ALANI GERI**
+              //	(kullanici emri: *"yakinimdaki alttaki kartlarin solda
+              //	icon resim kart alani yer yap"*).
+              //
+              // Turu 142'de ikon KALDIRILMISTI (o gunku emir oydu); simdi
+              // kullanici yerine **kart alani** istedi: raduslu kare, kartin
+              // kendi yuzeyinden BIR TON acik, icinde bolumun ikonu.
+              // ⚠️ Olcu **34 dp** ve bosluk **9 dp**: kart genisligi
+              //	`ekran/2.05` (turu 134) ve 360 dp'de ic alan ~143 dp —
+              //	daha buyuk bir kutu "Gül Eczanesi" adini kirpardi
+              //	(turu 134'te DORT ad birden kirpilmisti).
+              // ⚠️ Alan **DAIMA** cizilir; kosullu olsaydi ikonu olmayan
+              //	bolumde kart daralir ve serit ZIPLARDI.
+              Container(
+                width: 34,
+                height: 34,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(kYaricap(34)),
+                ),
+                // ⚠️ `b.ikon` **NULLABLE**: ikonsuz bir bolumde kutu BOS
+                //    kalir ama YERINI KORUR (serit ziplamasin).
+                child: b.ikon == null
+                    ? const SizedBox.shrink()
+                    : KalinIkon(ikon: b.ikon!, boy: 17, renk: Colors.white),
+              ),
+              const SizedBox(width: 9),
               // ⚠️ `Expanded` ZORUNLU: "Akaryakıt" gibi uzun bir ad sabit
               //    genislikte TASARDI.
               Expanded(
