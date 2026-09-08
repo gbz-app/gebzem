@@ -20,7 +20,9 @@ import '../kanal/kanal_servisi.dart'
     show Kanal, kanalDegisimi, kanalServisiProvider;
 import '../kanal/kanallar_sekmesi.dart' show KanallarSayfasi;
 import 'grup_olustur.dart';
+import 'yeni_mesaj_ekrani.dart';
 import '../sosyal/demo_veri.dart' show kDemoAkis;
+import '../sosyal/sosyal_servisi.dart' show sosyalServisiProvider;
 import 'models.dart';
 
 /// WhatsApp tarzi sohbet listesi. "Gebzem" basliginin altinda ARAMA INPUT'u (yerel filtre);
@@ -35,25 +37,46 @@ class ChatsScreen extends ConsumerStatefulWidget {
 /// Sohbet listesi filtresi.
 /// ⚠️ Arsiv AYRI bir gorunumdur: digerlerinde arsivlenmisler GIZLIDIR.
 ///
-/// ⚠️⚠️ TURU 180x — KULLANICI EMRI: *"burada Tümü Grup Arşiv Aramalar olsun,
-///	butonlara gerek yok"*. Iki degisiklik birden:
-///	  · **`okunmamis` CIKTI** — kullanicinin saydigi dort ogede yok.
-///	    Bilgi KAYBOLMADI: okunmamis rozeti her satirda ZATEN ciziliyor.
-///	  · **`aramalar` GIRDI** — eskiden `_MesajSekmesi` basliginda AYRI bir
-///	    "Sohbet | Aramalar" metin secicisi vardi; kullanici onu ("butonlar")
-///	    kaldirmamizi istedi. Secim artik AYNI serit uzerinde.
-/// ⚠️ `aramalar` bir SOHBET SUZGECI DEGIL, GOVDE DEGISTIRIR (`CallsTab`).
-///	Bu yuzden asagidaki `switch`lerde ayri ele alinir; sohbet listesinde
-///	"arama" diye bir kayit YOKTUR.
-enum _Filtre { tumu, gruplar, arsiv, aramalar }
+/// ⚠️⚠️⚠️ TURU 180y — KULLANICI DUZELTMESI: *"buton seklinde yapma dedim,
+///	yukaridaki YAZI gibi: **Hepsi Grup Arşivler Topluluk Arama** olacak,
+///	YAZI olarak, buton olarak degil"*.
+///	  · `ChoiceChip` (hap/buton) KALKTI -> akis ekranindaki
+///	    "Arkadaş · Keşfet · Mahalle" secicisiyle AYNI dil: duz metin,
+///	    secili tam opak, digerleri soluk.
+///	  · **`topluluk` GIRDI** (bes oge oldu): topluluklari TEK BASINA
+///	    gosteren gorunum.
+///	  · Etiketler kullanicinin yazdigi gibi: Tümü->**Hepsi**,
+///	    Arşiv->**Arşivler**, Aramalar->**Arama**.
+/// ⚠️ `arama` ve `topluluk` birer SOHBET SUZGECI DEGIL, GOVDEYI DEGISTIRIR
+///	(`CallsTab` / topluluk listesi). Bu yuzden `switch`lerde ayri ele
+///	alinir; sohbet listesinde "arama" diye bir kayit YOKTUR.
+/// ⚠️⚠️ TURU 180y — **`istekler` EKLENDI** (kullanici emri: *"orada istekler
+///	de olsun, onu da yap"*).
+///
+/// ⚠️⚠️ **SUNUCUDA "MESAJ ISTEGI" DIYE BIR SEY YOK** — `chats` tablosunda
+///	istek/kabul bayragi bulunmuyor. Olcut MEVCUT veriden turetiliyor:
+///	**takip ETMEDIGIN kisilerden gelen birebir sohbetler** (Instagram'in
+///	"İstekler" tanimiyla ayni yerde duruyor) ve takip listesi zaten var
+///	olan `GET /users/{id}/following` ucundan geliyor.
+/// ⚠️ Takip listesi ALINAMAZSA istek kumesi BOS kalir — sohbetler "Hepsi"de
+///	zaten gorunur, yani hicbir kayit KAYBOLMAZ.
+/// ⚠️⚠️ "Hepsi" istekleri GIZLEMEZ (Instagram gizler): burada gizleseydik
+///	takip etmedigin isletmelerle olan sohbetler ana listeden DUSER ve
+///	kullanici "sohbetlerim kayboldu" derdi. `Arşivler` gizler — cunku onu
+///	kullanici KENDISI arsivlemistir.
+enum _Filtre { hepsi, istekler, gruplar, arsiv, topluluk, arama }
 
 class _ChatsScreenState extends ConsumerState<ChatsScreen> {
   final _aramaCtrl = TextEditingController();
   String _arama = '';
-  _Filtre _filtre = _Filtre.tumu;
+  _Filtre _filtre = _Filtre.hepsi;
 
   /// Abone olunan topluluklar (turu 180x — sohbet listesine karisir).
   List<Kanal> _kanallar = const [];
+
+  /// Takip ettiklerimin kimlikleri (turu 180y — "İstekler" olcutu).
+  /// ⚠️ BOS kalirsa istek kumesi de bos olur; hicbir sohbet KAYBOLMAZ.
+  Set<String> _takipEttiklerim = const {};
 
   @override
   void initState() {
@@ -62,6 +85,7 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
     //    guvenli (Riverpod'un yasakladigi sey `ref.watch`); istek zaten
     //    asenkron ve sonucu `setState` ile yaziyoruz.
     _topluluklariYukle();
+    _takipleriYukle();
     // ⚠️⚠️ TURU 180x — ABONELIK DEGISIMINDE TAZELE (emulatorde olculdu:
     //	topluluk kurulup geri donulunce listede HICBIR SEY gorunmuyordu —
     //	bu ekran sokulmadigi icin `initState` bir daha kosmuyor).
@@ -75,21 +99,134 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
     super.dispose();
   }
 
-  /// Cip etiketi. Arsiv icin SAYI da gosterilir — kullanici filtreye
-  /// dokunmadan kac tane oldugunu gorsun.
-  String _filtreAdi(_Filtre f, List<Chat>? liste) {
-    final l = liste ?? const <Chat>[];
-    switch (f) {
-      case _Filtre.tumu:
-        return 'Tümü';
-      case _Filtre.gruplar:
-        return 'Grup';
-      case _Filtre.arsiv:
-        final n = l.where((c) => c.archived).length;
-        return n > 0 ? 'Arşiv ($n)' : 'Arşiv';
-      case _Filtre.aramalar:
-        return 'Aramalar';
+  /// Secici etiketi.
+  ///
+  /// ⚠️ TURU 180y — **SAYI EKLENMEZ** (eskiden "Arşiv (2)" yaziyordu):
+  ///	metin secicide etiketin genisligi degisirse serit her yeni arsiv
+  ///	kaydinda KAYAR. Ayni gerekceyle kalinlik da SABIT (bkz. `_secici`).
+  String _filtreAdi(_Filtre f) => switch (f) {
+    _Filtre.hepsi => 'Hepsi',
+    _Filtre.istekler => 'İstekler',
+    _Filtre.gruplar => 'Grup',
+    _Filtre.arsiv => 'Arşivler',
+    _Filtre.topluluk => 'Topluluk',
+    _Filtre.arama => 'Arama',
+  };
+
+  /// ⚠️⚠️ TURU 180y — **DUZ METIN SECICI** (kullanici emri: *"buton seklinde
+  ///	yapma, yukaridaki yazi gibi olsun"*). Akis ekranindaki
+  ///	"Arkadaş · Keşfet · Mahalle" secicisiyle BIREBIR ayni dil.
+  ///
+  /// ⚠️ Kalinlik **SABIT w700**: secimle degisseydi metnin genisligi degisir
+  ///	ve serit her dokunusta KAYARDI (turu 140'ta olculdu). Ayrim YALNIZ
+  ///	opaklikta.
+  /// ⚠️⚠️ **YATAY KAYDIRILABILIR**: bes oge 360 dp ekranda (ozellikle yazi
+  ///	olcegi buyutulmusse) TASAR. `ChoiceChip`in kendi `ListView`i vardi,
+  ///	duz metne gecerken o koruma kaybolmasin.
+  Widget _secici(BuildContext c) {
+    final ks = Theme.of(c).colorScheme;
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.fromLTRB(16, 2, 16, 8),
+      child: Row(
+        children: [
+          for (var i = 0; i < _Filtre.values.length; i++) ...[
+            if (i > 0) const SizedBox(width: 16),
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => setState(() => _filtre = _Filtre.values[i]),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 5),
+                child: Text(
+                  _filtreAdi(_Filtre.values[i]),
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: ks.onSurface.withValues(
+                      alpha: _filtre == _Filtre.values[i] ? 1 : 0.38,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// ⚠️⚠️ TURU 180y — **BOS DURUM DAIRESI** (kullanici emri: *"eger sohbet
+  ///	yoksa orada daire icine + koy, tikladiginda sag ustteki + gorevini
+  ///	gorsun"*).
+  ///
+  /// ⚠️ Sag ustteki "+" ile **AYNI EKRANI** acar (`YeniMesajEkrani`) — ayri
+  ///	bir akis yazilsaydi iki giris kacinilmaz olarak ayrisirdi.
+  Widget _bosDurum(BuildContext c, String metin) {
+    final ks = Theme.of(c).colorScheme;
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          GestureDetector(
+            onTap: () => Navigator.of(c).push(
+              MaterialPageRoute(builder: (_) => const YeniMesajEkrani()),
+            ),
+            child: Container(
+              width: 72,
+              height: 72,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: ks.primary.withValues(alpha: 0.16),
+                border: Border.all(
+                  color: ks.primary.withValues(alpha: 0.45),
+                  width: 1.5,
+                ),
+              ),
+              child: Icon(LucideIcons.plus, size: 32, color: ks.primary),
+            ),
+          ),
+          const SizedBox(height: 14),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 32),
+            child: Text(
+              metin,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: ks.onSurface.withValues(alpha: 0.6),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// "Topluluk" gorunumu — YALNIZ topluluklar.
+  Widget _toplulukGorunumu(BuildContext c) {
+    final liste = _arama.isEmpty
+        ? _kanallar
+        : _kanallar
+              .where(
+                (k) =>
+                    k.ad.toLowerCase().contains(_arama) ||
+                    k.kullaniciAdi.toLowerCase().contains(_arama),
+              )
+              .toList();
+    if (liste.isEmpty) {
+      return _bosDurum(
+        c,
+        _arama.isNotEmpty
+            ? 'Eşleşen topluluk yok'
+            : 'Henüz topluluğun yok.\nYeni topluluk oluştur ya da keşfet.',
+      );
     }
+    return YenileSarmali(
+      onRefresh: _topluluklariYukle,
+      child: ListView(
+        padding: const EdgeInsets.only(bottom: 24),
+        children: [for (final k in liste) _ToplulukTile(kanal: k)],
+      ),
+    );
   }
 
   /// ⚠️⚠️ TURU 180x — TOPLULUKLAR SOHBET LISTESINDE (kullanici emri:
@@ -111,6 +248,35 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
       // sessiz: sohbet listesi cizilmeye DEVAM etmeli
     }
   }
+
+  /// ⚠️ TURU 180y — "İstekler" olcutu icin takip listesi (mevcut uc).
+  /// ⚠️ Hata YUTULUR: patlarsa istek kumesi bos kalir, sohbetler "Hepsi"de
+  ///	zaten gorunuyor — hicbir sey kaybolmaz.
+  Future<void> _takipleriYukle() async {
+    try {
+      final benim = await ref.read(myUserIdProvider.future);
+      if (benim == null || benim.isEmpty) return;
+      final l = await ref
+          .read(sosyalServisiProvider)
+          .takipListesi(benim, 'following');
+      if (!mounted) return;
+      setState(() {
+        _takipEttiklerim = l
+            .map((e) => (e['id'] ?? '').toString())
+            .where((s) => s.isNotEmpty)
+            .toSet();
+      });
+    } catch (_) {
+      // sessiz
+    }
+  }
+
+  /// ⚠️ TURU 180y — "İstekler": takip ETMEDIGIM kisilerden gelen 1:1 sohbetler.
+  bool _istekMi(Chat c) =>
+      c.type == 'direct' &&
+      !c.archived &&
+      (c.peerId ?? '').isNotEmpty &&
+      !_takipEttiklerim.contains(c.peerId);
 
   @override
   Widget build(BuildContext context) {
@@ -134,11 +300,13 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
               onChanged: (v) => setState(() => _arama = v.trim().toLowerCase()),
               decoration: InputDecoration(
                 isDense: true,
-                // ⚠️ Ipucu SECILI CIPE gore: "Aramalar" acikken "Sohbet ara"
+                // ⚠️ Ipucu SECILI GORUNUME gore: "Arama" acikken "Sohbet ara"
                 //    yazmak, kutunun o listeyi suzmedigi izlenimi verirdi.
-                hintText: _filtre == _Filtre.aramalar
-                    ? 'Arama geçmişinde ara'
-                    : 'Sohbet ara',
+                hintText: switch (_filtre) {
+                  _Filtre.arama => 'Arama geçmişinde ara',
+                  _Filtre.topluluk => 'Topluluk ara',
+                  _ => 'Sohbet ara',
+                },
                 prefixIcon: const Icon(LucideIcons.search, size: 20),
                 suffixIcon: _arama.isEmpty
                     ? null
@@ -169,35 +337,21 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
               ),
             ),
           ),
-          // FILTRE CIPLERI — arama kutusunun ALTINDA (WhatsApp deseni).
-          SizedBox(
-            height: 38,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              children: [
-                for (final f in _Filtre.values)
-                  Padding(
-                    padding: const EdgeInsets.only(right: 6),
-                    child: ChoiceChip(
-                      label: Text(_filtreAdi(f, chats.valueOrNull)),
-                      selected: _filtre == f,
-                      onSelected: (_) => setState(() => _filtre = f),
-                      visualDensity: VisualDensity.compact,
-                      labelStyle: const TextStyle(fontSize: 12),
-                    ),
-                  ),
-              ],
-            ),
-          ),
+          // DUZ METIN SECICI — arama kutusunun ALTINDA (kullanici emri).
+          _secici(context),
           // ⚠️⚠️ TURU 180x — "Aramalar" CIPI GOVDEYI DEGISTIRIR.
           //	Sohbet listesinde "arama" diye bir kayit YOK; bu yuzden
           //	`chats.when(...)` dalina HIC girilmez (girseydi "Eşleşen
           //	sohbet yok" yazip arama gecmisini gizlerdi).
           // ⚠️ Arama kutusu YUKARIDA KALIR ve sorgu `CallsTab`e GECER —
           //	gorunur ama hicbir sey yapmayan bir kutu birakilamaz.
-          if (_filtre == _Filtre.aramalar)
+          if (_filtre == _Filtre.arama)
             Expanded(child: CallsTab(arama: _arama))
+          // ⚠️ TURU 180y — "Topluluk" gorunumu de sohbet listesine BAKMAZ:
+          //	topluluklar `channels`te yasiyor, `chats.when(...)` dalina
+          //	girmek "Eşleşen sohbet yok" yazdirirdi.
+          else if (_filtre == _Filtre.topluluk)
+            Expanded(child: _toplulukGorunumu(context))
           else
             Expanded(
               child: chats.when(
@@ -248,6 +402,7 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
                 // ⚠️ Arsiv AYRI bir filtre: digerlerinde arsivlenmisler GIZLI kalir,
                 //    yoksa "arsivle" hicbir ise yaramaz.
                 var visible = switch (_filtre) {
+                  _Filtre.istekler => list.where(_istekMi).toList(),
                   _Filtre.gruplar =>
                     list
                         .where((c) => !c.archived && c.type == 'group')
@@ -264,7 +419,7 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
                 // ⚠️ YALNIZ "Tümü"de: `Grup` cipi `chats.type=='group'` demek
                 //	(topluluk GRUP DEGIL, `channels`), `Arşiv` ise sohbet
                 //	bazli bir bayrak — topluluklarda karsiligi YOK.
-                final toplulukGoster = _filtre == _Filtre.tumu;
+                final toplulukGoster = _filtre == _Filtre.hepsi;
                 final kanallar = !toplulukGoster
                     ? const <Kanal>[]
                     : (_arama.isEmpty
@@ -282,7 +437,7 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
                 // en son gorusulen 1:1 kisiler yatay profil seridi (WhatsApp/Telegram deseni).
                 // ⚠️ Serit YALNIZ "Tümü" filtresinde: okunmamis/gruplar/arsiv
                 //    goruntusunde tum kisileri gostermek FILTREYI ANLAMSIZ kilar.
-                final sik = (_arama.isEmpty && _filtre == _Filtre.tumu)
+                final sik = (_arama.isEmpty && _filtre == _Filtre.hepsi)
                     ? (list
                           .where((c) => c.type == 'direct' && !c.archived)
                           .toList()
@@ -293,19 +448,21 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
                         ))
                     : const <Chat>[];
                 if (visible.isEmpty && sik.isEmpty && kanallar.isEmpty) {
-                  return Center(
-                    child: Text(
-                      _arama.isNotEmpty
-                          ? 'Eşleşen sohbet yok'
-                          : switch (_filtre) {
-                              _Filtre.gruplar =>
-                                'Henüz grubun yok.\nSağ üstteki + ile grup oluştur!',
-                              _Filtre.arsiv => 'Arşivde sohbet yok',
-                              _ =>
-                                'Henüz sohbet yok.\nSağ üstteki + ile yeni sohbet başlat!',
-                            },
-                      textAlign: TextAlign.center,
-                    ),
+                  // ⚠️ TURU 180y — bos durumda DAIRE ICINDE "+" (kullanici
+                  //	emri); sag ustteki "+" ile AYNI ekrani acar.
+                  return _bosDurum(
+                    context,
+                    _arama.isNotEmpty
+                        ? 'Eşleşen sohbet yok'
+                        : switch (_filtre) {
+                            _Filtre.istekler =>
+                              'Mesaj isteğin yok.\nTakip etmediğin kişilerden gelen\nsohbetler burada görünür.',
+                            _Filtre.gruplar =>
+                              'Henüz grubun yok.\nYeni grup oluştur.',
+                            _Filtre.arsiv => 'Arşivde sohbet yok',
+                            _ =>
+                              'Henüz sohbet yok.\nYeni bir sohbet başlat.',
+                          },
                   );
                 }
                 return YenileSarmali(

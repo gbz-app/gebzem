@@ -28,6 +28,50 @@ class Tercihler {
   static const _kOnboarding = 'onboarding_goruldu';
   static const _kHarita = 'harita_stili';
   static const _kSonAramalar = 'son_aramalar';
+  static const _kYildizli = 'yildizli_mesajlar';
+  static const _kTekAcilan = 'tek_kullanimlik_acilan';
+
+  /// ⚠️ TURU 180y — acilmis "tek kullanimlik" fotograflar (media id).
+  ///	Sunucuda karsiligi YOK; isaret CIHAZDA (bkz. `_TekKullanimlikBalon`).
+  bool tekKullanimlikAcildiMi(String mediaId) =>
+      (_p?.getStringList(_kTekAcilan) ?? const []).contains(mediaId);
+
+  Future<void> tekKullanimlikAc(String mediaId) async {
+    final l = _p?.getStringList(_kTekAcilan) ?? const <String>[];
+    if (l.contains(mediaId)) return;
+    await _p?.setStringList(_kTekAcilan, [mediaId, ...l].take(500).toList());
+  }
+
+  /// ⚠️⚠️⚠️ TURU 180y — **YILDIZLI MESAJLAR** (kullanici emri: *"mesaj
+  ///	detaylarinda yildiz vs"*).
+  ///
+  /// ⚠️⚠️ **SUNUCUDA KARSILIGI YOK.** `messages` tablosunda yildiz/favori
+  ///	sutunu YOK ve bu bir ARAYUZ TURU (backend'e dokunulmuyor). Bu yuzden
+  ///	yildiz **CIHAZDA** tutuluyor: kullanici kendi telefonunda isaretini
+  ///	gorur, uygulama kapanip acilsa bile durur.
+  /// ⚠️ DURUST SINIR: yildiz **CIHAZA OZELDIR** — baska cihazda ya da
+  ///	uygulama silinip kurulunca GORUNMEZ, karsi taraf HIC gormez.
+  ///	⏳ Kalici cozum: `messages`a `starred_by UUID[]` (ya da ayri tablo)
+  ///	   + iki uc. AYRI (backend) TUR.
+  /// ⚠️ Anahtar `chatId:mesajId` — mesaj kimlikleri sohbet basina artan
+  ///	tamsayilar; yalniz id saklamak FARKLI sohbetlerdeki ayni numarali
+  ///	mesajlari birbirine karistirirdi.
+  List<String> get yildizliMesajlar =>
+      _p?.getStringList(_kYildizli) ?? const [];
+
+  bool yildizliMi(String chatId, int mesajId) =>
+      yildizliMesajlar.contains('$chatId:$mesajId');
+
+  /// Yildizi ters cevirir ve YENI durumu doner.
+  Future<bool> yildizCevir(String chatId, int mesajId) async {
+    final anahtar = '$chatId:$mesajId';
+    final l = [...yildizliMesajlar];
+    final vardi = l.remove(anahtar);
+    if (!vardi) l.insert(0, anahtar);
+    // ⚠️ Tavan 500: liste sinirsiz buyurse tercih dosyasi sisirdi.
+    await _p?.setStringList(_kYildizli, l.take(500).toList());
+    return !vardi;
+  }
 
   /// TURU 175 — **SON ARAMALAR** (kullanici emri: *"aramada en son
   /// arananlar ... olacak"*).

@@ -24,6 +24,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const { kapakUret } = require('./kapak_uret');
+const { sohbetTohum } = require('./sohbet_tohum');
 
 /// Tek bir gorseli presign -> PUT -> commit zincirinden gecirir ve
 /// `media_id` doner.
@@ -151,7 +152,7 @@ const YORUMLAR = [
 /// ⚠️ SIRA ONEMLI: once TAKIP, sonra gonderi. Ters olsaydi akis sorgusu
 ///    (takip ettiklerini gosterir) bos donerdi ve "gonderi paylastim,
 ///    akiste yok" izlenimi olusurdu.
-async function sosyalTohum(j, kullanicilar, isletmeler) {
+async function sosyalTohum(j, kullanicilar, isletmeler, etkinlikler) {
   if (!kullanicilar || kullanicilar.length < 2) {
     throw new Error('sosyal tohum EN AZ iki kullanici ister');
   }
@@ -281,53 +282,30 @@ async function sosyalTohum(j, kullanicilar, isletmeler) {
     //    geri kalani BOZULMAMALI.
   }
 
-  // ── 5) SOHBET + MESAJLAR
+  // ── 5) ZENGIN SOHBETLER (turu 180y — kullanici emri)
   //
   // ⚠️ Mesaj bildirimi PUSH ile gider (`bildirimler` tablosuna YAZILMAZ —
   //    WhatsApp/Instagram da DM'leri bildirim sekmesine koymaz). Buradaki
   //    amac SOHBET LISTESININ dolu olmasi ve okunmamis rozetinin GERCEK
   //    bir sayidan gelmesi.
-  const sohbet = await j('/chats/direct', {
-    yontem: 'POST',
-    token: A.token,
-    govde: { user_id: B.id },
-  });
-  if (sohbet.kod === 200 && sohbet.d && sohbet.d.chat_id) {
-    const cid = sohbet.d.chat_id;
-    const mesajlar = [
-      [A, 'Selam! Yarin sahilde yuruyuse var misin?'],
-      [B, 'Varim, saat 19:00 uygun mu?'],
-      [A, 'Uygun. Cay ocaginin oradan baslayalim.'],
-      [B, 'Anlastik, gorusuruz.'],
-    ];
-    for (const [h, metin] of mesajlar) {
-      const m = await j(`/chats/${cid}/messages`, {
-        yontem: 'POST',
-        token: h.token,
-        govde: { type: 'text', content: metin },
-      });
-      if (m.kod === 201 || m.kod === 200) ozet.mesaj++;
-    }
-    // ⚠️ A okur, B OKUMAZ: B'nin listesinde GERCEK bir okunmamis rozeti
-    //    kalsin (rozet mantigi ancak boyle gorulebilir).
-    await j(`/chats/${cid}/read`, { yontem: 'POST', token: A.token });
-  }
-
-  if (C) {
-    const s2 = await j('/chats/direct', {
-      yontem: 'POST',
-      token: B.token,
-      govde: { user_id: C.id },
-    });
-    if (s2.kod === 200 && s2.d && s2.d.chat_id) {
-      const m = await j(`/chats/${s2.d.chat_id}/messages`, {
-        yontem: 'POST',
-        token: B.token,
-        govde: { type: 'text', content: 'Merhaba, bugun acik misiniz?' },
-      });
-      if (m.kod === 201 || m.kod === 200) ozet.mesaj++;
-    }
-  }
+  //
+  // ⚠️⚠️ Alti sohbet + her mesaj tipi + arsiv `tools/sohbet_tohum.js`te;
+  //    burada TEKRARLANMAZ (tek kaynak).
+  const sohbetMedya = {
+    foto1: await gorselYukle(j, B.token, 71).catch(() => null),
+    foto2: await gorselYukle(j, B.token, 72).catch(() => null),
+    foto3: C ? await gorselYukle(j, C.token, 73).catch(() => null) : null,
+    video: await videoYukle(j, A.token, 'feedmc/33.mp4').catch(() => null),
+    // ⚠️ Medya GONDERENE ait olmali (sunucu 403 "geçersiz medya" doner);
+    //    her gonderen icin AYRI yukleme.
+    videoIcin: (h) =>
+      videoYukle(j, h.token, 'feedmc/33.mp4').catch(() => null),
+    etkinlik: (etkinlikler || [])[0] || null,
+  };
+  const sh = await sohbetTohum(j, A, B, isletmeler || [], sohbetMedya);
+  ozet.mesaj += sh.mesaj;
+  ozet.sohbet = sh.sohbet;
+  ozet.arsiv = sh.arsiv;
 
   // ── 7) TOPLULUKLAR (turu 180x)
   //
@@ -345,8 +323,16 @@ async function sosyalTohum(j, kullanicilar, isletmeler) {
       kullanici_adi: 'gebzekomsulari',
       aciklama: 'Mahalle duyurulari, kayip esya, komsu yardimlasmasi.',
     }, [
+      // ⚠️ TURU 180y — kullanici emri: *"toplulukta bir cok mesaj atilmis
+      //    gibi"*. Tek gonderili bir topluluk "calismiyor" gibi gorunuyordu.
+      'Merhaba komsular! Bu topluluk mahalle duyurulari icin.',
       'Cumartesi 10:00da parkta temizlik etkinligi var, bekleriz.',
-      'Sokak lambasi arizasi belediyeye bildirildi.',
+      'Sokak lambasi arizasi belediyeye bildirildi, bu hafta onarilacak.',
+      'Pazar kurulumu bu hafta 07:00-16:00 arasinda.',
+      'Kayip kedi: turuncu tekir, Osman Yilmaz mahallesi civari.',
+      'Su kesintisi 14:00-17:00 arasi olacak, deponuzu doldurun.',
+      'Apartman gorevlisi ilani veren komsumuz ulasabilir.',
+      'Bu ayki mahalle toplantisi carsamba 20:00, muhtarlikta.',
     ]],
     [B, {
       ad: 'Gebze Etkinlik',
@@ -354,6 +340,9 @@ async function sosyalTohum(j, kullanicilar, isletmeler) {
       aciklama: 'Sehirdeki konser, tiyatro ve festival duyurulari.',
     }, [
       'Bu hafta sonu sahilde acik hava sinemasi var.',
+      'Cuma aksami kultur merkezinde tiyatro: bilet 100 TL.',
+      'Kitap gunleri basliyor, yazar soylesileri programda.',
+      'Akustik konser icin son biletler kaldi.',
     ]],
   ];
   ozet.topluluk = 0;

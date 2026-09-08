@@ -477,10 +477,14 @@ async function main() {
       kategori: 'konser', baslangic: yarinISO, konum: 'Eskihisar Sahil',
       il: 'Kocaeli', ilce: 'Gebze', ucretsiz: false, fiyat_kurus: 25000, kontenjan: 150 },
   ];
+  // ⚠️ TURU 180y — id'ler TOPLANIR: sohbet tohumu bir etkinligi mesaj olarak
+  //    paylasiyor (`type:'etkinlik'`, icerik "id|Baslik").
+  const etkinlikIdleri = [];
   for (let i = 0; i < etkinlikler.length; i++) {
     const sahip = kullanicilar[i % kullanicilar.length];
     const r = await j('/etkinlikler', { yontem: 'POST', token: sahip.token, govde: etkinlikler[i] });
     if (r.kod >= 300) throw new Error(`etkinlik: ${r.kod} ${JSON.stringify(r.d)}`);
+    if (r.d && r.d.id) etkinlikIdleri.push({ id: r.d.id, baslik: etkinlikler[i].baslik });
     console.log('  etkinlik OK:', etkinlikler[i].baslik);
   }
 
@@ -632,10 +636,12 @@ async function main() {
   //
   // UYARI Bu blok SESSIZ DEGIL: sosyal katman bu turun ASIL isi ve
   //    patlarsa kullanici bos bir akis gorur. Hata yukari firlar.
-  const sos = await sosyalTohum(j, kullanicilar, isletmeler);
+  const sos = await sosyalTohum(j, kullanicilar, isletmeler, etkinlikIdleri);
   console.log('  sosyal OK: ' + sos.gonderi + ' gonderi · ' + sos.yorum +
     ' yorum · ' + sos.begeni + ' begeni · ' + sos.hikaye + ' hikaye · ' + sos.reels + ' reels · ' +
-    sos.mesaj + ' mesaj');
+    sos.mesaj + ' mesaj · ' + (sos.sohbet || 0) + ' sohbet · ' +
+    (sos.arsiv || 0) + ' arsiv · ' + (sos.topluluk || 0) + ' topluluk (' +
+    (sos.toplulukGonderi || 0) + ' gonderi)');
 
   // ---- KULLANICIYA VERILECEK TABLO
   const g = (s, n) => String(s).padEnd(n);

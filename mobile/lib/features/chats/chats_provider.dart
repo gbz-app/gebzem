@@ -126,6 +126,14 @@ class MessagesNotifier extends StateNotifier<AsyncValue<List<Message>>> {
   ///     balon "Bu mesaj silindi" cizer (`_Bubble` bunu ZATEN destekliyor).
   /// ⚠️ IYIMSER guncelleme YOK: sunucu 403 donebilir (baskasinin mesaji / baska sohbet).
   ///     Once sunucuya sorulur, sonra yerel liste guncellenir.
+  /// ⚠️ TURU 180y — YILDIZ CIHAZDA tutuluyor (`Tercihler`) ve o bir
+  ///	`ValueNotifier` DEGIL; yildiz degisince listeyi ELLE tazelemek
+  ///	gerekiyor. Liste KOPYALANIR: ayni nesne atansaydi `StateNotifier`
+  ///	degisimi gormez ve balon eski halinde kalirdi (turu 62 dersi).
+  void yenidenCiz() {
+    state = AsyncValue.data(List<Message>.from(state.valueOrNull ?? []));
+  }
+
   Future<void> mesajiSil(int messageId) async {
     await _ref.read(apiProvider).delete('/chats/$chatId/messages/$messageId');
     _silindiIsaretle(messageId);

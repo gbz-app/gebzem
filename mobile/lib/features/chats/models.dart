@@ -194,3 +194,13 @@ class Message {
         read: read,
       );
 }
+
+/// ⚠️⚠️ TURU 180y — "TEK KULLANIMLIK" ISARETCISI.
+///
+/// Sunucuda boyle bir mesaj tipi/bayragi YOK (beyaz liste: text·image·video·
+/// audio·location·document·contact·iban·etkinlik). Prototipte gorulebilmesi
+/// icin `image` mesajinin ALTYAZISINA bu isaret konuyor.
+/// ⚠️ `tools/sohbet_tohum.js` icindeki `kTekIsaret` ile **BIREBIR AYNI** olmali.
+/// ⏳ Gercek cozum: `messages`a `tek_kullanimlik BOOLEAN` + goruntulendikten
+///    sonra icerigi bosaltan bir uc. AYRI (backend) TUR.
+const String kTekKullanimlikIsaret = '[1x]';

@@ -8,6 +8,7 @@ import 'package:intl/intl.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/api.dart';
+import '../../core/tercihler.dart';
 import '../../core/theme.dart';
 import '../../core/ws.dart';
 import '../../router.dart' show rootMessengerKey;
@@ -801,6 +802,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                               message: msg,
                               mine: mine,
                               grup: _grupMu,
+                              yildizli: tercihler.yildizliMi(
+                                widget.chatId,
+                                msg.id,
+                              ),
                             ),
                           ),
                       ],
@@ -1301,10 +1306,19 @@ class _CallLogChip extends StatelessWidget {
 }
 
 class _Bubble extends StatelessWidget {
-  const _Bubble({required this.message, required this.mine, this.grup = false});
+  const _Bubble({
+    required this.message,
+    required this.mine,
+    this.grup = false,
+    this.yildizli = false,
+  });
 
   final Message message;
   final bool mine;
+
+  /// ⚠️ TURU 180y — yildiz CIHAZDA tutuluyor; deger DISARIDAN gecirilir ki
+  ///	balon `Tercihler`e bagimli olmasin (test edilebilir kalsin).
+  final bool yildizli;
 
   /// ⚠️⚠️ TURU 76 — GRUPTA GONDEREN ADI/AVATARI ZORUNLU.
   ///    Mesaj balonlarinda gonderen bilgisi HIC YOKTU. Grup ozelligi eklendigi
@@ -1381,7 +1395,25 @@ class _Bubble extends StatelessWidget {
               // ⚠️ TURU 74 — GORSEL BALON. `media_id` var ama artik sunucuda
               //     kaldirilmissa (karantina/silindi) `MedyaGorsel` kirik ikon
               //     cizer; balon YINE DE cizilir (mesaj gecmisi bozulmasin).
-              if (message.type == 'image' && (message.mediaId ?? '').isNotEmpty)
+              // ⚠️⚠️⚠️ TURU 180y — **TEK KULLANIMLIK FOTOGRAF** (kullanici
+              //	emri: *"tek kullanimlik mesajlar atilmis gibi"*).
+              //
+              // ⚠️⚠️ **SUNUCUDA KARSILIGI YOK**: `messages`ta boyle bir tip
+              //	ya da bayrak bulunmuyor (beyaz liste: text·image·video·
+              //	audio·location·document·contact·iban·etkinlik). Prototipte
+              //	gorulebilmesi icin ALTYAZI isaretcisi kullaniliyor
+              //	(`kTekKullanimlikIsaret`) ve "acildi" bilgisi CIHAZDA
+              //	tutuluyor.
+              // ⚠️ DURUST SINIR: gercek tek-kullanimlik DEGIL — karsi taraf
+              //	fotografi hala gorebilir, baska cihazda yeniden acilir.
+              //	⏳ Gercegi icin `messages`a sutun + goruntulendikten sonra
+              //	   icerigi bosaltan bir uc gerekir (BACKEND TURU).
+              if (message.type == 'image' &&
+                  (message.mediaId ?? '').isNotEmpty &&
+                  message.content.trim() == kTekKullanimlikIsaret)
+                _TekKullanimlikBalon(mediaId: message.mediaId!)
+              else if (message.type == 'image' &&
+                  (message.mediaId ?? '').isNotEmpty)
                 Padding(
                   padding: EdgeInsets.only(
                     bottom: message.content.isEmpty ? 0 : 6,
@@ -1504,6 +1536,18 @@ class _Bubble extends StatelessWidget {
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
+                // ⚠️ TURU 180y — YILDIZ ROZETI (kullanici emri). Isaret
+                //	CIHAZDA tutulur; sunucuda karsiligi YOK (bkz.
+                //	`Tercihler.yildizliMesajlar`). Saatin SOLUNDA duruyor
+                //	ki okundu tikiyle karismasin.
+                if (yildizli) ...[
+                  const Icon(
+                    LucideIcons.star,
+                    size: 12,
+                    color: Color(0xFFF6C445),
+                  ),
+                  const SizedBox(width: 4),
+                ],
                 Text(
                   time,
                   style: TextStyle(fontSize: 11, color: scheme.outline),
@@ -1732,6 +1776,82 @@ class _YapisalBalon extends ConsumerWidget {
           );
         }
       },
+    );
+  }
+}
+
+/// ⚠️⚠️ TURU 180y — TEK KULLANIMLIK FOTOGRAF BALONU.
+///
+/// Kapali halde icerik CIZILMEZ (indirilmez de): yalniz "Görüntülemek için
+/// dokun". Acildiktan sonra CIHAZDA isaretlenir ve balon "Açıldı" der —
+/// yani ayni kullanici ikinci kez acamaz.
+///
+/// ⚠️ Sunucuda karsiligi YOK (cagri yerindeki serh). Karsi taraf ve baska
+///	cihazlar bu isareti GORMEZ.
+class _TekKullanimlikBalon extends StatefulWidget {
+  const _TekKullanimlikBalon({required this.mediaId});
+  final String mediaId;
+
+  @override
+  State<_TekKullanimlikBalon> createState() => _TekKullanimlikBalonState();
+}
+
+class _TekKullanimlikBalonState extends State<_TekKullanimlikBalon> {
+  late bool _acildi = tercihler.tekKullanimlikAcildiMi(widget.mediaId);
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return GestureDetector(
+      onTap: _acildi
+          ? null
+          : () async {
+              await tercihler.tekKullanimlikAc(widget.mediaId);
+              if (!mounted) return;
+              setState(() => _acildi = true);
+              if (!context.mounted) return;
+              await Navigator.of(context).push(
+                MaterialPageRoute(
+                  fullscreenDialog: true,
+                  builder: (_) => TamEkranGorsel(mediaId: widget.mediaId),
+                ),
+              );
+            },
+      child: Container(
+        width: 210,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.3),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: scheme.outline.withValues(alpha: 0.4)),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              _acildi ? LucideIcons.eyeOff : LucideIcons.eye,
+              size: 20,
+              color: _acildi ? scheme.outline : scheme.primary,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Tek kullanımlık fotoğraf',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    _acildi ? 'Açıldı' : 'Görüntülemek için dokun',
+                    style: TextStyle(fontSize: 11.5, color: scheme.outline),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

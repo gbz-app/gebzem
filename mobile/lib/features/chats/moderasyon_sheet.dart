@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/api.dart';
+import '../../core/tercihler.dart';
 import 'chats_provider.dart';
 import 'models.dart';
 
@@ -49,6 +50,36 @@ Future<void> mesajMenusuAc(
                     const SnackBar(content: Text('Kopyalandı')));
               },
             ),
+          // ⚠️⚠️ TURU 180y — YILDIZ (kullanici emri: *"mesaj detaylarinda
+          //	yildiz vs"*). Sunucuda karsiligi YOK; isaret CIHAZDA tutulur
+          //	(bkz. `Tercihler.yildizliMesajlar` serhi).
+          ListTile(
+            leading: Icon(
+              tercihler.yildizliMi(chatId, mesaj.id)
+                  ? LucideIcons.starOff
+                  : LucideIcons.star,
+              color: const Color(0xFFF6C445),
+            ),
+            title: Text(
+              tercihler.yildizliMi(chatId, mesaj.id)
+                  ? 'Yıldızı kaldır'
+                  : 'Yıldızla',
+            ),
+            subtitle: const Text('Yalnızca bu cihazda görünür'),
+            onTap: () async {
+              final yeni = await tercihler.yildizCevir(chatId, mesaj.id);
+              if (c.mounted) Navigator.of(c).pop();
+              // ⚠️ Liste TAZELENIR: yildiz balonun uzerinde ciziliyor ve
+              //	`Tercihler` bir `ValueNotifier` DEGIL — kendiliginden
+              //	yeniden cizim tetiklemez.
+              ref.read(messagesProvider(chatId).notifier).yenidenCiz();
+              mesajci.showSnackBar(
+                SnackBar(
+                  content: Text(yeni ? 'Yıldızlandı' : 'Yıldız kaldırıldı'),
+                ),
+              );
+            },
+          ),
           if (benimMi)
             ListTile(
               leading: const Icon(LucideIcons.trash2, color: Color(0xFFD32F2F)),
