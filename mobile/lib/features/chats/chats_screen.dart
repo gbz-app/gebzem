@@ -1104,6 +1104,15 @@ Widget _yeniMadde(
 ///	cagrilabilmesi gerekiyordu.
 /// ⚠️ Ikinci bir kopya YAZILMADI: sheet govdesi TEK KAYNAK; State icindeki
 ///	Cagiran: `_MesajSekmesi` header'indaki "+".
+///
+/// ⚠️⚠️⚠️ TURU 180x — **ARTIK HICBIR YERDEN CAGRILMIYOR.** "+" tam sayfa
+///	`YeniMesajEkrani`ni aciyor (kullanici emri + ekran goruntusu) ve o
+///	ekran bu sheet'in DORT girisinin de ustunu ortuyor:
+///	  Yeni sohbet -> "Kime: Ara" alani · Yeni grup -> "Grup sohbeti" ·
+///	  Topluluk ac -> "Topluluk oluştur" · Kesfet -> "Topluluklar" listesi.
+/// ⚠️ Govde SILINMEDI (bu dosyada uye silmek bes kez komsu uyeyi goturdu);
+///	geri istenirse tek satirla baglanir. **Kullaniciya gorunen OLU bir
+///	dugme YOK** — bu bir fonksiyon, ekranda karsiligi kalmadi.
 Future<void> yeniSohbetSecenegiAc(BuildContext context) async {
     final secim = await showModalBottomSheet<String>(
       context: context,

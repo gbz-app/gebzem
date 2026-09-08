@@ -65,8 +65,24 @@ Future<AtacSecimi?> atacPaneliAc(BuildContext context, WidgetRef ref) async {
   return showModalBottomSheet<AtacSecimi>(
     context: context,
     showDragHandle: true,
+    // ⚠️⚠️⚠️ TURU 180x — **EMULATORDE OLCULDU: "BOTTOM OVERFLOWED BY 199
+    //	PIXELS"**. "Video" satiri eklenince oge sayisi 7 -> 8 oldu ve panel
+    //	varsayilan tavani (ekranin 9/16'si) ASTI: **IBAN ve Anket satirlari
+    //	EKRAN DISINDA** kaldi — yani kullanicinin ACIKCA istedigi "iban
+    //	paylasma" fiilen ULASILAMAZ olacakti.
+    // ⚠️⚠️ IKISI DE ZORUNLU (turu 90b/114 dersi, UCUNCU tekrar):
+    //	`isScrollControlled` yalnizca TAVANI kaldirir, icerigi KAYDIRILABILIR
+    //	YAPMAZ; onu `SingleChildScrollView` yapar. Biri eksik olursa ya panel
+    //	yine kirpilir ya da tasma seridi cikar.
+    // ⚠️ `%85` tavani: tam ekran bir panel arkasindaki sohbeti tamamen
+    //	orter ve "yanlis ekran acildi" hissi verir.
+    isScrollControlled: true,
+    constraints: BoxConstraints(
+      maxHeight: MediaQuery.of(context).size.height * 0.85,
+    ),
     builder: (c) => SafeArea(
-      child: Column(mainAxisSize: MainAxisSize.min, children: [
+      child: SingleChildScrollView(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
         ListTile(
           leading: const _AtacIkon(LucideIcons.image, Color(0xFF7C4DFF)),
           title: const Text('Fotoğraf'),
@@ -189,7 +205,8 @@ Future<AtacSecimi?> atacPaneliAc(BuildContext context, WidgetRef ref) async {
           subtitle: const Text('Soru sor, oy toplansın'),
           onTap: () => Navigator.of(c).pop(const AtacSecimi.eylemli('anket')),
         ),
-      ]),
+        ]),
+      ),
     ),
   );
 }
