@@ -10401,3 +10401,115 @@ kontrol dizesi `Yakınımda` VAR. Backend DEGISMEDI, health ok.
 Adres: https://indir.gebzem.app/index.html?v=20260907-2054
 ⚠️ `Organizasyon` IPAda hala var — menudeki KART kaldirildi, kalan tek yer
 talep ekraninin BASLIGI (`Düğün & Organizasyon`). ⏳ Sonraki tur.
+
+## Oturum 181 — 8 Eyl 2026 (turu 180n + 180o)
+
+### Turu 180n — ISLETME SIHIRBAZI MEVCUT ARAYUZ DILINE
+Kullanici: *"isletme profilini tum asamalarini arayuzunu mevcut
+arayuzumuz gibi duzenle stepleri"*.
+- `AppBar` -> 44 dp `_header` (arrowLeft + ortada baslik + Kaydet
+  YALNIZ sihirbaz DISINDA).
+- `LinearProgressIndicator` -> **`KabukAdimSeridi`** (numarali daireler
+  + ✓ + baglayici cubuklar). Cubuklar `top: 11.5` = `(26-3)/2`, yani
+  daire capindan TURETILIR (turu 180e dersi: `bottom` ile hizalanirsa
+  satir yuksekligine, yani YAZI OLCEGINE baglanir).
+- Zemin `koyuSayfa` + `kAiZemin` + `_ks` + `DefaultTextStyle`.
+  ⚠️⚠️ `koyuSayfa` TEK BASINA YETMEZ (turu 135c/138/178).
+- Mukerrer "1/3 · Temel bilgiler" satiri kaldirildi (serit zaten
+  soyluyor).
+
+### Turu 180o — GALERI (kullanici sorusu)
+*"otel odasinda galeri vs bu galeriler aciliyor mu, her sey var mi?"*
+
+**OLCULDU: galeri YOKTU.** Uc yerde de `mediaIds.first`:
+detay sayfasi · katalog listesi · ekleme formu (TEK dosya).
+Bir otel odasina bes fotograf konsa bile musteri BIRINI goruyor,
+digerlerine ulasmanin HICBIR yolu yoktu.
+
+⚠️⚠️ **VERI TARAFI ZATEN HAZIRDI**: `isletme_urunleri.media_ids`
+   **UUID[]** (migration 031) ve sunucu diziyi oldugu gibi donduruyor.
+   Eksik olan YALNIZCA arayuzdu — **BACKEND'E DOKUNULMADI**
+   (kullanici: *"backendi sonra yap arayuzu hizli cikart"*).
+
+- `urun_detay`: `StatelessWidget` -> `StatefulWidget`; `PageView`
+  galeri + "k/N" sayaci + dokununca `TamEkranGorsel`.
+  ⚠️ `PageController` `initState`te (build'de kurulsaydi her cizimde
+     yenisi olusur, kaydirma konumu SIFIRLANIRDI — turu 92 slider).
+  ⚠️ Video dali YOK ve bu DOGRU: urun medyasi `kind: 'image'` SABIT
+     yazilir (AI gorseli de oyle). Ileride video eklenirse once sunucu
+     `media_kinds` dondurmeli, yoksa video id'si `MedyaGorsel`e gidip
+     KIRIK GORSEL cizer (turu 83b).
+- Form: `File? _gorsel` -> `List<File> _gorseller` (tavan **6**) +
+  `MedyaSecici.coklu` + secilenlerin seridi (tek tek ✕, dokunma kutusu
+  **30 dp** — turu 78b'de 17x17'lik dugme basilamiyordu).
+  ⚠️⚠️ `MedyaSecici.coklu` TEK KAYNAK: `pickMultiImage(limit: 1)`
+     **ArgumentError FIRLATIR** ve o hata burada sessizce yutulurdu
+     (turu 90b).
+  ⚠️⚠️ Yuklemeler **SIRAYLA**: `Future.wait` donus sirasini AG HIZINA
+     birakir; katalog ve detay `mediaIds.first`i KAPAK sayar, yani
+     kullanicinin sectigi ilk fotograf kapak OLMAYABILIRDI.
+- Katalogda `N` rozeti: liste yalniz kapagi cizer, rozet olmadan
+  musteri baska fotograf oldugunu BILEMEZ ve detaya girip kaydirmayi
+  hic denemez.
+
+### ⚠️⚠️⚠️ TURU 180o — ASIL KUSUR: ISLETME KENDI KATALOGUNU
+### YONETEMIYORDU
+Galeriyi GERCEK veriyle dogrulamak icin emulatorde **otel hesabina**
+(Gebze Park Otel) girildi ve kusur ORADA gorundu: kendi profilinde
+**"Odalar" dugmesi YOKTU**.
+
+KOK NEDEN `_dugmeler`in ILK SATIRI:
+```dart
+if (_benimMi) return _kendiDugmelerim();   // erken donus
+...
+if (_isletme != null) ... // modul dugmesi — HIC ULASILMIYOR
+```
+Sonuc: isletme sahibi oda/menu/hizmet **EKLEYEMIYOR**, mevcutlari
+**DUZENLEYEMIYORDU**; katalogun tek girisi BASKASININ profiliydi ve
+sahip kendi profilinde "baskasi" olamaz.
+⚠️ Ayarlar > "Isletme bilgilerim" alt yazisi *"...calisma saatleri,
+   **menu**"* diyordu ama o ekranda da giris YOKTU — vaat GOVDEDE
+   KARSILIKSIZDI.
+**FIX:** `_kendiDugmelerim`e TAM GENISLIKTE `<Modul> yonet` dugmesi.
+⚠️ Ayni satira UCUNCU dugme KONULMADI: turu 179'da olculdu —
+   `FittedBox` metinleri kucultuyor ve "Profili duzenle" okunmuyor.
+
+### Turu 180o — form basligi ve zemin
+- Baslik kategoriden BAGIMSIZ **"Urun ekle"** idi; katalogdaki dugme
+  dogru ("Oda ekle") oldugu icin otelci **oda eklerken "urun" ekranina**
+  dusuyordu. Baslik + alan etiketi + uyari metni artik `modul.tekil`den
+  (Oda / Hizmet / Urun) — istemcide TAHMIN EDILMEZ (turu 89).
+- Form BEYAZDI, cagiran katalog ve profil SIYAH: ara gecis KOPUK
+  duruyordu. `koyuSayfa` + `kAiZemin` + `_ks`.
+
+### `tools/oda_galeri.js` (yeni)
+Otele DORT fotografli bir oda ekler. Gerekce: `tools/tohum.js`
+urunlerin `media_ids` alanini **BOS** birakiyor, yani galeriyi
+gosterecek TEK BIR KAYIT bile yoktu.
+⚠️ Urun PATCH'i medyaya DOKUNMAZ, bu yuzden mevcut oda guncellenemez
+   — YENI oda eklenir.
+⚠️ Ilk yazimda dogrulama PATLADI: uc **kimlik ister** (token'siz 401)
+   ve yanit `{urunler: [...]}` bicimindedir; ikisi de VARSAYILMISTI.
+   Kayit ZATEN yazilmisti. **Varsayma, YANITA BAK.**
+
+### Emulatorde UCTAN UCA dogrulandi
+katalogda `4` rozeti · detayda **1/4 -> kaydirma -> 2/4** · dokununca
+**tam ekran** · "Odalari yonet" cizildi · "Oda ekle" basligi SIYAH
+ekranda · coklu secici **Add (3)** · serit **3/6 fotograf** · bir ✕ ile
+**2/6** ve kapak yeni ilkine dondu.
+
+### ⏳ DURUST SINIRLAR (devir)
+- ⚠️⚠️ **DUZENLEMEDE FOTOGRAF DEGISTIRILEMIYOR**: `UrunGuncelle`
+  (`internal/isletme/urun.go`) istek govdesinde `media_ids` alani YOK,
+  yani sunucu PATCH'te medyaya DOKUNMAZ. Bugunku tek yol "urunu kaldir,
+  yeniden ekle". Bes fotografli bir odada tek kareyi degistirmek icin
+  kabul edilemez. ⏳ BACKEND TURU.
+- **Otel odasinda GECE BAZLI rezervasyon YOK** (turu 89'dan beri): 
+  `randevular` SLOT bazlidir; `slot_kapasite` "ayni anda kac randevu"
+  demek, "kac oda bos" DEMEK DEGIL. Oda su an VITRIN.
+- **Ayarlar ekrani HALA BEYAZ** (`AyarlarEkrani`).
+- Kategori ekranlarinin zemini turu 180m'den beri bekliyordu; **OTEL
+  kategorisi bu turda SIYAH gorundu** (emulatorde dogrulandi) — ama
+  hepsi taranmadi.
+- `tools/tohum.js` urun tarafinda IDEMPOTENT DEGIL: otelde "Standart
+  Oda" ve "Deniz Manzarali Suit" IKISER kayitli (biri `kaldirildi`).
