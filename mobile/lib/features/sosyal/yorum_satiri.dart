@@ -383,25 +383,28 @@ class _YorumSatiriState extends State<YorumSatiri> {
       // ⚠️⚠️ GONDERI SAHIBININ BEGENISI. SABIT 20 dp kutuda yasar: rozet
       //	gelip gidince satir yuksekligi DEGISMEZ, liste ZIPLAMAZ.
       // ⚠️ Renk TEK BASINA bilgi tasimaz -> `Semantics` ZORUNLU.
+      // ⚠️⚠️⚠️ TURU 180s — **YANINDAKI GRI DAIRE KALDIRILDI** (kullanici
+      //	ekran goruntusu gonderdi: siyah zeminde kirmizi kalp + ANLAMSIZ
+      //	gri nokta).
+      //
+      //	Daire gonderi SAHIBININ avatariydi ama `MiniAvatar(cap: 16)`
+      //	`mediaId` **ALMADAN** cagriliyordu; o parametre olmayinca widget
+      //	DAIMA duz gri daireye duser. Yani rozet, kim begendigini
+      //	gostermek icin duruyordu ve **HICBIR ZAMAN** gosteremiyordu —
+      //	ekranda kalan tek sey bir gri nokta oluyordu.
+      // ⚠️ Bilgi KAYBOLMADI: kalp "gonderi sahibi begendi" demek ve
+      //	`Semantics` etiketi bunu ekran okuyucuya ZATEN soyluyor.
+      // ⚠️ Halka (`tema.scaffoldBackgroundColor` dolgulu `Container`) da
+      //	kalkti: tek gorevi gri daireyi zeminden ayirmakti.
+      // ⚠️ YAPMA: daireyi geri koymadan once `YorumGorunum`'a sahip
+      //	avatarinin `mediaId`si TASINMALI — yoksa ayni gri nokta doner.
       if (y.sahipBegendi)
         Semantics(
           label: 'Gönderi sahibi bu yanıtı beğendi',
-          child: SizedBox(
+          child: const SizedBox(
             height: 20,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.favorite, size: 12, color: Color(0xFFFF3B5C)),
-                const SizedBox(width: 4),
-                Container(
-                  padding: const EdgeInsets.all(1.5),
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: tema.scaffoldBackgroundColor,
-                  ),
-                  child: const MiniAvatar(cap: 16),
-                ),
-              ],
+            child: Center(
+              child: Icon(Icons.favorite, size: 12, color: Color(0xFFFF3B5C)),
             ),
           ),
         ),
