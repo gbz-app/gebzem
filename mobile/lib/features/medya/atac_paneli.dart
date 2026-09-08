@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../../router.dart' show rootMessengerKey;
 import 'medya_kapisi.dart';
 
 /// ⚠️⚠️ TURU 74 — ATAÇ PANELİ (mesaj kutusundaki + düğmesi).
@@ -36,7 +37,10 @@ class AtacSecimi {
       tur = '';
 
   final List<File> dosyalar;
-  final String tur; // image
+
+  /// '' | 'image' | 'video' — yukleme zinciri BUNA gore dallanir
+  /// (video SIKISTIRILMAZ; `gorseliHazirla` bir JPEG uretir ve videoyu bozardi).
+  final String tur;
 
   /// '' | 'konum' | 'kisi' | 'iban' | 'etkinlik'
   final String eylem;
@@ -83,6 +87,33 @@ Future<AtacSecimi?> atacPaneliAc(BuildContext context, WidgetRef ref) async {
             Navigator.of(c).pop(secim.isEmpty
                 ? null
                 : AtacSecimi(secim.map((x) => File(x.path)).toList(), 'image'));
+          },
+        ),
+        // ⚠️⚠️ TURU 180x — VIDEO (kullanici emri: *"sohbet detaylari resim
+        //	video gonderme iban paylasma hepsi olsun"*).
+        // ⚠️ Secim **`MedyaSecici.video` TEK KAYNAGINDAN** gecer: boyut tavani
+        //	ve SURE olcumu orada. Burada `pickVideo` cagirmak o iki kapiyi
+        //	atlar ve kullanici 100 MB'lik dosyayi bosuna yuklemeye baslardi.
+        // ⚠️ Sure tavani **5 dakika**: sohbet videosu reels DEGIL; reels tavani
+        //	(90 sn) burada mesru bir videoyu haksiz yere reddederdi.
+        // ⚠️ Uyari `rootMessengerKey` ile: sheet `pop` edilince kendi
+        //	`context`i olur ve mesaj HIC gorunmezdi (turu 141 dersi).
+        ListTile(
+          leading: const _AtacIkon(LucideIcons.video, Color(0xFFEC407A)),
+          title: const Text('Video'),
+          subtitle: const Text('Galeriden seç'),
+          onTap: () async {
+            final dosya = await MedyaSecici.video(
+              sureTavani: const Duration(minutes: 5),
+              uyar: (m) => rootMessengerKey.currentState?.showSnackBar(
+                SnackBar(content: Text(m)),
+              ),
+              ref: ref,
+            );
+            if (!c.mounted) return;
+            Navigator.of(
+              c,
+            ).pop(dosya == null ? null : AtacSecimi([dosya], 'video'));
           },
         ),
         // ⚠️⚠️ KAMERA — görüşme sürerken SATIR HİÇ ÇİZİLMEZ (yukarıdaki şerh).

@@ -4,12 +4,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/api.dart';
-import '../../core/theme.dart' show kAiZemin, kKoyuTema, koyuSayfa;
+import '../../core/theme.dart' show kAiZemin, koyuSayfa;
 import '../auth/auth_provider.dart';
 import '../medya/medya_gorsel.dart';
 import 'engellenenler.dart';
 import 'profil_duzenle.dart';
-import '../calls/calls_tab.dart';
+import '../chats/yeni_mesaj_ekrani.dart';
 // ⚠️ `chats_provider` importu TURU 96m'de KALDIRILDI: okunmamis rozeti sayaci
 //    96l'de `alt_menu.dart`a tasindi, import geride kalmisti (olu bagimlilik).
 import '../chats/chats_screen.dart';
@@ -327,16 +327,15 @@ class _MesajSekmesi extends StatefulWidget {
 }
 
 class _MesajSekmesiState extends State<_MesajSekmesi> {
-  int _alt = 0;
-
   // ⚠️⚠️⚠️ `koyuSayfa` TEK BASINA YETMEZ (turu 135c/138/178 — SEKIZINCI
   //	tekrar): bu bir `Column`, `Scaffold` DEGIL; Material'in sagladigi
   //	`DefaultTextStyle` YOK ve `const Text`ler HATA BICIMINDE (soluk)
-  //	cizilyordu — emulatorde "Mesaj / Sohbet / Aramalar" siyah zeminde
-  //	OKUNMUYORDU. `Builder` + `DefaultTextStyle` ZORUNLU.
-  // ⚠️ Renk okuyan yerler `_ks`ten beslenir: `State`in `context`i
-  //	`build`in DONDURDUGU `Theme`in USTUNDE kalir.
-  ColorScheme get _ks => kKoyuTema.colorScheme;
+  //	cizilyordu — emulatorde "Mesaj" siyah zeminde OKUNMUYORDU.
+  //	`Builder` + `DefaultTextStyle` ZORUNLU.
+  // ⚠️ TURU 180x — `_ks` getter'i KALDIRILDI: onu okuyan TEK yer "Sohbet |
+  //	Aramalar" metin secicisiydi, o da bu turda kalkti. Ders KALICI:
+  //	buraya renk okuyan bir `State` metodu eklenirse rengi `kKoyuTema`dan
+  //	almali, ciplak `context`ten DEGIL.
 
   @override
   Widget build(BuildContext context) => koyuSayfa(
@@ -382,58 +381,31 @@ class _MesajSekmesiState extends State<_MesajSekmesi> {
                 alignment: Alignment.centerRight,
                 child: IconButton(
                   icon: const Icon(LucideIcons.plus),
-                  tooltip: 'Yeni sohbet',
-                  // KOYU PANEL (turu 138 dersi): sheet ACAN context,
-                  //	build in DONDURDUGU Theme in ALTINDA olmali; State in
-                  //	kendi context i ile acilsaydi panel ACIK TEMADA
-                  //	cizilir ve siyah ekranin ustune beyaz bir blok binerdi.
-                  onPressed: () => yeniSohbetSecenegiAc(bc),
+                  tooltip: 'Yeni mesaj',
+                  // ⚠️⚠️ TURU 180x — ARTIK ALT SAYFA DEGIL, TAM SAYFA
+                  //	(kullanici emri + ekran goruntusu: *"sagda +
+                  //	tikladigimda whatsapp gibi ekran gelsin"*).
+                  //	Eski `yeniSohbetSecenegiAc` sheet'i SILINMEDI ama
+                  //	buradan CAGRILMIYOR — girisleri (yeni sohbet · grup ·
+                  //	topluluk · kesfet) yeni ekran TAMAMEN kapsiyor.
+                  onPressed: () => Navigator.of(bc).push(
+                    MaterialPageRoute(
+                      builder: (_) => const YeniMesajEkrani(),
+                    ),
+                  ),
                 ),
               ),
             ],
           ),
         ),
       ),
-      // ⚠️⚠️ TURU 180t — **HAP SECICI YERINE DUZ METIN** (kullanici:
-      //	*"Sohbet aramalar bunlar text olarak olsun"*). Akis ekranindaki
-      //	"Arkadaş · Keşfet · Mahalle" secicisiyle AYNI dil: secili kalin
-      //	ve tam opak, digeri soluk.
-      // ⚠️ Kalinlik SABIT w700: secimle degisseydi metnin genisligi
-      //	degisir ve serit her dokunusta KAYARDI (turu 140).
-      Padding(
-        padding: const EdgeInsets.fromLTRB(16, 2, 16, 10),
-        child: Row(
-          children: [
-            for (var i = 0; i < 2; i++) ...[
-              if (i > 0) const SizedBox(width: 22),
-              GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: () => setState(() => _alt = i),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  child: Text(
-                    ['Sohbet', 'Aramalar'][i],
-                    style: TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.w700,
-                      color: _ks.onSurface
-                          .withValues(alpha: _alt == i ? 1 : 0.38),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
-      // ⚠️ IndexedStack: sekme degistirince ChatsScreen'in WS dinleyicisi ve
-      //    arama/filtre durumu KAYBOLMASIN.
-      Expanded(
-        child: IndexedStack(
-          index: _alt,
-          children: const [ChatsScreen(), CallsTab()],
-        ),
-      ),
+      // ⚠️⚠️⚠️ TURU 180x — **"Sohbet | Aramalar" METIN SECICISI KALDIRILDI**
+      //	(kullanici emri: *"burada Tümü Grup Arşiv Aramalar olsun,
+      //	butonlara gerek yok"*). Aramalar artik `ChatsScreen` icindeki
+      //	cip seridinin bir ogesi; boylece arama kutusu EN USTTE kaliyor
+      //	(*"chat bolumunde arama yukarida, sohbet aramalar altta olsun"*).
+      // ⚠️ `CallsTab` ULASILAMAZ KALMADI: "Aramalar" cipi onu ciziyor.
+      const Expanded(child: ChatsScreen()),
           ],
         ),
       ),

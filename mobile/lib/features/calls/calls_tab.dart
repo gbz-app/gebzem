@@ -12,18 +12,40 @@ import 'call_provider.dart';
 
 /// Aramalar sekmesi: gecmis + tekrar arama
 class CallsTab extends ConsumerWidget {
-  const CallsTab({super.key});
+  const CallsTab({super.key, this.arama = ''});
+
+  /// ⚠️ TURU 180x — "Aramalar" artik sohbet sekmesinin bir CIPI (kullanici
+  ///	emri: *"Tümü Grup Arşiv Aramalar olsun, butonlara gerek yok"*) ve
+  ///	arama kutusu ekranin TEPESINDE, cipin USTUNDE duruyor. Kutu gorunur
+  ///	oldugu halde bu listeyi SUZMESEYDI, kullanici yazarken hicbir sey
+  ///	olmadigini gorur ve kutuyu bozuk sanardi.
+  /// ⚠️ Suzgec ISTEMCIDE: `/calls` sayfalama YAPMIYOR, liste kullanicinin
+  ///	gordugu kumenin TAMAMI (turu 122 gerekcesi).
+  final String arama;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final history = ref.watch(callHistoryProvider);
     final scheme = Theme.of(context).colorScheme;
+    final q = arama.trim().toLowerCase();
 
     return Scaffold(
       body: history.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text(apiErrorMessage(e))),
-        data: (list) {
+        data: (ham) {
+          final list = q.isEmpty
+              ? ham
+              : ham
+                    .where(
+                      (c) => ((c['peer_name'] as String?) ?? '')
+                          .toLowerCase()
+                          .contains(q),
+                    )
+                    .toList();
+          if (list.isEmpty && q.isNotEmpty) {
+            return const Center(child: Text('Eşleşen arama yok'));
+          }
           if (list.isEmpty) {
             return Center(
               child: Column(

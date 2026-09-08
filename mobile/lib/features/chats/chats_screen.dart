@@ -13,8 +13,10 @@ import '../medya/medya_gorsel.dart';
 import 'arama_kaydi.dart';
 import '../../router.dart' show rootMessengerKey;
 import 'chats_provider.dart';
+import '../calls/calls_tab.dart' show CallsTab;
 import '../kanal/kanal_ekrani.dart' show KanalEkrani;
 import '../kanal/kanal_olustur.dart' show KanalOlustur;
+import '../kanal/kanal_servisi.dart' show Kanal, kanalServisiProvider;
 import '../kanal/kanallar_sekmesi.dart' show KanallarSayfasi;
 import 'grup_olustur.dart';
 import '../sosyal/demo_veri.dart' show kDemoAkis;
@@ -31,12 +33,35 @@ class ChatsScreen extends ConsumerStatefulWidget {
 
 /// Sohbet listesi filtresi.
 /// ⚠️ Arsiv AYRI bir gorunumdur: digerlerinde arsivlenmisler GIZLIDIR.
-enum _Filtre { tumu, okunmamis, gruplar, arsiv }
+///
+/// ⚠️⚠️ TURU 180x — KULLANICI EMRI: *"burada Tümü Grup Arşiv Aramalar olsun,
+///	butonlara gerek yok"*. Iki degisiklik birden:
+///	  · **`okunmamis` CIKTI** — kullanicinin saydigi dort ogede yok.
+///	    Bilgi KAYBOLMADI: okunmamis rozeti her satirda ZATEN ciziliyor.
+///	  · **`aramalar` GIRDI** — eskiden `_MesajSekmesi` basliginda AYRI bir
+///	    "Sohbet | Aramalar" metin secicisi vardi; kullanici onu ("butonlar")
+///	    kaldirmamizi istedi. Secim artik AYNI serit uzerinde.
+/// ⚠️ `aramalar` bir SOHBET SUZGECI DEGIL, GOVDE DEGISTIRIR (`CallsTab`).
+///	Bu yuzden asagidaki `switch`lerde ayri ele alinir; sohbet listesinde
+///	"arama" diye bir kayit YOKTUR.
+enum _Filtre { tumu, gruplar, arsiv, aramalar }
 
 class _ChatsScreenState extends ConsumerState<ChatsScreen> {
   final _aramaCtrl = TextEditingController();
   String _arama = '';
   _Filtre _filtre = _Filtre.tumu;
+
+  /// Abone olunan topluluklar (turu 180x — sohbet listesine karisir).
+  List<Kanal> _kanallar = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    // ⚠️ `addPostFrameCallback` DEGIL: `ref.read` `initState` govdesinde
+    //    guvenli (Riverpod'un yasakladigi sey `ref.watch`); istek zaten
+    //    asenkron ve sonucu `setState` ile yaziyoruz.
+    _topluluklariYukle();
+  }
 
   @override
   void dispose() {
@@ -44,21 +69,40 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
     super.dispose();
   }
 
-  /// Cip etiketi. Okunmamis ve arsiv icin SAYI da gosterilir — kullanici
-  /// filtreye dokunmadan kac tane oldugunu gorsun.
+  /// Cip etiketi. Arsiv icin SAYI da gosterilir — kullanici filtreye
+  /// dokunmadan kac tane oldugunu gorsun.
   String _filtreAdi(_Filtre f, List<Chat>? liste) {
     final l = liste ?? const <Chat>[];
     switch (f) {
       case _Filtre.tumu:
         return 'Tümü';
-      case _Filtre.okunmamis:
-        final n = l.where((c) => !c.archived && c.unread > 0).length;
-        return n > 0 ? 'Okunmamış ($n)' : 'Okunmamış';
       case _Filtre.gruplar:
-        return 'Gruplar';
+        return 'Grup';
       case _Filtre.arsiv:
         final n = l.where((c) => c.archived).length;
         return n > 0 ? 'Arşiv ($n)' : 'Arşiv';
+      case _Filtre.aramalar:
+        return 'Aramalar';
+    }
+  }
+
+  /// ⚠️⚠️ TURU 180x — TOPLULUKLAR SOHBET LISTESINDE (kullanici emri:
+  ///	*"bu sohbetlerde topluluklarda olsun"*).
+  ///
+  /// ⚠️⚠️ **YENI UC YOK, BACKEND DEGISMEDI.** Topluluk = `channels` tablosu
+  ///	ve `GET /chats` onlari **YAPISAL OLARAK** dondurmez (`ListChats`
+  ///	yalniz `chats`ten okur — CLAUDE.md turu 75). Bu yuzden abone olunan
+  ///	topluluklar AYRI ucla (`/channels`) cekilip listeye ISTEMCIDE
+  ///	karistiriliyor.
+  /// ⚠️ Hata YUTULUR ve liste BOS doner: topluluk istegi patlarsa sohbet
+  ///	listesi CIZILMEYE DEVAM ETMELI (turu 78b dersi: tek ag hatasi tum
+  ///	ekrani goturmesin).
+  Future<void> _topluluklariYukle() async {
+    try {
+      final l = await ref.read(kanalServisiProvider).listem();
+      if (mounted) setState(() => _kanallar = l);
+    } catch (_) {
+      // sessiz: sohbet listesi cizilmeye DEVAM etmeli
     }
   }
 
@@ -136,9 +180,18 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
               ],
             ),
           ),
-          Expanded(
-            child: chats.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
+          // ⚠️⚠️ TURU 180x — "Aramalar" CIPI GOVDEYI DEGISTIRIR.
+          //	Sohbet listesinde "arama" diye bir kayit YOK; bu yuzden
+          //	`chats.when(...)` dalina HIC girilmez (girseydi "Eşleşen
+          //	sohbet yok" yazip arama gecmisini gizlerdi).
+          // ⚠️ Arama kutusu YUKARIDA KALIR ve sorgu `CallsTab`e GECER —
+          //	gorunur ama hicbir sey yapmayan bir kutu birakilamaz.
+          if (_filtre == _Filtre.aramalar)
+            Expanded(child: CallsTab(arama: _arama))
+          else
+            Expanded(
+              child: chats.when(
+                loading: () => const Center(child: CircularProgressIndicator()),
               // ⚠️⚠️⚠️ TURU 180t — **HATA DALINDA DA ORNEKLER.**
               //	Onceden ag hatasi TUM listeyi yutuyordu; emulatorde
               //	olculdu: sunucuya ulasilamayinca ekranda YALNIZ hata
@@ -185,8 +238,6 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
                 // ⚠️ Arsiv AYRI bir filtre: digerlerinde arsivlenmisler GIZLI kalir,
                 //    yoksa "arsivle" hicbir ise yaramaz.
                 var visible = switch (_filtre) {
-                  _Filtre.okunmamis =>
-                    list.where((c) => !c.archived && c.unread > 0).toList(),
                   _Filtre.gruplar =>
                     list
                         .where((c) => !c.archived && c.type == 'group')
@@ -199,6 +250,24 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
                       .where((c) => c.title.toLowerCase().contains(_arama))
                       .toList();
                 }
+                // ⚠️⚠️ TURU 180x — TOPLULUKLAR (kullanici emri).
+                // ⚠️ YALNIZ "Tümü"de: `Grup` cipi `chats.type=='group'` demek
+                //	(topluluk GRUP DEGIL, `channels`), `Arşiv` ise sohbet
+                //	bazli bir bayrak — topluluklarda karsiligi YOK.
+                final toplulukGoster = _filtre == _Filtre.tumu;
+                final kanallar = !toplulukGoster
+                    ? const <Kanal>[]
+                    : (_arama.isEmpty
+                          ? _kanallar
+                          : _kanallar
+                                .where(
+                                  (k) =>
+                                      k.ad.toLowerCase().contains(_arama) ||
+                                      k.kullaniciAdi.toLowerCase().contains(
+                                        _arama,
+                                      ),
+                                )
+                                .toList());
                 // SIK GORUSULEN kisiler (test turu 7): arama YOKKEN, arama input'unun altinda
                 // en son gorusulen 1:1 kisiler yatay profil seridi (WhatsApp/Telegram deseni).
                 // ⚠️ Serit YALNIZ "Tümü" filtresinde: okunmamis/gruplar/arsiv
@@ -213,30 +282,42 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
                           ),
                         ))
                     : const <Chat>[];
-                if (visible.isEmpty && sik.isEmpty) {
+                if (visible.isEmpty && sik.isEmpty && kanallar.isEmpty) {
                   return Center(
                     child: Text(
                       _arama.isNotEmpty
                           ? 'Eşleşen sohbet yok'
                           : switch (_filtre) {
-                              _Filtre.okunmamis => 'Okunmamış sohbet yok',
                               _Filtre.gruplar =>
-                                'Henüz grubun yok.\nSağ alttan grup oluştur!',
+                                'Henüz grubun yok.\nSağ üstteki + ile grup oluştur!',
                               _Filtre.arsiv => 'Arşivde sohbet yok',
                               _ =>
-                                'Henüz sohbet yok.\nSağ alttan yeni sohbet başlat!',
+                                'Henüz sohbet yok.\nSağ üstteki + ile yeni sohbet başlat!',
                             },
                       textAlign: TextAlign.center,
                     ),
                   );
                 }
                 return YenileSarmali(
-                  onRefresh: () => ref.read(chatsProvider.notifier).load(),
+                  onRefresh: () async {
+                    // ⚠️ Topluluklar AYRI uctan geliyor; asagi-cek YALNIZ
+                    //    sohbetleri tazeleseydi yeni kurulan bir topluluk
+                    //    ekranda BIR DAHA gorunmezdi.
+                    await Future.wait([
+                      ref.read(chatsProvider.notifier).load(),
+                      _topluluklariYukle(),
+                    ]);
+                  },
                   child: ListView(
                     padding: const EdgeInsets.only(bottom: 24),
                     children: [
                       if (sik.isNotEmpty)
                         _SikGorusulenSerit(kisiler: sik.take(12).toList()),
+                      if (kanallar.isNotEmpty) ...[
+                        const _BolumBasligi('Topluluklar'),
+                        for (final k in kanallar) _ToplulukTile(kanal: k),
+                        const _BolumBasligi('Sohbetler'),
+                      ],
                       for (final c in visible) _ChatTile(chat: c),
                     ],
                   ),
@@ -250,6 +331,88 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
       //	sagdaki + butonu daire kaldir ... sagda + olsun"*). Islev
       //	KAYBOLMADI: ayni sheet'i `_MesajSekmesi` header'indaki "+"
       //	`ChatsScreen.yeniSohbetSecenegiAc` ile aciyor.
+    );
+  }
+}
+
+/// Liste ici bolum basligi ("Topluluklar" / "Sohbetler").
+///
+/// ⚠️ Baslik YALNIZ topluluk VARSA cizilir: hicbir toplulugu olmayan
+///	kullaniciya bos bir "Topluluklar" basligi gostermek, ozelligi
+///	kirikmis gibi gosterirdi.
+class _BolumBasligi extends StatelessWidget {
+  const _BolumBasligi(this.metin);
+  final String metin;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+      child: Text(
+        metin,
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+        ),
+      ),
+    );
+  }
+}
+
+/// ⚠️⚠️ TURU 180x — TOPLULUK SATIRI (sohbet listesinde).
+///
+/// ⚠️ `_ChatTile` YENIDEN KULLANILMADI: o satir `Chat` modeline, kaydirma
+///	eylemlerine (arsivle/sil), okundu rozetine ve `/chat/{id}` rotasina
+///	bagli. Topluluk bunlarin HICBIRINE sahip degil (abonelik modeli ayri);
+///	sahte bir `Chat` uretmek satiri kaydirinca var olmayan bir sohbeti
+///	arsivlemeye calisirdi.
+class _ToplulukTile extends StatelessWidget {
+  const _ToplulukTile({required this.kanal});
+  final Kanal kanal;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return ListTile(
+      leading: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Avatar(ad: kanal.ad, mediaId: kanal.avatarMediaId, cap: 48),
+          // Topluluk rozeti: ayni listede kisi/grup/topluluk yan yana duruyor,
+          // ayrimi YALNIZ isimden yapmak mumkun degil.
+          Positioned(
+            right: -2,
+            bottom: -2,
+            child: Container(
+              padding: const EdgeInsets.all(3),
+              decoration: BoxDecoration(
+                color: scheme.surface,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                LucideIcons.megaphone,
+                size: 12,
+                color: scheme.primary,
+              ),
+            ),
+          ),
+        ],
+      ),
+      title: Text(
+        kanal.ad,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(fontWeight: FontWeight.w600),
+      ),
+      subtitle: Text(
+        kanal.sonMetin.isNotEmpty ? kanal.sonMetin : '@${kanal.kullaniciAdi}',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => KanalEkrani(kanalId: kanal.id)),
+      ),
     );
   }
 }

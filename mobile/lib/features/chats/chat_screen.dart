@@ -30,6 +30,7 @@ import '../sosyal/profil_sayfasi.dart';
 import '../medya/medya_gorsel.dart';
 import '../medya/medya_servisi.dart';
 import '../medya/tam_ekran_gorsel.dart';
+import '../medya/tam_ekran_video.dart';
 import '../medya/ses_notu_balon.dart';
 import '../medya/ses_notu_kaydedici.dart';
 
@@ -203,17 +204,28 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       for (var i = 0; i < secim.dosyalar.length; i++) {
         try {
           final ham = secim.dosyalar[i];
-          // ⚠️ Sıkıştırma + EXIF temizleme ZORUNLU (gizlilik: konum bilgisi).
-          //    Başarısız olursa HAM dosya GÖNDERİLMEZ — sunucu GPS bulursa zaten
-          //    422 döner; boşuna 5 MB yükleyip reddedilmesindense burada duruyoruz.
-          final hazir = await MedyaServisi.gorseliHazirla(ham);
-          if (hazir == null) {
-            throw Exception('Fotoğraf hazırlanamadı');
+          // ⚠️⚠️ TURU 180x — VIDEO DALI. Video **SIKISTIRILMAZ**:
+          //    `gorseliHazirla` bir JPEG uretir, videoya uygulansaydi dosya
+          //    BOZULUR ve karsi tarafta acilmayan bir balon cizilirdi.
+          //    Boyut ve SURE kapilari `MedyaSecici.video` icinde (tek kaynak).
+          final videoMu = secim.tur == 'video';
+          final File hazir;
+          if (videoMu) {
+            hazir = ham;
+          } else {
+            // ⚠️ Sıkıştırma + EXIF temizleme ZORUNLU (gizlilik: konum bilgisi).
+            //    Başarısız olursa HAM dosya GÖNDERİLMEZ — sunucu GPS bulursa zaten
+            //    422 döner; boşuna 5 MB yükleyip reddedilmesindense burada duruyoruz.
+            final h = await MedyaServisi.gorseliHazirla(ham);
+            if (h == null) {
+              throw Exception('Fotoğraf hazırlanamadı');
+            }
+            hazir = h;
           }
           final mediaId = await servis.yukle(
             dosya: hazir,
-            kind: 'image',
-            mime: 'image/jpeg',
+            kind: videoMu ? 'video' : 'image',
+            mime: videoMu ? 'video/mp4' : 'image/jpeg',
             ilerleme: (o) {
               if (mounted) {
                 setState(() => _ilerleme = (i + o) / secim.dosyalar.length);
@@ -224,7 +236,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           //    her fotoğrafa kopyalamak gürültü olurdu.
           await notifier.send(
             i == 0 ? altyazi : '',
-            type: 'image',
+            type: videoMu ? 'video' : 'image',
             mediaId: mediaId,
             clientRef:
                 mediaId, // media_id benzersiz -> ideal idempotency anahtarı
@@ -1395,6 +1407,66 @@ class _Bubble extends StatelessWidget {
                             true, // liste icinde kucuk resim YETER (veri tasarrufu)
                         fit: BoxFit.cover,
                         radius: 8,
+                      ),
+                    ),
+                  ),
+                ),
+              // ⚠️⚠️ TURU 180x — VIDEO BALONU.
+              //
+              //	`media_kinds` sohbet mesajinda YOK: tur bilgisini
+              //	`message.type` tasir, o yuzden ayrim GUVENLI.
+              // ⚠️⚠️ Balonda **OYNATICI KURULMAZ**, yer tutucu + oynat rozeti
+              //	cizilir. Gerekce olculdu (turu 76b/77b): listede canli
+              //	`video_player` kurmak iOS'ta AVAudioSession'a dokunur ve
+              //	SUREN ARAMAYI sagirlastirir; ayrica her balon icin ayri
+              //	oynatici = isinma + veri. Dokununca TAM EKRAN acilir
+              //	(`TamEkranVideo` kendi kapilarini tasiyor).
+              // ⚠️ Poster YOK ve UYDURULMAZ: sohbet videosunda sunucu kapak
+              //	karesi uretmiyor; sahte bir gorsel cizmek yalan olurdu.
+              if (message.type == 'video' && (message.mediaId ?? '').isNotEmpty)
+                Padding(
+                  padding: EdgeInsets.only(
+                    bottom: message.content.isEmpty ? 0 : 6,
+                  ),
+                  child: GestureDetector(
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        fullscreenDialog: true,
+                        builder: (_) => TamEkranVideo(mediaId: message.mediaId!),
+                      ),
+                    ),
+                    child: Container(
+                      width: 210,
+                      height: 128,
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.35),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Container(
+                            width: 44,
+                            height: 44,
+                            decoration: const BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Colors.white24,
+                            ),
+                            child: const Icon(
+                              LucideIcons.play,
+                              size: 22,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          const Text(
+                            'Video',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.white70,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
