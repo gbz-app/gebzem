@@ -68,10 +68,31 @@ class _YeniMesajEkraniState extends ConsumerState<YeniMesajEkrani> {
     super.dispose();
   }
 
+  /// ⚠️⚠️ TURU 180x — **IKI KAYNAK BIRDEN** (emulatorde olculdu).
+  ///
+  ///	Ilk yazimda YALNIZ `kesfet()` cagriliyordu; o uc "ABONE OLMADIGIN"
+  ///	topluluklari doner. Kendi kurdugun topluluga sunucu seni OTOMATIK
+  ///	abone yaptigi icin (bkz. `Create`), tek toplulugu olan bir kullanici
+  ///	bu ekranda **"Topluluklar" bolumunu HIC GORMUYORDU** — ozellik yokmus
+  ///	gibi duruyordu.
+  /// ⚠️ Sira: ONCE benimkiler (tanidik), SONRA kesfet. Tekilleme `id` ile:
+  ///	iki uc ayni toplulugu dondurebilir ve liste CIFT cizerdi.
+  /// ⚠️ `Future.wait` — seri olsaydi ekran iki gidis donus beklerdi.
   Future<void> _kanallariYukle() async {
     try {
-      final l = await ref.read(kanalServisiProvider).kesfet();
-      if (mounted) setState(() => _kanallar = l);
+      final s = ref.read(kanalServisiProvider);
+      final sonuc = await Future.wait([
+        s.listem().catchError((_) => <Kanal>[]),
+        s.kesfet().catchError((_) => <Kanal>[]),
+      ]);
+      final gorulen = <String>{};
+      final birlesik = <Kanal>[];
+      for (final liste in sonuc) {
+        for (final k in liste) {
+          if (gorulen.add(k.id)) birlesik.add(k);
+        }
+      }
+      if (mounted) setState(() => _kanallar = birlesik);
     } catch (_) {
       // sessiz: kisi onerileri CIZILMEYE DEVAM ETMELI
     } finally {
