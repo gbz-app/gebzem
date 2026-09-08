@@ -41,6 +41,104 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
       kaybettiriyorsun"*. **Üçüncüsü olmayacak.**
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
+- **KALDIGIMIZ YER (8 Eyl 12:52): TURU 180n+180o YAYINLANDI — SADECE iOS.**
+  ios **34211102618** (**ebf91aa**), R2 ipa=**29077172** (md5 851c6c13),
+  index=7967 (cfb5ebd3) surum.json=45 (3159bd71), purge OK, **CDN BIREBIR**
+  (ucu de), `get-task-allow: false`, ad hoc profil, `MapsApiKey` +
+  `NSLocationWhenInUse` + `MinimumOSVersion` VAR.
+  IPAda dizeler VAR: `Fotoğraf ekle` · ` fotoğraf · ilki kapak olur` ·
+  `ı yönet` · `Beğeniler yakında` · `2. El İlan`;
+  KALKANLAR YOK: `Ürün fotoğrafı` · `Ürün adı gerekli`.
+  Kontrol dizesi `Yakınımda` VAR (yontem dogrulandi).
+  ⚠️ **ADRES:** https://indir.gebzem.app/index.html?v=20260908-1252
+  Arayuz turu: **BACKEND DEGISMEDI**, migration YOK, deploy YOK.
+  ⚠️⚠️ **DB TRUNCATE EDILDI + tohum + `tools/oda_galeri.js`** (14 isletme,
+     2 kullanici; otelde 4 fotografli "Deluxe Suit (galeri testi)").
+  ✅ analyze **0/0** · test **86/86** · emulatorde galeri · coklu secici ·
+     "Odalari yonet" **gozle dogrulandi**.
+
+- 🖼️ ⚠️⚠️⚠️ **TURU 180o — GALERI YOKTU (kullanici sorusu).**
+  *"otel odasinda galeri vs bu galeriler aciliyor mu, her sey var mi?"*
+  OLCULDU: uc yerde de `mediaIds.first` — detay · katalog · ekleme formu
+  (TEK dosya). Bes fotografli bir odada musteri BIRINI goruyor, otekilere
+  ulasmanin HICBIR yolu yoktu.
+  ⚠️⚠️ **VERI TARAFI ZATEN HAZIRDI**: `isletme_urunleri.media_ids`
+     **UUID[]** (migration 031), sunucu diziyi oldugu gibi donduruyor —
+     eksik olan YALNIZCA arayuzdu. **BACKEND'E DOKUNULMADI.**
+  · `urun_detay`: Stateless -> Stateful; `PageView` + "k/N" sayaci +
+    dokununca `TamEkranGorsel` (ilan galerisi deseni, turu 113).
+  ⚠️ `PageController` `initState`te (build'de kurulsaydi her cizimde
+     yenisi olusur, kaydirma konumu SIFIRLANIRDI — turu 92).
+  ⚠️ **Video dali YOK ve bu DOGRU**: urun medyasi `kind: 'image'` SABIT.
+     Video eklenirse once sunucu `media_kinds` dondurmeli, yoksa video
+     id'si `MedyaGorsel`e gidip KIRIK GORSEL cizer (turu 83b).
+  · Form: `File? _gorsel` -> `List<File> _gorseller` (tavan **6**) +
+    `MedyaSecici.coklu` + serit (tek tek ✕, dokunma kutusu **30 dp**).
+  ⚠️⚠️ `MedyaSecici.coklu` TEK KAYNAK: `pickMultiImage(limit: 1)`
+     **ArgumentError FIRLATIR** ve burada sessizce yutulurdu (turu 90b).
+  ⚠️⚠️ Yuklemeler **SIRAYLA**: `Future.wait` donus sirasini AG HIZINA
+     birakir; katalog ve detay `mediaIds.first`i KAPAK sayar, yani
+     kullanicinin sectigi ilk fotograf kapak OLMAYABILIRDI.
+  · Katalogda **`N` rozeti**: rozet olmadan musteri baska fotograf
+    oldugunu BILEMEZ ve detaya girip kaydirmayi hic denemez.
+
+- 🏨 ⚠️⚠️⚠️ **TURU 180o — ISLETME KENDI KATALOGUNU YONETEMIYORDU.**
+  Galeriyi GERCEK veriyle sinamak icin emulatorde **otel hesabina**
+  girildi ve kusur ORADA gorundu: kendi profilinde **"Odalar" dugmesi
+  YOKTU**. Kok neden `_dugmeler`in ILK SATIRI:
+  `if (_benimMi) return _kendiDugmelerim();` — erken donus, altindaki
+  `if (_isletme != null)` modul dugmesine **HIC ULASILMIYORDU**.
+  Sonuc: isletme sahibi oda/menu/hizmet **EKLEYEMIYOR**, mevcutlari
+  **DUZENLEYEMIYORDU**; katalogun tek girisi BASKASININ profiliydi ve
+  sahip kendi profilinde "baskasi" olamaz.
+  ⚠️ Ayarlar > "Isletme bilgilerim" alt yazisi *"...calisma saatleri,
+     **menu**"* diyordu ama o ekranda da giris YOKTU — vaat GOVDEDE
+     KARSILIKSIZDI.
+  **FIX:** `_kendiDugmelerim`e TAM GENISLIKTE `<Modul> yonet` dugmesi.
+  ⚠️ Ayni satira UCUNCU dugme KONULMADI: turu 179'da olculdu —
+     `FittedBox` metinleri kucultuyor, "Profili duzenle" okunmuyor.
+  ⚠️ **DERS (bu projede tekrarlayan sinif): bir ozelligin GIRIS YOLUNU
+     yalniz MUSTERI gozuyle dogrulama — SAHIP gozuyle de ac.**
+
+- 🏷️ **TURU 180o — FORM BASLIGI MODULDEN, ZEMIN SIYAH.**
+  Baslik kategoriden BAGIMSIZ **"Urun ekle"** idi; katalogdaki dugme
+  dogru ("Oda ekle") oldugu icin otelci **oda eklerken "urun" ekranina**
+  dusuyordu. Baslik + alan etiketi + uyari metni artik `modul.tekil`den
+  (Oda / Hizmet / Urun) — istemcide TAHMIN EDILMEZ (turu 89).
+  · Form BEYAZDI, cagiran katalog ve profil SIYAH: `koyuSayfa` +
+    `kAiZemin` + **`_ks`** (turu 135c/138/178 — State metotlari `build`in
+    dondurdugu `Theme`i GORMEZ; yedinci tekrar).
+
+- 🛠️ **TURU 180o — `tools/oda_galeri.js` (yeni).**
+  Otele DORT fotografli bir oda ekler; gerekce: `tools/tohum.js` urunlerin
+  `media_ids` alanini **BOS** birakiyor, yani galeriyi gosterecek TEK BIR
+  KAYIT bile yoktu. **Her TRUNCATE+tohum sonrasi KOSULMALI.**
+  ⚠️ Urun PATCH'i medyaya DOKUNMAZ -> mevcut oda guncellenemez, YENI
+     oda eklenir.
+  ⚠️ Ilk yazimda dogrulama PATLADI: uc **kimlik ister** (token'siz 401)
+     ve yanit `{urunler: [...]}` bicimindedir; ikisi de VARSAYILMISTI.
+     **Varsayma, YANITA BAK.**
+
+- ⏳ **TURU 180o — DURUST SINIRLAR:**
+  · ⚠️⚠️ **DUZENLEMEDE FOTOGRAF DEGISTIRILEMIYOR**: `UrunGuncelle`
+    (`internal/isletme/urun.go`) istek govdesinde `media_ids` alani YOK.
+    Tek yol "urunu kaldir, yeniden ekle". ⏳ BACKEND TURU.
+  · **Otel odasinda GECE BAZLI rezervasyon YOK** (turu 89'dan beri):
+    `randevular` SLOT bazlidir; `slot_kapasite` "ayni anda kac randevu"
+    demek, "kac oda bos" DEMEK DEGIL. Oda su an **VITRIN**.
+  · **Ayarlar ekrani HALA BEYAZ.**
+  · `tools/tohum.js` urun tarafinda IDEMPOTENT DEGIL (turu 178'den beri).
+
+- 🧭 **TURU 180n — ISLETME SIHIRBAZI MEVCUT ARAYUZ DILINE**
+  (kullanici: *"isletme profilini tum asamalarini arayuzunu mevcut
+  arayuzumuz gibi duzenle stepleri"*).
+  `AppBar` -> 44 dp header · `LinearProgressIndicator` -> **`KabukAdimSeridi`**
+  (numarali daireler + ✓ + baglayici) · zemin siyah · mukerrer adim yazisi
+  kaldirildi.
+  ⚠️ Cubuklar `top: 11.5` = `(26-3)/2`, yani DAIRE CAPINDAN turetilir;
+     `bottom` ile hizalansaydi satir yuksekligine (= YAZI OLCEGINE)
+     baglanirdi (turu 180e dersi).
+
 - **KALDIGIMIZ YER (7 Eyl 20:54): TURU 180m YAYINLANDI — SADECE iOS.**
   ios **34148594179** (**8bb1f5b**), R2 ipa=**29067909** (md5 0df0f925),
   index=7967 (b3921ae7) surum.json=45 (db4b42ee), purge OK, **CDN BIREBIR**

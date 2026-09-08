@@ -10513,3 +10513,14 @@ ekranda · coklu secici **Add (3)** · serit **3/6 fotograf** · bir ✕ ile
   hepsi taranmadi.
 - `tools/tohum.js` urun tarafinda IDEMPOTENT DEGIL: otelde "Standart
   Oda" ve "Deniz Manzarali Suit" IKISER kayitli (biri `kaldirildi`).
+
+### ✅ Yayin (8 Eyl 12:52)
+ios **34211102618** (`ebf91aa`), R2 ipa=**29077172** (md5 851c6c13),
+index=7967 (cfb5ebd3) surum.json=45 (3159bd71), purge OK, **CDN ucu de
+BIREBIR**, `get-task-allow: false`, ad hoc profil, `MapsApiKey` +
+`NSLocationWhenInUse` + `MinimumOSVersion` VAR.
+IPAda dizeler VAR: `Fotoğraf ekle` · ` fotoğraf · ilki kapak olur` ·
+`ı yönet`; KALKANLAR YOK: `Ürün fotoğrafı` · `Ürün adı gerekli`;
+kontrol dizesi `Yakınımda` VAR. Backend DEGISMEDI, health ok.
+DB TRUNCATE + tohum + `tools/oda_galeri.js` kosuldu.
+Adres: https://indir.gebzem.app/index.html?v=20260908-1252
