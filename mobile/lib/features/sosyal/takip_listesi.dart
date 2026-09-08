@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../isletme/kategori_kabuk.dart' show YemekHeader;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
@@ -389,10 +390,17 @@ class _TakipIstekleriState extends ConsumerState<TakipIstekleri> {
     }
   }
 
+  // TURU 180v — koyu sayfa + 44 dp yemek headeri (kullanici emri:
+  //   "profil ayarlarinda header vs hepsini ayni yemek gibi").
+  // UYARI `Builder` ZORUNLU (turu 135c/138/178 tuzagi).
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext _) =>
+      koyuSayfa(Builder(builder: (context) => _koyuGovde(context)));
+
+  Widget _koyuGovde(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Takip istekleri')),
+      backgroundColor: kAiZemin,
+      appBar: const YemekHeader(baslik: 'Takip istekleri'),
       body: _yukleniyor
           ? const Center(child: CircularProgressIndicator())
           : _liste.isEmpty

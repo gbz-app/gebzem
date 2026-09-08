@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../core/theme.dart' show kAiZemin, koyuSayfa;
+import '../isletme/kategori_kabuk.dart' show YemekHeader;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:permission_handler/permission_handler.dart'
@@ -70,7 +72,16 @@ class _AyarlarEkraniState extends ConsumerState<AyarlarEkrani> {
   bool _gizlilikMesgul = false;
 
   @override
-  Widget build(BuildContext context) {
+  // TURU 180v — KOYU SAYFA + 44 dp YEMEK HEADERI (kullanici emri:
+  //   "profil ayarlarinda header vs hepsini ayni yemek gibi yapacagiz,
+  //   hepsi ayni gorunmeli").
+  // UYARI `Builder` ZORUNLU: `koyuSayfa` temayi `build`in DONDURDUGU
+  //   agaca koyar; bu metodun kendi `context`i o temanin USTUNDE kalir
+  //   ve `Theme.of` ACIK temayi cozerdi (turu 135c/138/178 tuzagi).
+  Widget build(BuildContext _) =>
+      koyuSayfa(Builder(builder: (context) => _koyuGovde(context)));
+
+  Widget _koyuGovde(BuildContext context) {
     final mod = ref.watch(temaProvider);
     final harita = ref.watch(haritaStiliProvider);
     // ⚠️⚠️⚠️ TURU 108 (DENETIM) — **GIZLILIK `/users/me`DEN OKUNAMAZ.**
@@ -97,7 +108,8 @@ class _AyarlarEkraniState extends ConsumerState<AyarlarEkrani> {
         ? const AsyncValue<Profil>.loading()
         : ref.watch(_gizlilikProfiliProvider(benimId));
     return Scaffold(
-      appBar: AppBar(title: const Text('Ayarlar')),
+      backgroundColor: kAiZemin,
+      appBar: const YemekHeader(baslik: 'Ayarlar'),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
         children: [

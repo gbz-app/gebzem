@@ -15,6 +15,8 @@
 library;
 
 import 'package:flutter/material.dart';
+import '../../core/theme.dart' show kAiZemin, koyuSayfa;
+import '../isletme/kategori_kabuk.dart' show YemekHeader;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
@@ -381,29 +383,45 @@ class _BasvuranlarState extends ConsumerState<BasvuranlarEkrani> {
     }
   }
 
+  // UYARI Ilan basligi header in ALT SATIRINDAN GOVDEYE tasindi:
+  //   `YemekHeader` TEK SATIRLIK ve TEK KAYNAK; ikinci bir satir
+  //   eklemek bu ekrani digerlerinden ayirirdi. Bilgi KAYBOLMADI.
+  // TURU 180v — KOYU SAYFA + 44 dp YEMEK HEADERI (kullanici emri:
+  //   "profil ayarlarinda header vs hepsini ayni yemek gibi").
+  // UYARI `Builder` ZORUNLU: `koyuSayfa` temayi `build`in DONDURDUGU
+  //   agaca koyar; bu metodun kendi `context`i o temanin USTUNDE kalir
+  //   ve `Theme.of` ACIK temayi cozerdi (turu 135c/138/178 tuzagi).
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext _) =>
+      koyuSayfa(Builder(builder: (context) => _koyuGovde(context)));
+
+  Widget _koyuGovde(BuildContext context) {
     final l = _liste;
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Başvuranlar'),
-        bottom: widget.baslik.isEmpty
-            ? null
-            : PreferredSize(
-                preferredSize: const Size.fromHeight(22),
-                child: Padding(
-                  padding: const EdgeInsets.only(bottom: 6, left: 16, right: 16),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(widget.baslik,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 12)),
+      backgroundColor: kAiZemin,
+      appBar: const YemekHeader(baslik: 'Başvuranlar'),
+      body: Column(
+        children: [
+          if (widget.baslik.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 2, 16, 8),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  widget.baslik,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withValues(alpha: 0.62),
                   ),
                 ),
               ),
-      ),
-      body: RefreshIndicator(
+            ),
+          Expanded(
+            child: RefreshIndicator(
         onRefresh: _yukle,
         child: _hata != null
             ? _bosDurum(LucideIcons.circleAlert, _hata!, 'Tekrar dene', _yukle)
@@ -421,6 +439,9 @@ class _BasvuranlarState extends ConsumerState<BasvuranlarEkrani> {
                         separatorBuilder: (_, _) => const Divider(height: 1),
                         itemBuilder: (c, i) => _satir(l[i]),
                       ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -673,12 +694,22 @@ class _BasvurularimState extends ConsumerState<BasvurularimEkrani> {
     }
   }
 
+  // TURU 180v — KOYU SAYFA + 44 dp YEMEK HEADERI (kullanici emri:
+  //   "profil ayarlarinda header vs hepsini ayni yemek gibi").
+  // UYARI `Builder` ZORUNLU: `koyuSayfa` temayi `build`in DONDURDUGU
+  //   agaca koyar; bu metodun kendi `context`i o temanin USTUNDE kalir
+  //   ve `Theme.of` ACIK temayi cozerdi (turu 135c/138/178 tuzagi).
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext _) =>
+      koyuSayfa(Builder(builder: (context) => _koyuGovde(context)));
+
+  Widget _koyuGovde(BuildContext context) {
     final l = _liste;
     return Scaffold(
-      appBar: AppBar(title: Text(
-          widget.tur == 'talep' ? 'Tekliflerim' : 'Başvurularım')),
+      backgroundColor: kAiZemin,
+      appBar: YemekHeader(
+        baslik: widget.tur == 'talep' ? 'Tekliflerim' : 'Başvurularım',
+      ),
       body: RefreshIndicator(
         onRefresh: _yukle,
         child: _hata != null

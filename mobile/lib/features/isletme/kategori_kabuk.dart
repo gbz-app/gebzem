@@ -324,7 +324,6 @@ Widget kabukArama({
   required ValueChanged<String> onChanged,
 }) {
   final koyu = Theme.of(context).brightness == Brightness.dark;
-  final odak = koyu ? const Color(0xFFE8E8EA) : const Color(0xFF1A1A1A);
   final ikonRenk = koyu ? Colors.white70 : Colors.black87;
   const yaziStili = TextStyle(fontSize: 15, fontWeight: FontWeight.w500);
   final dolu = controller.text.isNotEmpty;
@@ -394,9 +393,105 @@ Widget kabukArama({
             )
           : null,
       suffixIconConstraints: const BoxConstraints(),
-      enabledBorder: kenar(kabukKenar(context)),
-      border: kenar(kabukKenar(context)),
-      focusedBorder: kenar(BorderSide(color: odak, width: 1.6)),
+      // TURU 180v — ARAMA KUTUSU YEMEK EKRANIYLA AYNI DILE GECTI
+      //   (kullanici: "hizmette arama alani digerleri gibi degil, arka
+      //   plan rengi border vs"). Yemek ekrani KENARLIKSIZ + HAFIF DOLGU
+      //   kullaniyordu; kabuk ise CERCEVELI ve DOLGUSUZDU — ayni menuden
+      //   acilan iki ekran iki farkli arama kutusu gosteriyordu.
+      // UYARI Kenarligi kaldirmak TEK BASINA YETMEZ: siyah zeminde
+      //    cercevesiz ve dolgusuz bir TextField GORUNMEZ olur; kullanici
+      //    oraya dokunulabilecegini anlayamaz. Dolgu ZORUNLU.
+      // UYARI `InputBorder.none` UC HALDE DE verilir (enabled/focused/
+      //    border): yalniz birini bosaltmak odaga girince cizgiyi GERI
+      //    getirir (turu 174 dersi).
+      filled: true,
+      fillColor: (koyu ? Colors.white : Colors.black).withValues(alpha: 0.07),
+      enabledBorder: kenar(BorderSide.none),
+      border: kenar(BorderSide.none),
+      focusedBorder: kenar(BorderSide.none),
+    ),
+  );
+}
+
+// ═══════════════════════ YEMEK HEADERI ═══════════════════════
+
+/// TURU 180v — 44 dp "yemek" header i **TEK KAYNAK**.
+///
+/// Kullanici emri: *"profil ayarlarinda header vs hepsini ayni yemek gibi
+/// yapacagiz, hepsi ayni gorunmeli"*. Ayarlar ailesindeki ekranlar
+/// `AppBar` kullaniyordu; `AppBar` platforma gore degisen bir geri oku
+/// cizer, basligi SOLA yaslar ve kendi zeminini boyar — yani ayni menuden
+/// acilan iki ekran iki farkli dilde konusuyordu.
+///
+/// UYARI `PreferredSizeWidget` BILEREK: boylece ekranlar `appBar:`
+///    yuvasini DEGISTIRMEDEN gecebiliyor (govdeyi yeniden girintilemek
+///    gerekmiyor). `Scaffold` bu yuvaya `preferredSize.height + durum
+///    cubugu` kadar yer ayirir; ust dolguyu WIDGET KENDISI tuketir,
+///    o yuzden `SafeArea` ICERIDE.
+/// UYARI Zemin SAYDAM: sayfanin kendi zemini (`kAiZemin`) gorunur.
+///    `AppBar` gibi kendi rengini boyasaydi govdeyle arasinda GORUNUR
+///    bir dikis kalirdi (turu 180r dersi).
+class YemekHeader extends StatelessWidget implements PreferredSizeWidget {
+  const YemekHeader({
+    super.key,
+    required this.baslik,
+    this.geriBasildi,
+    this.sag,
+  });
+
+  final String baslik;
+
+  /// Verilmezse `maybePop`.
+  final VoidCallback? geriBasildi;
+
+  /// Sag kosedeki eylem(ler).
+  ///
+  /// UYARI `mainAxisSize.min` cagri yerinde ZORUNLU (birden fazla ikon
+  ///    konacaksa): `Align` genislik kisiti VERMEZ ve `Row` sinirsiz
+  ///    genislige yayilip geri okunun uzerine binerdi.
+  final Widget? sag;
+
+  @override
+  Size get preferredSize => const Size.fromHeight(44);
+
+  @override
+  Widget build(BuildContext context) => SafeArea(
+    bottom: false,
+    child: SizedBox(
+      height: 44,
+      child: Stack(
+        children: [
+          Align(
+            alignment: Alignment.centerLeft,
+            child: IconButton(
+              icon: const Icon(LucideIcons.arrowLeft),
+              tooltip: 'Geri',
+              onPressed:
+                  geriBasildi ?? () => Navigator.of(context).maybePop(),
+            ),
+          ),
+          // UYARI Baslik `Stack` + `Center` ile GERCEK merkezde: `Row`
+          //    icinde ortalansaydi sag/sol yuvalarin genisligi farkli
+          //    oldugu icin baslik kayardi.
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 52),
+              child: Text(
+                baslik,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 18,
+                  height: 1.0,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ),
+          if (sag != null)
+            Align(alignment: Alignment.centerRight, child: sag),
+        ],
+      ),
     ),
   );
 }

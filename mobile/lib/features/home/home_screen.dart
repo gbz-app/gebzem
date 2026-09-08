@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../isletme/kategori_kabuk.dart' show YemekHeader;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
@@ -669,9 +670,13 @@ class HesabimEkrani extends ConsumerWidget {
   const HesabimEkrani({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) => Scaffold(
-    appBar: AppBar(title: const Text('Hesabım')),
-    body: const _ProfileTab(),
+  // TURU 180v — koyu sayfa + 44 dp yemek headeri.
+  Widget build(BuildContext context, WidgetRef ref) => koyuSayfa(
+    Scaffold(
+      backgroundColor: kAiZemin,
+      appBar: const YemekHeader(baslik: 'Hesabım'),
+      body: const _ProfileTab(),
+    ),
   );
 }
 

@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import '../../core/theme.dart' show kAiZemin, koyuSayfa;
+import '../isletme/kategori_kabuk.dart' show YemekHeader;
 import '../../core/denetleyici_sahibi.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -99,14 +101,23 @@ class _RandevuListesiEkraniState
     }
   }
 
+  // TURU 180v — KOYU SAYFA + 44 dp YEMEK HEADERI (kullanici emri:
+  //   "profil ayarlarinda header vs hepsini ayni yemek gibi").
+  // UYARI `Builder` ZORUNLU: `koyuSayfa` temayi `build`in DONDURDUGU
+  //   agaca koyar; bu metodun kendi `context`i o temanin USTUNDE kalir
+  //   ve `Theme.of` ACIK temayi cozerdi (turu 135c/138/178 tuzagi).
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext _) =>
+      koyuSayfa(Builder(builder: (context) => _koyuGovde(context)));
+
+  Widget _koyuGovde(BuildContext context) {
     final l = _liste;
     return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          widget.isletmeGorunumu ? 'Gelen randevular' : 'Randevularım',
-        ),
+      backgroundColor: kAiZemin,
+      appBar: YemekHeader(
+        baslik: widget.isletmeGorunumu
+            ? 'Gelen randevular'
+            : 'Randevularım',
       ),
       body: Column(
         children: [
@@ -583,11 +594,20 @@ class _RandevuAyarEkraniState extends ConsumerState<RandevuAyarEkrani> {
     }
   }
 
+  // TURU 180v — KOYU SAYFA + 44 dp YEMEK HEADERI (kullanici emri:
+  //   "profil ayarlarinda header vs hepsini ayni yemek gibi").
+  // UYARI `Builder` ZORUNLU: `koyuSayfa` temayi `build`in DONDURDUGU
+  //   agaca koyar; bu metodun kendi `context`i o temanin USTUNDE kalir
+  //   ve `Theme.of` ACIK temayi cozerdi (turu 135c/138/178 tuzagi).
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext _) =>
+      koyuSayfa(Builder(builder: (context) => _koyuGovde(context)));
+
+  Widget _koyuGovde(BuildContext context) {
     final a = _a;
     return Scaffold(
-      appBar: AppBar(title: const Text('Randevu ayarları')),
+      backgroundColor: kAiZemin,
+      appBar: const YemekHeader(baslik: 'Randevu ayarları'),
       body: _hata != null
           ? Center(child: Padding(padding: const EdgeInsets.all(30), child: Text(_hata!)))
           : a == null
@@ -843,11 +863,20 @@ class _KapaliGunlerEkraniState extends ConsumerState<KapaliGunlerEkrani> {
         '${kGunUzun[d.weekday - 1]}';
   }
 
+  // TURU 180v — KOYU SAYFA + 44 dp YEMEK HEADERI (kullanici emri:
+  //   "profil ayarlarinda header vs hepsini ayni yemek gibi").
+  // UYARI `Builder` ZORUNLU: `koyuSayfa` temayi `build`in DONDURDUGU
+  //   agaca koyar; bu metodun kendi `context`i o temanin USTUNDE kalir
+  //   ve `Theme.of` ACIK temayi cozerdi (turu 135c/138/178 tuzagi).
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext _) =>
+      koyuSayfa(Builder(builder: (context) => _koyuGovde(context)));
+
+  Widget _koyuGovde(BuildContext context) {
     final g = _gunler;
     return Scaffold(
-      appBar: AppBar(title: const Text('Kapalı günler')),
+      backgroundColor: kAiZemin,
+      appBar: const YemekHeader(baslik: 'Kapalı günler'),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _mesgul ? null : _ekle,
         icon: const Icon(LucideIcons.plus),

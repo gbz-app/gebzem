@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../core/theme.dart' show kAiZemin, koyuSayfa;
+import '../isletme/kategori_kabuk.dart' show YemekHeader;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
@@ -65,11 +67,21 @@ class _KaydedilenlerSayfasiState extends ConsumerState<KaydedilenlerSayfasi> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  // TURU 180v — KOYU SAYFA + 44 dp YEMEK HEADERI (kullanici emri:
+  //   "profil ayarlarinda header vs hepsini ayni yemek gibi yapacagiz,
+  //   hepsi ayni gorunmeli").
+  // UYARI `Builder` ZORUNLU: `koyuSayfa` temayi `build`in DONDURDUGU
+  //   agaca koyar; bu metodun kendi `context`i o temanin USTUNDE kalir
+  //   ve `Theme.of` ACIK temayi cozerdi (turu 135c/138/178 tuzagi).
+  Widget build(BuildContext _) =>
+      koyuSayfa(Builder(builder: (context) => _koyuGovde(context)));
+
+  Widget _koyuGovde(BuildContext context) {
     final benimId = (ref.watch(myProfileProvider).valueOrNull?['id'] ?? '')
         .toString();
     return Scaffold(
-      appBar: AppBar(title: const Text('Kaydedilenler')),
+      backgroundColor: kAiZemin,
+      appBar: const YemekHeader(baslik: 'Kaydedilenler'),
       body: YenileSarmali(
         onRefresh: _yukle,
         // TURU 82b - spinner YALNIZ VERI YOKKEN. Ciplak `_yukleniyor` her

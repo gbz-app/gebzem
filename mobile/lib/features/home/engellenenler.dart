@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../core/theme.dart' show kAiZemin, koyuSayfa;
+import '../isletme/kategori_kabuk.dart' show YemekHeader;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api.dart';
@@ -60,7 +62,16 @@ class _EngellenenlerEkraniState extends ConsumerState<EngellenenlerEkrani> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  // TURU 180v — KOYU SAYFA + 44 dp YEMEK HEADERI (kullanici emri:
+  //   "profil ayarlarinda header vs hepsini ayni yemek gibi yapacagiz,
+  //   hepsi ayni gorunmeli").
+  // UYARI `Builder` ZORUNLU: `koyuSayfa` temayi `build`in DONDURDUGU
+  //   agaca koyar; bu metodun kendi `context`i o temanin USTUNDE kalir
+  //   ve `Theme.of` ACIK temayi cozerdi (turu 135c/138/178 tuzagi).
+  Widget build(BuildContext _) =>
+      koyuSayfa(Builder(builder: (context) => _koyuGovde(context)));
+
+  Widget _koyuGovde(BuildContext context) {
     Widget govde;
     if (_hata != null) {
       govde = Center(child: Text(_hata!));
@@ -99,7 +110,8 @@ class _EngellenenlerEkraniState extends ConsumerState<EngellenenlerEkrani> {
       );
     }
     return Scaffold(
-      appBar: AppBar(title: const Text('Engellenen kişiler')),
+      backgroundColor: kAiZemin,
+      appBar: const YemekHeader(baslik: 'Engellenen kişiler'),
       body: govde,
     );
   }

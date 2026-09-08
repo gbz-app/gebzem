@@ -13,7 +13,7 @@
 /// ⚠️ YAPMA: soru listesini Dart'a yazma (turu 77 kurali).
 library;
 
-import '../../core/theme.dart' show koyuSayfa;
+import '../../core/theme.dart' show kAiZemin, koyuSayfa;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -223,6 +223,18 @@ class _TalepAkisiState extends ConsumerState<TalepAkisiEkrani> {
         ),
       ),
       onYenile: _slaytlariYukle,
+      // TURU 180v — SAG ALTTA "Hizmet al" (kullanici emri).
+      //   Kategori kartlari seritten KALDIRILDI; talep acmanin tek
+      //   girisi bu dugme ve dugme ADIM ADIM akisi aciyor.
+      // UYARI Kategori listesi PROVIDERDAN okunur, bir State alaninda
+      //    SAKLANMAZ: `build` icinde alan yazmak (side-effect) ilk
+      //    karede bos kalir ve dugme SESSIZCE calismazdi.
+      altDugme: FloatingActionButton.extended(
+        heroTag: 'fabHizmetAl',
+        onPressed: _hizmetAl,
+        icon: const Icon(LucideIcons.handshake),
+        label: Text(widget.dal == 'dugun' ? 'Teklif al' : 'Hizmet al'),
+      ),
       slivers: agac.when(
         loading: () => const [
           SliverFillRemaining(
@@ -239,9 +251,9 @@ class _TalepAkisiState extends ConsumerState<TalepAkisiEkrani> {
         data: (turler) {
           final talep = turler.where((t) => t.anahtar == 'talep').firstOrNull;
           if (talep == null) {
-            // ⚠️ DURUST HATA: sunucu `talep` turunu dondurmuyorsa ozellik
-            //    KULLANILAMAZ. Bos liste "hicbir kategori yok" gibi YANLIS
-            //    bir izlenim verirdi.
+            // UYARI DURUST HATA: sunucu `talep` turunu dondurmuyorsa
+            //    ozellik KULLANILAMAZ. Bos liste "hicbir kategori yok"
+            //    gibi YANLIS bir izlenim verirdi.
             return const [
               SliverFillRemaining(
                 hasScrollBody: false,
@@ -256,180 +268,183 @@ class _TalepAkisiState extends ConsumerState<TalepAkisiEkrani> {
               ),
             ];
           }
-          final hepsi = talep.kategoriler.where((k) {
-            // ⚠️⚠️ TURU 121 — **DIYET KATEGORISI ELENIR** (kullanici emri:
-            //	*"diyet ile ilgili ne varsa kaldir"*).
-            //	Sunucu `/ilan-kategoriler` yanitinda `diyet_program` hala
-            //	donuyor; istemci onu CIZMEZ. Sunucudan silmek BACKEND isi ve
-            //	arayuz turunda yapilmaz (kural 9) — liste geldiginde
-            //	suzuluyor.
-            // ⚠️ Sunucu kaldirilirsa bu satir ZARARSIZ kalir (eslesme olmaz).
-            if (k.anahtar == 'diyet_program') return false;
-            if (widget.dal == 'dugun') {
-              return dugunKategorileri.contains(k.anahtar);
-            }
-            if (widget.dal == 'hizmet') {
-              return !dugunKategorileri.contains(k.anahtar);
-            }
-            return true;
-          }).toList();
-          // ⚠️ Arama ISTEMCIDE suzuyor: liste sunucudan TEK SEFERDE geliyor
-          //    ve ~15 kalem. Sunucuya `q` eklemek fazladan bir istek ve
-          //    fazladan bir uc demekti.
+          // TURU 180v — ARAMA ARTIK **EKRANDA GORUNENI** SUZUYOR.
+          //   Kategori kartlari kaldirildi; arama onlari suzuyordu ve
+          //   oldugu gibi birakilsaydi kutu HICBIR SEY YAPMAZDI.
+          // UYARI Suzgec ISTEMCIDE: iki liste de sunucudan TEK ISTEKTE
+          //    gelmis durumda, yani suzulen kume kullanicinin gordugu
+          //    kumenin TAMAMI (turu 122/141 gerekcesi).
           final q = _kucult(_q);
-          final gosterilen = q.isEmpty
-              ? hepsi
-              : hepsi.where((k) => _kucult(k.ad).contains(q)).toList();
-
+          final alanlar = q.isEmpty
+              ? _altKategoriler
+              : _altKategoriler
+                    .where((a) => _kucult(a.ad).contains(q))
+                    .toList();
+          final verenler = (_verenler ?? const <IsletmeOzet>[])
+              .where((v) => q.isEmpty || _kucult(v.ad).contains(q))
+              .toList();
           return [
-              // ⚠️⚠️ TURU 123 — **"Hangi hizmeti almak istiyorsun?" BASLIK
-              //	BLOGU KALDIRILDI.** Yemek ve Ilan ekranlarinda boyle bir
-              //	blok YOK; yalniz burada vardi ve ekrani ailenin disinda
-              //	gosteriyordu (kullanici emri: *"yemegin AYNISI"*).
-              //
-              // ⚠️ TURU 121 — arama kutusu KABUKTAN (Yemek ile birebir):
-              //    48 dp, notr kenarlik, kalinlastirilmis arama ikonu,
-              //    dolu iken temizle (X) dairesi.
-              SliverPadding(
-                padding: const EdgeInsets.fromLTRB(
-                  kYanBosluk,
-                  0,
-                  kYanBosluk,
-                  kBosluk,
+            // UYARI TURU 121 — arama kutusu KABUKTAN (Yemek ile birebir):
+            //    48 dp, kenarliksiz + hafif dolgu, kalinlastirilmis arama
+            //    ikonu, dolu iken temizle (X) dairesi.
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(
+                kYanBosluk,
+                0,
+                kYanBosluk,
+                kBosluk,
+              ),
+              sliver: SliverToBoxAdapter(
+                child: kabukArama(
+                  context: context,
+                  controller: _arama,
+                  ipucu: 'Ne Aramıştın?',
+                  onChanged: (v) => setState(() => _q = v.trim()),
                 ),
-                sliver: SliverToBoxAdapter(
-                  child: kabukArama(
-                    context: context,
-                    controller: _arama,
-                    ipucu: 'Ne Aramıştın?',
-                    onChanged: (v) => setState(() => _q = v.trim()),
+              ),
+            ),
+            // ── SLIDER (Yemek ile AYNI yer, AYNI bilesen) ──
+            if (_slaytlar.isNotEmpty) ...[
+              SliverToBoxAdapter(
+                child: KategoriSlider(slaytlar: _slaytlar),
+              ),
+              const SliverToBoxAdapter(child: SizedBox(height: kBosluk)),
+            ],
+            // ══════════ ALT ALAN SERIDI (Yemek`teki "Mutfaklar") ══════════
+            //
+            // UYARI TURU 180v — kullanici emri: *"hizmet alanlarin ustunde
+            //    ufak kartlar kalmis, bunlari kaldir"*. Kaldirilan serit
+            //    TALEP KATEGORILERIYDI ve dokunusu sihirbaza gidiyordu;
+            //    o giris KAYBOLMADI, sag alttaki "Hizmet al" dugmesine
+            //    tasindi ve orada ILK ADIM olarak soruluyor.
+            // UYARI Bu serit AYRI bir seydir: bir ARAMA KISAYOLU
+            //    (`/isletme-kesif?kategori=hizmet` -> Tadilat · Nakliyat ·
+            //    Temizlik · Tesisat · Elektrik).
+            // UYARI Serit YOKSA baslik da cizilmez (Yemek`teki kural).
+            if (alanlar.isNotEmpty) ...[
+              SliverToBoxAdapter(
+                child: kabukBolumBasligi(context, 'Hizmet alanları'),
+              ),
+              const SliverToBoxAdapter(
+                child: SizedBox(height: kBaslikBosluk),
+              ),
+              SliverToBoxAdapter(child: _altSerit(alanlar)),
+              kabukBosluk(),
+            ],
+            // ══════════ HIZMET VERENLER (Yemek karti ile AYNI) ══════════
+            //
+            // UYARI TURU 125 — kullanici emri: *"hizmetlerde ornek hizmet
+            //    verenler yok, kartlar yok"*. Ekran yalniz TALEP
+            //    olusturmaya yariyordu; "kimler bu isi yapiyor"
+            //    sorusunun cevabi hicbir yerde yoktu.
+            // UYARI Bos ise bolum HIC cizilmez (bos baslik gurultudur).
+            if (verenler.isNotEmpty) ...[
+              SliverToBoxAdapter(
+                child: kabukBolumBasligi(
+                  context,
+                  'Hizmet verenler (${verenler.length})',
+                ),
+              ),
+              const SliverToBoxAdapter(
+                child: SizedBox(height: kBaslikBosluk),
+              ),
+              SliverPadding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: kYanBosluk,
+                ),
+                sliver: SliverList.builder(
+                  itemCount: verenler.length,
+                  itemBuilder: (_, i) => IsletmeKarti(o: verenler[i]),
+                ),
+              ),
+            ],
+            // UYARI Arama HICBIR SEY bulmuyorsa sebebi SOYLENIR; bos bir
+            //    ekran "ozellik bozuk" gibi gorunur.
+            if (q.isNotEmpty && alanlar.isEmpty && verenler.isEmpty)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    kYanBosluk,
+                    24,
+                    kYanBosluk,
+                    24,
+                  ),
+                  child: Text(
+                    'Aramanla eşleşen sonuç yok',
+                    style: TextStyle(
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withValues(alpha: 0.6),
+                    ),
                   ),
                 ),
               ),
-              // ── SLIDER (Yemek ile AYNI yer, AYNI bilesen) ──
-              if (_slaytlar.isNotEmpty) ...[
-                SliverToBoxAdapter(
-                  child: KategoriSlider(slaytlar: _slaytlar),
-                ),
-                const SliverToBoxAdapter(child: SizedBox(height: kBosluk)),
-              ],
-              // ⚠️ Bolum basligi da kabuktan: Yemek ekranindaki
-              //    "Mutfaklar" ile AYNI olcu (17/w700 + optik telafi).
-              //    Onceki hal 11.5/w800 GRI bir etiketti ve ayni menuden
-              //    acilan iki ekran farkli dilde konusuyordu.
-              // ⚠️ TURU 123 — "Kategoriler" basligi KALDIRILDI (Yemek`te
-              //    kutu izgarasinin ustunde baslik YOK).
-              if (gosterilen.isEmpty)
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(kYanBosluk, 24, kYanBosluk, 24),
-                    child: Text(
-                      q.isEmpty
-                          ? 'Bu dalda kategori bulunamadı'
-                          : 'Aramanla eşleşen kategori yok',
-                      style: TextStyle(
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.onSurface.withValues(alpha: 0.6),
-                      ),
-                    ),
-                  ),
-                )
-              else
-                // ⚠️⚠️⚠️ TURU 180m — **BUYUK KUTU IZGARASI -> KUCUK SERIT**
-                //	(kullanici: *"butun kategorilerdeki BUYUK KARTLARI
-                //	kaldir, altina kucuk kartlar kalsin"*).
-                // ⚠️⚠️ Bu kartlar bir FILTRE DEGIL **EYLEM**: dokunus talep
-                //	sihirbazini aciyor ve baska hicbir girisi YOK. Serit
-                //	o yuzden BOS secimle cizilir — hicbiri secili
-                //	gorunmez, dokunus dogrudan sihirbaza gider.
-                // ⚠️ Izgara + `_kategoriKarti` govdeleri SILINMEDI.
-                SliverToBoxAdapter(
-                  child: KabukKucukSerit(
-                    ogeler: gosterilen,
-                    secili: '',
-                    onSec: (a) {
-                      final k = gosterilen.firstWhere((x) => x.anahtar == a);
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) =>
-                              TalepSihirbaziEkrani(tur: talep, kategori: k),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              // ⚠️ TURU 123 — "NASIL ÇALIŞIR" blogu KALDIRILDI: Yemek ve
-              //    Ilan ekranlarinda YOK. Akis zaten kendini anlatiyor
-              //    (karta dokun -> adim adim form).
-
-              // ══════════ ALT ALAN SERIDI (Yemek`teki "Mutfaklar") ══════════
-              //
-              // ⚠️⚠️ TURU 124 — kullanici emri: *"hizmetlerde yemek gibi ana
-              //	kartlar bir de ALTINDA hizmetlerin ALT ALANLARI"*.
-              //	Ana kartlar (yukarida) TALEP kategorileridir ve dokununca
-              //	SIHIRBAZ acar; bu serit ise bir **ARAMA KISAYOLUDUR**
-              //	(Yemek`teki alt kategori seridiyle AYNI davranis).
-              // ⚠️ Icerik SUNUCUDAN (`/isletme-kesif?kategori=hizmet`):
-              //	Tadilat · Nakliyat · Temizlik · Tesisat · Elektrik.
-              // ⚠️ Serit YOKSA baslik da cizilmez (Yemek`teki kural).
-              if (_altKategoriler.isNotEmpty) ...[
-                SliverToBoxAdapter(
-                  child: kabukBolumBasligi(context, 'Hizmet alanları'),
-                ),
-                const SliverToBoxAdapter(
-                  child: SizedBox(height: kBaslikBosluk),
-                ),
-                SliverToBoxAdapter(child: _altSerit()),
-                kabukBosluk(),
-              ],
-              // ══════════ HIZMET VERENLER (Yemek karti ile AYNI) ══════════
-              //
-              // ⚠️⚠️ TURU 125 — kullanici emri: *"hizmetlerde örnek hizmet
-              //	verenler yok, kartlar yok"*. Ekran yalniz TALEP olusturmaya
-              //	yariyordu; "kimler bu isi yapiyor" sorusunun cevabi hicbir
-              //	yerde yoktu.
-              // ⚠️ Kartlar Yemek ekranindakiyle **AYNI BILESEN**
-              //    (`IsletmeKarti`): kapak + kalp + ad + puan satiri.
-              // ⚠️ Bos ise bolum HIC cizilmez (bos baslik gurultudur).
-              if ((_verenler ?? const []).isNotEmpty) ...[
-                SliverToBoxAdapter(
-                  child: kabukBolumBasligi(
-                    context,
-                    'Hizmet verenler (${_verenler!.length})',
-                  ),
-                ),
-                const SliverToBoxAdapter(
-                  child: SizedBox(height: kBaslikBosluk),
-                ),
-                SliverPadding(
-                  padding: const EdgeInsets.symmetric(horizontal: kYanBosluk),
-                  sliver: SliverList.builder(
-                    itemCount: _verenler!.length,
-                    itemBuilder: (_, i) => IsletmeKarti(o: _verenler![i]),
-                  ),
-                ),
-              ],
-
-
-              // ⚠️ TURU 124 — "Taleplerim" BOLUMU KALDIRILDI (kullanici emri:
-              //	*"taleplerim kaldir"*). Taleplere erisim KAYBOLMADI:
-              //	profildeki "İlanlarım" girisi `tur: talep` ile ayni listeyi
-              //	aciyor.
-              kabukBosluk(90),
+            // UYARI TURU 124 — "Taleplerim" BOLUMU KALDIRILDI (kullanici
+            //    emri). Taleplere erisim KAYBOLMADI: sag ustteki giris
+            //    ve profildeki "İlanlarım" ayni listeyi aciyor.
+            kabukBosluk(90),
           ];
         },
       ),
     );
   }
 
+
+  /// Talep kategorileri — dala gore SUZULMUS.
+  ///
+  /// UYARI TEK KAYNAK: hem "Hizmet al" dugmesi hem sihirbazin ilk adimi
+  ///    ayni listeyi kullanir. Iki kopya olsaydi biri guncellenir,
+  ///    oteki geride kalirdi (bu projede kayitli en sik hata sinifi).
+  List<({String anahtar, String ad})> _kategorileriSuz(IlanTuru talep) =>
+      talep.kategoriler.where((k) {
+        // UYARI TURU 121 — DIYET KATEGORISI ELENIR (kullanici emri:
+        //    "diyet ile ilgili ne varsa kaldir"). Sunucu
+        //    `/ilan-kategoriler` yanitinda `diyet_program` hala
+        //    donuyor; istemci onu CIZMEZ.
+        if (k.anahtar == 'diyet_program') return false;
+        if (widget.dal == 'dugun') {
+          return dugunKategorileri.contains(k.anahtar);
+        }
+        if (widget.dal == 'hizmet') {
+          return !dugunKategorileri.contains(k.anahtar);
+        }
+        return true;
+      }).toList();
+
+  /// TURU 180v — "Hizmet al": ADIM ADIM talep akisi.
+  ///
+  /// UYARI Kategori seciminin KENDISI ilk adim: eskiden kullanici
+  ///    seritteki bir karta dokunmak ZORUNDAYDI ve o serit kaldirildi.
+  /// UYARI Agac HENUZ yuklenmediyse durustce soylenir; sessizce hicbir
+  ///    sey yapmayan bir dugme "bozuk" gorunur.
+  void _hizmetAl() {
+    final agac = ref.read(ilanAgaciProvider).valueOrNull;
+    final talep = agac?.where((t) => t.anahtar == 'talep').firstOrNull;
+    final kategoriler = talep == null
+        ? const <({String anahtar, String ad})>[]
+        : _kategorileriSuz(talep);
+    if (talep == null || kategoriler.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Hizmet türleri henüz yüklenmedi')),
+      );
+      return;
+    }
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => TalepSihirbaziEkrani(
+          tur: talep,
+          secenekler: kategoriler,
+        ),
+      ),
+    );
+  }
   /// 60x60 alt alan seridi — Yemek ekranindaki "Mutfaklar" seridinin AYNISI.
   ///
   /// ⚠️ Yukseklik yazi olceginden TURETILIR (sabit dp DEGIL): olcek 1.3`te
   ///    iki satirlik ad tasardi.
   /// ⚠️ Ayni oge tekrar secilince suzgec KALKAR; secim arama kutusunu
   ///    doldurur, yani sonuc GORUNUR bir yerden geri alinabilir.
-  Widget _altSerit() {
+  Widget _altSerit(List<({String ad, String ara})> ogeler) {
     final olcek = MediaQuery.textScalerOf(context);
     final boy = kAltKutu + kAltIcBosluk + olcek.scale(13) * 1.15 * 2 + 1;
     return SizedBox(
@@ -437,13 +452,13 @@ class _TalepAkisiState extends ConsumerState<TalepAkisiEkrani> {
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.only(left: kYanBosluk),
-        itemCount: _altKategoriler.length,
+        itemCount: ogeler.length,
         itemBuilder: (_, i) {
-          final a = _altKategoriler[i];
+          final a = ogeler[i];
           final secili = _altSecili == a.ara;
           return Padding(
             padding: EdgeInsets.only(
-              right: i == _altKategoriler.length - 1 ? kYanBosluk : kIzgaraAralik,
+              right: i == ogeler.length - 1 ? kYanBosluk : kIzgaraAralik,
             ),
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,
@@ -584,11 +599,22 @@ class TalepSihirbaziEkrani extends ConsumerStatefulWidget {
   const TalepSihirbaziEkrani({
     super.key,
     required this.tur,
-    required this.kategori,
+    this.kategori,
+    this.secenekler = const [],
   });
 
   final IlanTuru tur;
-  final ({String anahtar, String ad}) kategori;
+
+  /// TURU 180v — NULL ise ilk adim **kategori secimi** olur.
+  ///
+  /// UYARI Eskiden ZORUNLUYDU cunku ekrana yalnizca kategori seridindeki
+  ///    bir karta dokunarak girilebiliyordu. O serit kullanici emriyle
+  ///    kaldirildi ve giris "Hizmet al" dugmesine tasindi; dugme hangi
+  ///    hizmet oldugunu BILMEZ, o yuzden ONCE sorulur.
+  final ({String anahtar, String ad})? kategori;
+
+  /// Ilk adimda gosterilecek secenekler (yalniz [kategori] null iken).
+  final List<({String anahtar, String ad})> secenekler;
 
   @override
   ConsumerState<TalepSihirbaziEkrani> createState() => _SihirbazState();
@@ -617,9 +643,20 @@ class _SihirbazState extends ConsumerState<TalepSihirbaziEkrani> {
   ///    kalir — fazla soru sormak, HIC soru sormamaktan iyidir.
   late List<TalepAdimi> _adimlar = adimlaraBol(widget.tur.alanlar);
 
-  /// Sunucudan gelen adimlar + SON ADIM (konum/not/ozet).
-  int get _toplam => _adimlar.length + 1;
-  bool get _sonAdim => _adim >= _adimlar.length;
+  /// Secili kategori — [TalepSihirbaziEkrani.kategori] null ise ilk
+  /// adimda kullanici secer.
+  late ({String anahtar, String ad})? _kategori = widget.kategori;
+
+  /// TURU 180v — KATEGORI ADIMI VARSA sunucu adimlari BIR KAYAR.
+  ///
+  /// UYARI Kaydirma TEK YERDEN (`_off`) hesaplanir; her cagri yerinde
+  ///    `- 1` yazsaydik biri unutulur ve YANLIS adim cizilirdi.
+  int get _off => widget.kategori == null ? 1 : 0;
+
+  /// Kategori adimi (varsa) + sunucudan gelen adimlar + SON ADIM.
+  int get _toplam => _off + _adimlar.length + 1;
+  bool get _kategoriAdimda => _off == 1 && _adim == 0;
+  bool get _sonAdim => _adim - _off >= _adimlar.length;
 
   @override
   void dispose() {
@@ -632,20 +669,42 @@ class _SihirbazState extends ConsumerState<TalepSihirbaziEkrani> {
   @override
   void initState() {
     super.initState();
+    // UYARI Kategori HENUZ secilmediyse suzme YAPILMAZ: uc `kategori`
+    //    parametresiz cagrilirsa TUM alanlari doner ve ilk adimda
+    //    yanlis sorular cizilirdi.
+    if (_kategori != null) _alanlariSuz();
+  }
+
+  /// Kategori secimi — dokunusun KENDISI secimdir, ayri "İleri" YOK
+  /// (randevu_al deseni: iki dugme "hangisine basmaliyim" ikilemi uretir).
+  void _kategoriSec(({String anahtar, String ad}) k) {
+    setState(() {
+      // UYARI Kategori DEGISIRSE cevaplar SIFIRLANIR: alanlar kategoriye
+      //    gore sunucudan geliyor ve eski cevaplar yeni semada ANLAMSIZ
+      //    (ilan formunda turu 78b tam bunu yasadi).
+      if (_kategori?.anahtar != k.anahtar) _cevaplar.clear();
+      _kategori = k;
+      _adim = 1;
+    });
     _alanlariSuz();
   }
 
   Future<void> _alanlariSuz() async {
+    final k = _kategori;
+    if (k == null) return;
     try {
       final agac = await ref
           .read(ilanServisiProvider)
-          .agac(kategori: widget.kategori.anahtar);
+          .agac(kategori: k.anahtar);
       final talep = agac.where((t) => t.anahtar == 'talep').firstOrNull;
       if (!mounted || talep == null || talep.alanlar.isEmpty) return;
       setState(() {
         _adimlar = adimlaraBol(talep.alanlar);
         // ⚠️ Adim indisi TASABILIR: suzulmus listede daha az adim olabilir.
-        if (_adim >= _adimlar.length) _adim = _adimlar.length - 1;
+        if (_adim - _off >= _adimlar.length) {
+          _adim = _off + _adimlar.length - 1;
+        }
+        if (_adim < _off) _adim = _off;
       });
     } catch (_) {
       // ⚠️ SESSIZ: tam liste ekranda kalir (bkz. `_adimlar` serhi).
@@ -654,8 +713,9 @@ class _SihirbazState extends ConsumerState<TalepSihirbaziEkrani> {
 
   /// ⚠️ Bu adimdaki ZORUNLU alanlarin hepsi dolu mu?
   bool get _devamEdilebilir {
+    if (_kategoriAdimda) return _kategori != null;
     if (_sonAdim) return true;
-    for (final a in _adimlar[_adim].alanlar) {
+    for (final a in _adimlar[_adim - _off].alanlar) {
       if (!a.zorunlu) continue;
       final v = _cevaplar[a.anahtar];
       if (v == null || (v is String && v.trim().isEmpty) ||
@@ -681,8 +741,8 @@ class _SihirbazState extends ConsumerState<TalepSihirbaziEkrani> {
       final svc = ref.read(ilanServisiProvider);
       final id = await svc.olustur({
         'tur': 'talep',
-        'kategori': widget.kategori.anahtar,
-        'baslik': widget.kategori.ad,
+        'kategori': _kategori!.anahtar,
+        'baslik': _kategori!.ad,
         'aciklama': _not.text.trim(),
         'il': _il.text.trim(),
         'ilce': _ilce.text.trim(),
@@ -733,23 +793,82 @@ class _SihirbazState extends ConsumerState<TalepSihirbaziEkrani> {
     }
   }
 
+  // UYARI `Builder` ZORUNLU: `koyuSayfa` temayi `build`in DONDURDUGU
+  //   agaca koyar; bu metodun kendi `context`i o temanin USTUNDE kalir
+  //   ve `Theme.of` ACIK temayi cozerdi (turu 135c/138/178 tuzagi).
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext _) =>
+      koyuSayfa(Builder(builder: (context) => _koyuGovde(context)));
+
+  Widget _koyuGovde(BuildContext context) {
+    // TURU 180v — HEADER YEMEK EKRANIYLA AYNI (44 dp, ortada baslik,
+    //   solda geri oku). `AppBar` KULLANILMAZ: Material `BackButton`
+    //   platforma gore degisir ve baslik SOLA yaslanir.
+    // UYARI Ilerleme cubugu KALDI: adim sayisi SUNUCUDAN gelir ve
+    //    degiskendir; `KabukAdimSeridi` sabit sayida etiket varsayar
+    //    ve alti adimda 360 dp ekranda TASARDI.
     return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.kategori.ad),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(4),
-          child: LinearProgressIndicator(value: (_adim + 1) / _toplam),
-        ),
-      ),
+      backgroundColor: kAiZemin,
       body: SafeArea(
         child: Column(
           children: [
+            SizedBox(
+              height: 44,
+              child: Stack(
+                children: [
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: IconButton(
+                      icon: const Icon(LucideIcons.arrowLeft),
+                      tooltip: 'Geri',
+                      onPressed: () {
+                        // UYARI Geri tusu ADIM ADIM geri alir; yoksa
+                        //    dorduncu adimda geri basan kullanici TUM
+                        //    formu kaybederdi.
+                        if (_adim > 0 && !_gonderiliyor) {
+                          setState(() => _adim--);
+                          return;
+                        }
+                        Navigator.of(context).maybePop();
+                      },
+                    ),
+                  ),
+                  Center(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 52),
+                      child: Text(
+                        _kategori?.ad ?? 'Hizmet al',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                          height: 1.0,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(3),
+                child: LinearProgressIndicator(
+                  value: (_adim + 1) / _toplam,
+                  minHeight: 4,
+                ),
+              ),
+            ),
             Expanded(
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-                children: _sonAdim ? _sonAdimGovde() : _adimGovde(),
+                children: _kategoriAdimda
+                    ? _kategoriGovde()
+                    : _sonAdim
+                    ? _sonAdimGovde()
+                    : _adimGovde(),
               ),
             ),
             Padding(
@@ -764,6 +883,10 @@ class _SihirbazState extends ConsumerState<TalepSihirbaziEkrani> {
                       child: const Text('Geri'),
                     ),
                   const Spacer(),
+                  // UYARI Kategori adiminda "Devam" CIZILMEZ: dokunusun
+                  //    kendisi secim ve ilerlemedir; ikinci bir dugme
+                  //    "hangisine basmaliyim" ikilemi uretirdi.
+                  if (!_kategoriAdimda)
                   FilledButton(
                     onPressed: (!_devamEdilebilir || _gonderiliyor)
                         ? null
@@ -791,8 +914,67 @@ class _SihirbazState extends ConsumerState<TalepSihirbaziEkrani> {
     );
   }
 
+  /// TURU 180v — ILK ADIM: "Ne hizmet almak istiyorsun?"
+  ///
+  /// UYARI Kartlar bir FILTRE DEGIL EYLEM: dokunus hem secer hem bir
+  ///    sonraki adima gecer.
+  List<Widget> _kategoriGovde() {
+    final scheme = Theme.of(context).colorScheme;
+    return [
+      const Text(
+        'Ne hizmet almak istiyorsun?',
+        style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+      ),
+      const SizedBox(height: 6),
+      Text(
+        'Seçtiğin alana göre birkaç soru soracağız.',
+        style: TextStyle(
+          fontSize: 13,
+          color: scheme.onSurface.withValues(alpha: 0.62),
+        ),
+      ),
+      const SizedBox(height: 16),
+      for (final k in widget.secenekler)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: Material(
+            color: scheme.onSurface.withValues(alpha: 0.06),
+            borderRadius: BorderRadius.circular(14),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: () => _kategoriSec(k),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 15,
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        k.ad,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    Icon(
+                      LucideIcons.chevronRight,
+                      size: 18,
+                      color: scheme.onSurface.withValues(alpha: 0.4),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+    ];
+  }
+
   List<Widget> _adimGovde() => [
-        for (final a in _adimlar[_adim].alanlar) ...[
+        for (final a in _adimlar[_adim - _off].alanlar) ...[
           _alan(a),
           const SizedBox(height: 18),
         ],

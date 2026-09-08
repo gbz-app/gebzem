@@ -2,12 +2,13 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import '../isletme/kategori_kabuk.dart' show YemekHeader;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/api.dart';
-import '../../core/theme.dart' show kimlikRengi;
+import '../../core/theme.dart' show kAiZemin, kimlikRengi, koyuSayfa;
 import '../../router.dart' show rootMessengerKey;
 import '../medya/medya_gorsel.dart';
 import '../medya/medya_kapisi.dart';
@@ -250,7 +251,16 @@ class _ProfilDuzenleEkraniState extends ConsumerState<ProfilDuzenleEkrani> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  // TURU 180v — KOYU SAYFA + 44 dp YEMEK HEADERI (kullanici emri:
+  //   "profil ayarlarinda header vs hepsini ayni yemek gibi yapacagiz,
+  //   hepsi ayni gorunmeli").
+  // UYARI `Builder` ZORUNLU: `koyuSayfa` temayi `build`in DONDURDUGU
+  //   agaca koyar; bu metodun kendi `context`i o temanin USTUNDE kalir
+  //   ve `Theme.of` ACIK temayi cozerdi (turu 135c/138/178 tuzagi).
+  Widget build(BuildContext _) =>
+      koyuSayfa(Builder(builder: (context) => _koyuGovde(context)));
+
+  Widget _koyuGovde(BuildContext context) {
     final profil = ref.watch(myProfileProvider);
     // ⚠️ Alanları BİR KEZ doldur: her rebuild'de doldurursak kullanıcının
     //     yazdığı metin silinir.
@@ -265,7 +275,8 @@ class _ProfilDuzenleEkraniState extends ConsumerState<ProfilDuzenleEkrani> {
     });
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Profili düzenle')),
+      backgroundColor: kAiZemin,
+      appBar: const YemekHeader(baslik: 'Profili düzenle'),
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
