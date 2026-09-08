@@ -202,6 +202,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               _index == _akis ||
               _index == _mesaj ||
               _index == _profil ||
+              _index == _ara ||
               _index == _canli)
           ? (_index == _reels ? Colors.black : kAiZemin)
           : null,
