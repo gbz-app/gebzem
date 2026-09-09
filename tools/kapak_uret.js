@@ -144,7 +144,96 @@ function kapakUret(tohum, genislik = 1200, yukseklik = 675) {
   ]);
 }
 
-module.exports = { kapakUret };
+/// ⚠️⚠️⚠️ TURU 180z — **PROFIL FOTOGRAFI (AVATAR)** uretir (kullanici emri:
+/// *"5-6 tane sohbet olsun bunlarda fotograf olsun, profil fotograflari
+/// yani GERCEK BIR SOHBET ALANI gibi olsun"*).
+///
+/// **NEDEN GEREKLI:** tohumdaki hesaplarin HICBIRINDE avatar yoktu; sohbet
+/// listesi, sohbet basligi, mesaj balonlari ve kanal profili hep HARFLI
+/// daireye dusuyordu. Yani "avatar yuklendi -> imzali adres -> daire icinde
+/// cizim" zinciri CIHAZDA HIC SINANMIYORDU (bu projede "yalnizca ikinci
+/// hesapta gorunen" medya hatalari DORT KEZ sahaya cikti).
+///
+/// ⚠️ Uretilen sey bir FOTOGRAF DEGIL, **silüetli bir avatar**tir: gradyan
+///	zemin + beyaz bas/govde. Sahte insan fotografi uretmek (AI ile) hem
+///	PARA harcar hem de bir insanin yuzunu UYDURMAK olurdu.
+/// ⚠️ Deterministik: ayni tohum ayni avatari verir — "gorsel degisti mi"
+///	sorusu bir HATA sinyali olur.
+/// ⚠️ KARE uretilir: avatar daire icine kirpiliyor; dikdortgen bir kaynak
+///	`cover` ile yanlardan KIRPILIRDI.
+function avatarUret(tohum, kenar = 512) {
+  // ⚠️ Palet kapakla AYNI kaynaktan DEGIL: avatarlar yan yana cizilir
+  //	(sohbet listesi) ve birbirinden AYIRT EDILEBILMELI. Doygunluk daha
+  //	yuksek, aciklik daha dar bir aralikta.
+  const TON = [210, 268, 340, 22, 158, 44, 300, 186];
+  const h0 = TON[tohum % TON.length];
+  const [r1, g1, b1] = hsl(h0, 0.58, 0.56);
+  const [r2, g2, b2] = hsl(h0 + 24, 0.62, 0.34);
+
+  const satirBayt = kenar * 3 + 1;
+  const ham = Buffer.alloc(satirBayt * kenar);
+
+  // Silüet olculeri (kenar oranina gore — her boyutta AYNI gorunur).
+  const kafaMerkezX = kenar / 2;
+  const kafaMerkezY = kenar * 0.38;
+  const kafaR = kenar * 0.155;
+  // Govde: merkezi asagida olan buyuk bir daire; alt kenardan tasar ve
+  // "omuz" izlenimi verir.
+  const govdeMerkezX = kenar / 2;
+  const govdeMerkezY = kenar * 1.02;
+  const govdeR = kenar * 0.35;
+
+  for (let y = 0; y < kenar; y++) {
+    const satirBas = y * satirBayt;
+    ham[satirBas] = 0; // PNG filtre bayti (0 = None)
+    for (let x = 0; x < kenar; x++) {
+      // Capraz gradyan
+      const t = (x / kenar) * 0.5 + (y / kenar) * 0.5;
+      let r = r1 + (r2 - r1) * t;
+      let g = g1 + (g2 - g1) * t;
+      let b = b1 + (b2 - b1) * t;
+
+      // Silüet: kafa VEYA govde dairesinin icindeyse beyaza dogru karistir.
+      const dk = Math.hypot(x - kafaMerkezX, y - kafaMerkezY);
+      const dg = Math.hypot(x - govdeMerkezX, y - govdeMerkezY);
+      // ⚠️ Yumusak kenar (1,5 px): sert kenar 512 px'te bile TIRTIKLI
+      //	gorunuyordu (daire icine kirpilinca daha da belli oluyor).
+      const kapama = Math.max(
+        Math.min(1, (kafaR - dk) / 1.5),
+        Math.min(1, (govdeR - dg) / 1.5),
+      );
+      if (kapama > 0) {
+        const a = Math.min(1, kapama) * 0.92;
+        r = r + (255 - r) * a;
+        g = g + (255 - g) * a;
+        b = b + (255 - b) * a;
+      }
+
+      const i = satirBas + 1 + x * 3;
+      ham[i] = Math.round(r);
+      ham[i + 1] = Math.round(g);
+      ham[i + 2] = Math.round(b);
+    }
+  }
+
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(kenar, 0);
+  ihdr.writeUInt32BE(kenar, 4);
+  ihdr[8] = 8;
+  ihdr[9] = 2;
+  ihdr[10] = 0;
+  ihdr[11] = 0;
+  ihdr[12] = 0;
+
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk('IHDR', ihdr),
+    chunk('IDAT', zlib.deflateSync(ham, { level: 9 })),
+    chunk('IEND', Buffer.alloc(0)),
+  ]);
+}
+
+module.exports = { kapakUret, avatarUret };
 
 // Dogrudan calistirilirsa ornek uretir (elle goz kontrolu icin).
 if (require.main === module) {

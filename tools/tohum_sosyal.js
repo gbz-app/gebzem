@@ -25,7 +25,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
-const { kapakUret } = require('./kapak_uret');
+const { kapakUret, avatarUret } = require('./kapak_uret');
 const { sohbetTohum } = require('./sohbet_tohum');
 
 /// Tek bir gorseli presign -> PUT -> commit zincirinden gecirir ve
@@ -155,6 +155,36 @@ async function videoYukle(j, token, dosya) {
   const c = await j(`/media/${pr.d.media_id}/commit`, { yontem: 'POST', token });
   if (c.kod !== 200) return null;
   return pr.d.media_id;
+}
+
+/// ⚠️ TURU 180z — AVATAR/KANAL FOTOGRAFI yukler ve `media_id` DONER.
+///
+/// ⚠️ `tools/tohum.js` icindeki `avatarYukle` ile KARISTIRMA: o hesabin
+///	profiline BAGLAR (PATCH /users/me) ve `bool` doner; bu YALNIZCA
+///	yukler, cagiran id'yi istedigi yere baglar (kanal avatari gibi).
+/// ⚠️ `kind: 'avatar'` — kanal ucu kontrol etmiyor ama diger yuzeyler bu
+///	sozlesmeye gore yazildi; tohum onlardan AYRISMAMALI.
+async function avatarYukle(j, token, tohum) {
+  const png = avatarUret(tohum);
+  const md5 = crypto.createHash('md5').update(png).digest('base64');
+  const p = await j('/media/upload', {
+    yontem: 'POST',
+    token,
+    govde: {
+      kind: 'avatar', mime: 'image/png', bytes: png.length, md5,
+      file_name: 'avatar.png', width: 512, height: 512,
+    },
+  });
+  if (p.kod !== 200) return null;
+  const put = await fetch(p.d.upload_url, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'image/png', 'Content-MD5': md5 },
+    body: png,
+  });
+  if (!put.ok) return null;
+  const c = await j(`/media/${p.d.media_id}/commit`, { yontem: 'POST', token });
+  if (c.kod !== 200) return null;
+  return p.d.media_id;
 }
 
 /// Bagimliliksiz, gecerli bir tek sayfalik PDF uretir.
@@ -426,12 +456,18 @@ async function sosyalTohum(j, kullanicilar, isletmeler, etkinlikler) {
     //    her gonderen icin AYRI yukleme.
     videoIcin: (h) =>
       videoYukle(j, h.token, 'feedmc/33.mp4').catch(() => null),
+    // ⚠️ TURU 180z — BELGE ve EK FOTOGRAF da GONDERENE ait olmali
+    //	(ayni 403 kapisi). Her cagri AYRI bir yukleme yapar.
+    belgeIcin: (h, ad) => belgeYukle(j, h.token, ad).catch(() => null),
+    fotoIcin: (h, t) => gorselYukle(j, h.token, t).catch(() => null),
     etkinlik: (etkinlikler || [])[0] || null,
   };
   const sh = await sohbetTohum(j, A, B, isletmeler || [], sohbetMedya);
   ozet.mesaj += sh.mesaj;
   ozet.sohbet = sh.sohbet;
   ozet.arsiv = sh.arsiv;
+  // ⚠️ Anket sayaci sohbet tohumundan gelir (ozet birlestirme).
+  ozet.anket = sh.anket || 0;
 
   // ── 7) TOPLULUKLAR (turu 180x)
   //
@@ -459,6 +495,15 @@ async function sosyalTohum(j, kullanicilar, isletmeler, etkinlikler) {
       'Su kesintisi 14:00-17:00 arasi olacak, deponuzu doldurun.',
       'Apartman gorevlisi ilani veren komsumuz ulasabilir.',
       'Bu ayki mahalle toplantisi carsamba 20:00, muhtarlikta.',
+      // ⚠️ TURU 180z — kullanici emri: *"kanal olsun icinde BIR SURU
+      //	gonderi"*. 8 -> 14 gonderi: izgara, begeni sayaclari ve
+      //	sayfalama ancak dolu bir kanalda gorulebilir.
+      'Yeni acilan firinin ekmegi cok iyi, tavsiye ederim.',
+      'Cocuk parkindaki salincak onarildi, tesekkurler muhtarim.',
+      'Yarin sabah 08:00de cop toplama arabasi gelecek.',
+      'Aidat makbuzlari apartman girisine birakildi.',
+      'Kis hazirligi icin kalorifer peteklerini kontrol ettirin.',
+      'Mahallemize yeni bir eczane aciliyor, hayirli olsun.',
     ]],
     [B, {
       ad: 'Gebze Etkinlik',
@@ -469,12 +514,31 @@ async function sosyalTohum(j, kullanicilar, isletmeler, etkinlikler) {
       'Cuma aksami kultur merkezinde tiyatro: bilet 100 TL.',
       'Kitap gunleri basliyor, yazar soylesileri programda.',
       'Akustik konser icin son biletler kaldi.',
+      'Pazar sabahi sahilde yoga etkinligi var, katilim ucretsiz.',
+      'Genclik merkezinde fotograf sergisi bu hafta aciliyor.',
+      'Cocuklar icin tiyatro gosterisi cumartesi 11:00de.',
     ]],
   ];
   ozet.topluluk = 0;
   ozet.toplulukGonderi = 0;
   for (const [h, govde, gonderiler] of TOPLULUKLAR) {
-    const k = await j('/channels', { yontem: 'POST', token: h.token, govde });
+    // ⚠️⚠️ TURU 180z — KANAL AVATARI (kullanici emri: *"profil
+    //	fotograflari yani gercek bir sohbet alani gibi olsun"*).
+    //	Avatarsiz kanal sohbet listesinde ve profilde HARFLI daireye
+    //	dusuyordu.
+    // ⚠️ Sunucu kanal avatarinda medya `kind` alanini KONTROL ETMIYOR
+    //	(yalniz owner_id + status) — yine de sozlesme geregi `avatar`
+    //	kind'i yukleniyor: istemci ve diger yuzeyler o kurala gore
+    //	yazildi ve tohum onlardan AYRISMAMALI.
+    let kanalAvatar = null;
+    try {
+      kanalAvatar = await avatarYukle(j, h.token, ozet.topluluk + 40);
+    } catch (_) {}
+    const k = await j('/channels', {
+      yontem: 'POST',
+      token: h.token,
+      govde: kanalAvatar ? { ...govde, avatar_media_id: kanalAvatar } : govde,
+    });
     // ⚠️ 409 = ad ALINMIS (betik ikinci kez kosuldu). Tohum PATLAMAZ:
     //    diger adimlar calismaya devam etmeli.
     if (k.kod !== 201 && k.kod !== 200) continue;
@@ -529,7 +593,42 @@ async function sosyalTohum(j, kullanicilar, isletmeler, etkinlikler) {
                 : []),
         },
       });
-      if (g.kod === 201 || g.kod === 200) ozet.toplulukGonderi++;
+      if (g.kod === 201 || g.kod === 200) {
+        ozet.toplulukGonderi++;
+        // ⚠️⚠️⚠️ TURU 180z — KANAL GONDERILERI **BEGENILIR** (kullanici
+        //	emri: *"kanal olsun icinde bir suru gonderi, bu gonderiler
+        //	BEGENILSIN"*). Begenisiz bir kanalda kalp DAIMA bos ve sayac
+        //	0 kalir; begeni yolu (POST /channel-posts/{id}/like) cihazda
+        //	HIC sinanmazdi.
+        // ⚠️ Begeni KARSI TARAFTAN gelir: kendi gonderisini begenmek
+        //	sayaci artirir ama 'baskasi begendi' gorunumunu VERMEZ.
+        //	Her gonderiyi degil, DEGISKEN sayida begeni: hepsi ayni sayida
+        //	olsaydi sahte bir duzen izlenimi olurdu.
+        const pid = g.d && g.d.id;
+        if (pid) {
+          const begenenler = [];
+          if (i % 2 === 0) begenenler.push(A);
+          if (i % 3 === 0) begenenler.push(B);
+          if (C && i % 4 === 0) begenenler.push(C);
+          for (const bh of begenenler) {
+            if (bh.id === h.id) continue;
+            // ⚠️⚠️⚠️ BEGENI ICIN **ABONELIK ZORUNLU** (kod okundu:
+            //	`channel_subscribers` EXISTS kapisi, degilse **403**).
+            //	Abone edilmeseydi TUM begeniler sessizce duserdi ve
+            //	kanalda kalpler yine BOS kalirdi.
+            //	⚠️ Idempotent: zaten aboneyse ikinci cagri zarar vermez.
+            await j(`/channels/${kid}/subscribe`, {
+              yontem: 'POST', token: bh.token,
+            }).catch(() => {});
+            const be = await j(`/channel-posts/${pid}/like`, {
+              yontem: 'POST', token: bh.token,
+            });
+            if (be.kod === 200 || be.kod === 201) {
+              ozet.toplulukBegeni = (ozet.toplulukBegeni || 0) + 1;
+            }
+          }
+        }
+      }
     }
   }
 

@@ -30,7 +30,7 @@
 
 const crypto = require('crypto');
 // ⚠️ TURU 93b — kapak gorseli uretici (harici bagimlilik YOK, salt zlib).
-const { kapakUret } = require('./kapak_uret');
+const { kapakUret, avatarUret } = require('./kapak_uret');
 // TURU 180w — SOSYAL KATMAN TOHUMU (`kDemoAkis` kapatildi, akis artik
 //   YALNIZ sunucudan besleniyor).
 const { sosyalTohum } = require('./tohum_sosyal');
@@ -170,6 +170,53 @@ async function isletmeKur(h, { kategori, adres, ilce, urunler, i, vitrin }) {
   //    gerekirse tek satirla geri baglanir.
 
   return h;
+}
+
+/// ⚠️⚠️⚠️ TURU 180z — **PROFIL FOTOGRAFI** (kullanici emri: *"5-6 tane
+/// sohbet olsun bunlarda fotograf olsun, PROFIL FOTOGRAFLARI yani gercek
+/// bir sohbet alani gibi olsun"*).
+///
+/// **NEDEN GEREKLI:** tohumdaki HICBIR hesabin avatari yoktu; sohbet
+/// listesi, sohbet basligi, mesaj balonlari ve kanal profili hep HARFLI
+/// daireye dusuyordu — "avatar yukle -> imzali adres -> daire icinde cizim"
+/// zinciri CIHAZDA HIC SINANMIYORDU.
+///
+/// ⚠️⚠️ `kind: 'avatar'` **ZORUNLU**: sunucu `PATCH /users/me` icinde bunu
+///	`WHERE id=$1 AND owner_id=$2 AND kind='avatar'` ile DAYATIYOR
+///	(users/handler.go:281). `kind:'image'` bir medya avatar YAPILAMAZ —
+///	`limits.go`daki ayri tavanlar (avatar 2 MB) anlamini yitirirdi.
+/// ⚠️ Hata TOHUMU BOZMAZ: avatar bir SUS, kayitlarin dogrulugu buna bagli
+///	degil. Patlarsa hesap harfli daireyle devam eder.
+async function avatarYukle(h, tohum) {
+  try {
+    const png = avatarUret(tohum);
+    const md5 = crypto.createHash('md5').update(png).digest('base64');
+    const p = await j('/media/upload', {
+      yontem: 'POST', token: h.token,
+      govde: {
+        kind: 'avatar', mime: 'image/png', bytes: png.length, md5,
+        file_name: 'avatar.png', width: 512, height: 512,
+      },
+    });
+    if (p.kod !== 200) return false;
+    const put = await fetch(p.d.upload_url, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'image/png', 'Content-MD5': md5 },
+      body: png,
+    });
+    if (!put.ok) return false;
+    const c = await j(`/media/${p.d.media_id}/commit`, {
+      yontem: 'POST', token: h.token,
+    });
+    if (c.kod !== 200) return false;
+    const pa = await j('/users/me', {
+      yontem: 'PATCH', token: h.token,
+      govde: { avatar_media_id: p.d.media_id },
+    });
+    return pa.kod === 200;
+  } catch (_) {
+    return false;
+  }
 }
 
 /// Kapak PNG'sini presign -> PUT -> commit -> PATCH zincirinden gecirir.
@@ -427,6 +474,8 @@ async function main() {
     const t = ISLETMELER[i];
     const h = await hesapAc({ tel: t.tel, kadi: t.kadi, ad: t.ad });
     await isletmeKur(h, { ...t, i });
+    // ⚠️ TURU 180z — PROFIL FOTOGRAFI (kullanici emri). Hata tohumu BOZMAZ.
+    await avatarYukle(h, i);
     isletmeler.push({ ...h, grup: t.grup, kategori: t.kategori });
     satirlar.push({ Rol: t.grup, Ad: t.ad, Telefon: t.tel, Sifre: SIFRE });
     console.log('  isletme OK:', t.ad);
@@ -436,6 +485,8 @@ async function main() {
   const kullanicilar = [];
   for (const u of KULLANICILAR) {
     const h = await hesapAc(u);
+    // ⚠️ Tohum 20+: isletme avatarlariyla CAKISMASIN (palet 8 tonlu).
+    await avatarYukle(h, 20 + kullanicilar.length);
     kullanicilar.push(h);
     satirlar.push({ Rol: 'Kullanıcı', Ad: u.ad, Telefon: u.tel, Sifre: SIFRE });
     console.log('  kullanici OK:', u.ad);
@@ -640,8 +691,9 @@ async function main() {
   console.log('  sosyal OK: ' + sos.gonderi + ' gonderi · ' + sos.yorum +
     ' yorum · ' + sos.begeni + ' begeni · ' + sos.hikaye + ' hikaye · ' + sos.reels + ' reels · ' +
     sos.mesaj + ' mesaj · ' + (sos.sohbet || 0) + ' sohbet · ' +
-    (sos.arsiv || 0) + ' arsiv · ' + (sos.topluluk || 0) + ' topluluk (' +
-    (sos.toplulukGonderi || 0) + ' gonderi)');
+    (sos.arsiv || 0) + ' arsiv · ' + (sos.anket || 0) + ' anket · ' +
+    (sos.topluluk || 0) + ' kanal (' + (sos.toplulukGonderi || 0) +
+    ' gonderi, ' + (sos.toplulukBegeni || 0) + ' begeni)');
 
   // ---- KULLANICIYA VERILECEK TABLO
   const g = (s, n) => String(s).padEnd(n);
