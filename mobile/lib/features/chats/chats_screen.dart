@@ -217,7 +217,7 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
         c,
         _arama.isNotEmpty
             ? 'Eşleşen kanal yok'
-            : 'Henüz topluluğun yok.\nYeni topluluk oluştur ya da keşfet.',
+            : 'Henüz kanalın yok.\nYeni kanal aç ya da keşfet.',
       );
     }
     return YenileSarmali(

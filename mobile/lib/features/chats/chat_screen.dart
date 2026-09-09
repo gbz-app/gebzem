@@ -2071,17 +2071,31 @@ class _AtacSerit extends StatelessWidget {
     //	ad satiri sigmaz ve sari-siyah tasma seridi cikardi (turu 180w).
     final olcek = MediaQuery.textScalerOf(context);
     const kSatirKutu = 1.45; // Google Sans Flex, olculdu (turu 173)
-    final boy = 10 + 52 + 6 + olcek.scale(11) * kSatirKutu + 10 + 1;
+    // ⚠️⚠️ EMULATORDE OLCULDU: ilk yazimda **BOTTOM OVERFLOWED** cikti.
+    //	Yatay `ListView` cocuguna DIKEYDE TIGHT kisit verir, yani `Column`
+    //	tam sigmak ZORUNDA; dolgu + ikon + bosluk + yazi TEK TEK toplanir
+    //	ve **4 dp pay** eklenir (`TextPainter` satir yuksekligini YUKARI
+    //	yuvarlar — turu 137).
+    const kDikeyDolgu = 10.0;
+    final boy =
+        kDikeyDolgu * 2 +
+        52 +
+        6 +
+        (olcek.scale(11) * kSatirKutu).ceilToDouble() +
+        4;
     return Container(
       height: boy,
-      decoration: BoxDecoration(
+      padding: const EdgeInsets.symmetric(vertical: kDikeyDolgu),
+      // ⚠️ `foregroundDecoration`: `decoration`daki bir `Border` cocugun
+      //	kisitindan DUSER ve tasmaya katkida bulunur (turu 150/180t).
+      foregroundDecoration: BoxDecoration(
         border: Border(
           top: BorderSide(color: scheme.onSurface.withValues(alpha: 0.08)),
         ),
       ),
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 12),
         itemCount: _ogeler.length,
         separatorBuilder: (_, _) => const SizedBox(width: 14),
         itemBuilder: (c, i) {
@@ -2091,29 +2105,38 @@ class _AtacSerit extends StatelessWidget {
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,
               onTap: () => onSec(o.anahtar),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 52,
-                    height: 52,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: o.renk.withValues(alpha: 0.18),
+              // ⚠️⚠️ `FittedBox(scaleDown)` ZORUNLU: yatay `ListView` cocuguna
+              //	DIKEYDE **TIGHT** kisit verir; hesap bir piksel bile sasarsa
+              //	(font metrigi, yazi olcegi, cihaz yuvarlamasi) sari-siyah
+              //	tasma seridi cikar. Bu sarmalla tasma YAPISAL OLARAK
+              //	imkansiz — dar kutuda KIRPILMAZ, kuculur (turu 143 dersi).
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.topCenter,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 52,
+                      height: 52,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: o.renk.withValues(alpha: 0.18),
+                      ),
+                      child: Icon(o.ikon, size: 23, color: o.renk),
                     ),
-                    child: Icon(o.ikon, size: 23, color: o.renk),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    o.ad,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: scheme.onSurface.withValues(alpha: 0.75),
+                    const SizedBox(height: 6),
+                    Text(
+                      o.ad,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: scheme.onSurface.withValues(alpha: 0.75),
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           );
