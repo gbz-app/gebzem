@@ -1,3 +1,76 @@
+# Oturum — Turu 180ad (10 Eyl 2026) — GOOGLE SANS + ALT MENU
+
+⚠️ **BACKEND DEGISMEDI**: migration YOK, deploy YOK, DB TRUNCATE EDILMEDI.
+
+## Kullanici emri
+
+*"ilk olarak yazi tipini Google Sans olarak duzenle, her seyi tam olarak
+emin ol tum sayfalarin bu yazi tipinde calistigina"* ·
+*"alttaki ortadaki menuye giden logo yerine bir icon koy, simdilik radusu
+kaldir, sol sagdan border kalsin, alt menu tam siyahin bir tik ustu olsun,
+ic renk bunun bir tik acigi, inputlarda onun bir tik acigi — siralama boyle
+olacak"* · *"daha sonra temiz bir build al, hizli"*
+
+## 1) Yazi tipi
+
+| | |
+|---|---|
+| Onceki | Google Sans Flex (125 KB x4) |
+| Simdi | **Google Sans** (1,86 MB x4 = **7,4 MB**) |
+| IPA etkisi | **~7 MB buyur** — normal |
+
+- Dosyalar git gecmisinden (`0481e43^`) cikarildi; aile adi TTF `name`
+  tablosundan DOGRULANDI.
+- `kYaziAilesi` TEK KAYNAK (kod 23 yerde okuyor).
+- Satir kutusu DEGISMEZ (iki fontta da typo metrikleri 1,252) -> mevcut
+  yukseklik formulleri AYNEN gecerli.
+- `assets/icon/logo.png` pubspec'te KALDI: alt menuden cikti ama **acilis
+  ekrani** onu kullaniyor (kontrol edildi, kaldirilsaydi kirilirdi).
+
+## 2) Alt menu
+
+- Ortadaki logo -> **`layoutGrid` ikonu** (gradyan halka ve 58 dp cap
+  DURUYOR; ikon ic dairenin ICINDE — halka uzerinde 2,1:1 ile silik kalirdi).
+- **Radius KALDIRILDI**; ust kenarlik duz cizgi (`yaricap: 0`).
+- **Koyu katman merdiveni:** sayfa #050308 < alt menu **#0E0E10** <
+  kart **#17171A** < input **#202024**.
+  Tam siyah birakildi: uzerindeki kart ayirt edilemiyordu ve %14 beyaz ust
+  kenarlik "beyaz serit" gibi parliyordu.
+- Input zemini TEMADAN (`inputDecorationTheme` + `filled: true`);
+  `fillColor` veren 5 yer tek kaynaga cevrildi.
+
+## 3) Muhafiz
+
+Yeni `test/yazi_tipi_test.dart` (7 kontrol) + `alt_menu_test.dart` guncel.
+
+⚠️⚠️⚠️ **MUHAFIZ ILK YAZIMDA YETERSIZDI, BOZARAK YAKALANDI**: yalnizca
+"tema `kYaziAilesi`ni tasiyor mu" diye bakiyordu; sabit ile pubspec ayri
+ayri degistiginde ikisi de kendi icinde tutarli kalir ve test GECERDI —
+oysa ayrisirlarsa font YUKLENMEZ, uygulama SESSIZCE sistem fontuna duser.
+Olcut PUBSPEC ILE KARSILASTIRMAYA cevrildi.
+
+Muhafiz ayrica GERCEK bir yanlis pozitif verdi (`story_katman.dart`
+serif/monospace = kullanicinin sectigi hikaye stili) -> jenerik aileler muaf.
+
+✅ IKI BICIMDE BOZULARAK KANITLANDI: (a) `kYaziAilesi` eski degere,
+(b) `kKoyuTema`dan `fontFamily` kaldirma. Ikisi de geri alindi.
+
+## Veri kaybi bildirimi (kullanici sordu)
+
+Kullanici *"sen verileri neden kaldirdin sohbetleri vs"* dedi. **OLCULDU:**
+8 sohbet · **56 mesaj** · 2 kanal SUNUCUDA DURUYOR; `TRUNCATE` atilmadi,
+tohum kosulmadi. Tek gercek etki: emulatorde uzun basma menusu test
+edilirken **"Kahve Molasi" ARSIVLENMISTI** ve arsivlenen sohbet "Hepsi"
+listesinden duser. `PATCH {archived:false}` ile GERI ALINDI; sekiz sohbetin
+sekizi de ana listede.
+
+⚠️ **DERS: emulatorde kor koordinat dokunusu (`input tap`) ile test
+   yaparken VERI DEGISTIREN menuleri ac — sonucu OLC ve gerekirse GERI AL.**
+
+## Olcumler
+
+`flutter analyze` **0/0** · `flutter test` **97 -> 104**.
+
 # Oturum — Turu 180y-180ac (9-10 Eyl 2026) — SOHBET KATMANI YENIDEN
 
 ⚠️ **BACKEND DEGISMEDI**: migration YOK, deploy YOK, DB TRUNCATE EDILMEDI.

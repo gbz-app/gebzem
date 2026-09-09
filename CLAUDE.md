@@ -59,6 +59,76 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
   ✅ analyze **0/0** · test **97/97** (86 -> 97) · emulatorde ON UC madde
      gozle dogrulandi.
 
+- 🔤 ⚠️⚠️⚠️ **TURU 180ad — YAZI TIPI: GOOGLE SANS FLEX -> GOOGLE SANS**
+  (kullanici emri: *"yazi tipini Google Sans olarak duzenle, TUM SAYFALARIN
+  bu yazi tipinde calistigina TAM OLARAK EMIN OL"*).
+  ⚠️ Turu 180i'de TERSI istenmisti; karar KULLANICININ.
+  · Dosyalar git gecmisinden (`0481e43^`) GERI CIKARILDI; aile adi TTF
+    **`name` tablosundan DOGRULANDI** ("Google Sans").
+  · `kYaziAilesi` TEK KAYNAK; kod 23 yerde onu okuyor, elle yazan YOK.
+  ⚠️⚠️ **BEDELI OLCULDU: 0,5 MB -> 7,4 MB** (agirlik basina 1,86 MB — tam
+     karakter setli statik dosyalar; Flex degisken fonttan KESILMIS 125
+     KB'lik ornekti). **IPA ~7 MB buyur, BU NORMALDIR.**
+  ⚠️ Satir kutusu DEGISMEZ (turu 180i olcumu): iki fontta da
+     `USE_TYPO_METRICS` acik ve typo metrikleri AYNI orani (1,252) veriyor
+     -> turu 121/135b/157/173'un yukseklik formulleri AYNEN gecerli.
+  ⚠️ Eski `GoogleSansFlex-*.ttf` diskte DURUYOR ama pubspec'ten CIKTI
+     (okunmayan varlik pakete GIRMEZ); geri donus tek satir.
+  ⚠️ `assets/icon/logo.png` pubspec'te KALIR — alt menuden cikti ama
+     **ACILIS EKRANI** onu kullaniyor (`kAcilisLogo`). Kaldirilsaydi acilis
+     ekrani KIRIK GORSELE duserdi (kontrol edildi).
+
+- 🧱 **TURU 180ad — ALT MENU: IKON · RADIUS YOK · RENK MERDIVENI**
+  (kullanici emri: *"ortadaki menuye giden logo yerine bir icon koy,
+  simdilik radusu kaldir, alt menu tam siyahin bir tik ustu olsun, ic renk
+  bunun bir tik acigi, inputlar onun bir tik acigi — siralama boyle"*).
+  · Ortadaki logo -> **`layoutGrid` IKONU**. Ikon secimi keyfi DEGIL: bu
+    dugme HIZMET MENUSUNU aciyor; `home` "anasayfaya gider" sanilirdi,
+    `menu` hamburgerin isi.
+  ⚠️ **GRADYAN HALKA ve 58 dp CAP DEGISMEDI**: kaldirma, tasma payi ve
+     dokunma hedefi bu olculere bagli.
+  ⚠️ Ic daire zemini `kAltMenuZemin`: ikon gradyan halkanin USTUNE
+     cizilseydi beyaz ikon acik mor uzerinde **2,1:1** ile silik kalirdi.
+  · **RADIUS KALDIRILDI** (turu 7'den beri duruyordu) -> cubuk duz
+    dikdortgen, ust kenarlik duz cizgi (`yaricap: 0`).
+  ⚠️ Geri istenirse `borderRadius` **VE** `_UstKenarlikCizer.yaricap`
+     BIRLIKTE geri konur; ayrisirsa kenarlik kosede cubuktan TASAR.
+  · **KOYU KATMAN MERDIVENI (yeni sabitler):**
+
+    | katman | renk | not |
+    |---|---|---|
+    | sayfa zemini | `kAiZemin` #050308 | merdivenin ALTINDA |
+    | alt menu | `kAltMenuZemin` **#0E0E10** | eskiden TAM SIYAH |
+    | kart / panel | `kYuzeyKoyu` **#17171A** | yeni |
+    | input | `kInputZemin` **#202024** | yeni |
+
+  ⚠️⚠️ **TAM SIYAH BIRAKILDI**: uzerindeki #17171A karttan ayirt
+     edilemiyordu ve %14 beyaz ust kenarlik tam siyahta "beyaz serit" gibi
+     parliyordu. Kontrast KORUNDU (pasif ikon 4,6:1, aktif beyaz 18,6:1).
+  · Input zemini **TEMADAN** (`inputDecorationTheme` + `filled: true`);
+    `fillColor` veren 5 yer tek kaynaga cevrildi.
+  ⚠️ `filled: true` ZORUNLU — `fillColor` TEK BASINA hicbir sey yapmaz.
+
+- 🛡️ **TURU 180ad — YENI MUHAFIZ `test/yazi_tipi_test.dart` (7 kontrol).**
+  ⚠️⚠️⚠️ **MUHAFIZ ILK YAZIMDA YETERSIZDI ve BOZULARAK YAKALANDI**:
+     yalnizca *"tema `kYaziAilesi`ni tasiyor mu"* diye bakiyordu. Sabit ile
+     pubspec AYRI AYRI degistiginde ikisi de KENDI ICINDE tutarli kalir ve
+     test YESIL gecer — oysa ayrisirlarsa Flutter aileyi BULAMAZ ve
+     uygulama **SESSIZCE SISTEM FONTUNA** duser (uyari YOK, derleme temiz).
+     Olcut **PUBSPEC ILE KARSILASTIRMAYA** cevrildi.
+  ⚠️ Muhafiz ayrica GERCEK bir yanlis pozitif verdi: `story_katman.dart`
+     `serif`/`monospace` yaziyor — o KULLANICININ sectigi hikaye stili,
+     uygulamanin genel fontu DEGIL. Jenerik aileler MUAF edildi.
+  ⚠️ pubspec satir sonu KONTROL EDILMEZ (repoda CRLF/LF KARISIK — dort kez
+     yasanmis tuzak).
+  ✅ **IKI BICIMDE BOZULARAK KANITLANDI**: (a) `kYaziAilesi` eski degere,
+     (b) `kKoyuTema`dan `fontFamily` kaldirma (turu 180r regresyonu).
+  · `alt_menu_test.dart` guncellendi: `_cubukKutusu` olcutu `borderRadius`
+    yerine **ZEMIN RENGI** (radius kalkinca bulucu cubugu bulamiyordu ve
+    UC test birden kirmizi dusmustu); logo olcutu `decoration.image` ->
+    **IKON**; radius testi artik radiusun **YOKLUGUNU** kilitler.
+
+
 - 💬 **TURU 180aa — SOHBET LISTESI: TEK LISTE + UZUN BASMA MENUSU.**
   · "Sık görüştüklerin" seridi KALKTI (govde `unused_element` ile duruyor).
   · ⚠️⚠️ **BOLUM BASLIKLARI (Kanallar/Sohbetler) KALKTI** — kanal ve sohbet
