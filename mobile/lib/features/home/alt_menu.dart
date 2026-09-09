@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // SystemUiOverlayStyle (sistem cubugu)
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -120,12 +122,21 @@ const double kAltMenuLogoBosluk = 30;
 ///    ⚠️ Eski serh "tasan ~10 / kalan ~42" diyordu — cap 52 iken dogruydu.
 /// ⚠️⚠️ TURU 180t — kullanici *"alt menude ortadaki logoyu 5px daha
 ///	alta indir"* dedi: **+12 -> +7**.
+/// ⚠️⚠️⚠️ TURU 180ab — **LOGO ARTIK IKONLARLA TAM AYNI HIZADA** (kullanici
+///	emri: *"ortadaki logo ikonlarla ayni yukseklikte ortada olsun"*).
+///	Kaldirma `kAltMenuIkonKaldir`e ESITLENDI (+7 payi KALKTI).
+///
+///	📐 OLCUM (sabitlerden turetildi, elle sayi yazilmadi):
+///	  ikon merkezi = kAltMenuBoy/2 - kAltMenuIkonKaldir = 33 - 5 = **28 dp**
+///	  logo merkezi = kAltMenuBoy/2 - kAltMenuLogoKaldir = 33 - 5 = **28 dp**
+///	  -> merkezler BIREBIR ayni; fark YAPISAL OLARAK sifir.
+/// ⚠️ Logo cubugun ustune HALA 1 dp tasar (58 dp cap, merkez 28 -> ust
+///	kenar -1): `Clip.none` ZORUNLU kalir, yoksa daire tepeden kirpilir.
 /// ⚠️ Deger yine `kAltMenuIkonKaldir`e BAGLI (turu 96z): ikonlar
-///	kaydirilirsa logo onlarla birlikte kayar.
-/// ⚠️ Logo HALA cubuktan TASAR ((66-52)/2 = 7 tavaninda), yani
-///	`alt_menu_test.dart`in "tasma KASITLI" kurali bozulmaz — tam
-///	sinirda. Daha fazla indirilirse tasma biter ve o test kirmizi duser.
-const double kAltMenuLogoKaldir = kAltMenuIkonKaldir + 7;
+///	kaydirilirsa logo onlarla BIRLIKTE kayar ve hiza kendiliginden korunur.
+/// ⚠️ YAPMA: buraya tekrar sabit bir pay (+7 / +12) ekleme — kullanici
+///	logoyu ikonlarla AYNI hizada istedi.
+const double kAltMenuLogoKaldir = kAltMenuIkonKaldir;
 
 /// Alt menu — **3 sol · LOGO · 3 sag**.
 ///
@@ -255,24 +266,29 @@ class AltMenu extends ConsumerWidget {
                 topRight: Radius.circular(20),
               ),
             ),
-            // ⚠️⚠️⚠️ KENARLIK **`foregroundDecoration`DA** — `decoration`da
-            //	DEGIL. `Container.decoration` kenarligi DOLGUNUN DISINA
-            //	koyar ve cocugun kisitindan **2 x width** duser: 1 dp'lik
-            //	cizgi ikonlari ve logoyu 1 dp kaydiriyordu ve
-            //	`alt_menu_test.dart` bunu OLCUP kirmizi dustu (turu 150'de
-            //	yakinimda kartinda yasanan hatanin AYNISI).
-            // ⚠️ `foregroundDecoration` cocugun USTUNE cizer, yerlesime
-            //	DOKUNMAZ.
-            foregroundDecoration: const BoxDecoration(
-              borderRadius: BorderRadius.only(
-                topLeft: Radius.circular(20),
-                topRight: Radius.circular(20),
+            // ⚠️⚠️⚠️ TURU 180ab — KENARLIK ARTIK **`CustomPaint`** ILE
+            //	(kullanici emri: *"alt menudeki sol sag border gozukmeyecek
+            //	ve alt sol sag radus bitiminde bitecek border"*).
+            //
+            // ⚠️⚠️ **`BoxDecoration` BUNU YAPAMAZ**: yuvarlak kose ile
+            //	**tek yonlu** kenarlik kabul etmez (*"A borderRadius can
+            //	only be given for a uniform Border"*) — turu 180t tam bu
+            //	yuzden `Border.fromBorderSide` (DORT KENAR) kullanmisti ve
+            //	dikey kenarlarda da cizgi cikiyordu. Tek cikis yol cizmek.
+            // ⚠️ `foregroundPainter` cocugun USTUNE cizer, yerlesime
+            //	DOKUNMAZ — `foregroundDecoration`in korudugu ozellik
+            //	(turu 150: `decoration` kenarligi kisittan 2 x width duser
+            //	ve ikon/logo 1 dp kayar) AYNEN korunur.
+            // ⚠️⚠️ Cizim `Container`in **DISINDA** degil, `foregroundPainter`
+            //	olarak: `clipBehavior: antiAlias` yalniz COCUGU kirpar,
+            //	`CustomPaint`in on plan cizimi kirpilmaz.
+            child: CustomPaint(
+              foregroundPainter: const _UstKenarlikCizer(
+                renk: Color(0x24FFFFFF),
+                kalinlik: 1,
+                yaricap: 20,
               ),
-              border: Border.fromBorderSide(
-                BorderSide(color: Color(0x24FFFFFF), width: 1),
-              ),
-            ),
-            child: SafeArea(
+              child: SafeArea(
                 top: false,
                 child: SizedBox(
                   height: kAltMenuBoy,
@@ -332,6 +348,7 @@ class AltMenu extends ConsumerWidget {
                   ),
                 ),
               ),
+            ),
           ),
           // ⚠️⚠️⚠️ TURU 96z — LOGO **CUBUGUN USTUNE TASAR** ve bu yuzden
           //	`ClipRRect`in DISINDA, dis `Stack`te cizilir.
@@ -744,4 +761,67 @@ class _RozetliIkon extends StatelessWidget {
       ],
     );
   }
+}
+
+/// ⚠️⚠️⚠️ TURU 180ab — ALT MENUNUN **UST KENARLIGI** (kullanici emri:
+///	*"alt menudeki sol sag border gozukmeyecek ve alt sol sag radus
+///	bitiminde bitecek border"*).
+///
+/// Cizilen yol: sol kenarda `yaricap` kadar asagidan basla -> SOL UST YAY ->
+/// duz ust kenar -> SAG UST YAY -> sag kenarda `yaricap` kadar asagida BIT.
+/// Yani cizgi koseleri DOLASIR ama dikey kenarlara **HIC inmez**.
+///
+/// ⚠️⚠️ **NEDEN `BoxDecoration` DEGIL**: yuvarlak kose ile duzgun olmayan
+///	(tek yonlu) `Border` kabul edilmez — *"A borderRadius can only be
+///	given for a uniform Border"*. Turu 180t bu yuzden DORT KENARI birden
+///	cizmisti ve dikey kenarlarda da cizgi cikiyordu.
+/// ⚠️ `Border(top:)` de COZMEZ: o DUZ bir cizgi ceker, iki uctaki yaylarda
+///	HICBIR SEY olmaz (turu 180r'de sahada goruldu, kullanici bildirdi).
+///
+/// ⚠️ Cizgi **kalinligin YARISI kadar iceri** cekilir: tam kenara
+///	cizilseydi disa tasan yarisi ekran disinda kalir ve cizgi 0,5 dp
+///	gorunurdu.
+/// ⚠️ `strokeCap.butt`: uclar yuvarlatilirsa cizgi yaricap noktasindan
+///	yarim kalinlik kadar TASAR ve dikey kenarda kucuk bir tirnak birakir.
+class _UstKenarlikCizer extends CustomPainter {
+  const _UstKenarlikCizer({
+    required this.renk,
+    required this.kalinlik,
+    required this.yaricap,
+  });
+
+  final Color renk;
+  final double kalinlik;
+  final double yaricap;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final i = kalinlik / 2;
+    // ⚠️ Yaricap kutuya SIGDIRILIR: dar bir cubukta iki yay ust uste biner
+    //	ve `Path` kendini keserdi (turu 179'da kapak kirpicisinda olculdu).
+    final r = math.min(yaricap, math.min(size.width / 2, size.height));
+    final yol = Path()
+      ..moveTo(i, r)
+      ..arcToPoint(Offset(r, i), radius: Radius.circular(r - i))
+      ..lineTo(size.width - r, i)
+      ..arcToPoint(
+        Offset(size.width - i, r),
+        radius: Radius.circular(r - i),
+      );
+    canvas.drawPath(
+      yol,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = kalinlik
+        ..strokeCap = StrokeCap.butt
+        ..color = renk,
+    );
+  }
+
+  /// ⚠️ Sabit degerlerle kurulan bir cizer: hicbir alan degismedigi surece
+  ///	YENIDEN BOYAMA GEREKMEZ. Alanlar karsilastirilir, `false` SABIT
+  ///	YAZILMAZ — ileride renk temadan gelirse sessizce bayat kalirdi.
+  @override
+  bool shouldRepaint(_UstKenarlikCizer o) =>
+      o.renk != renk || o.kalinlik != kalinlik || o.yaricap != yaricap;
 }

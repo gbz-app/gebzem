@@ -179,24 +179,27 @@ void main() {
         reason: 'kaldirma miktari kAltMenuIkonKaldir olmali');
   });
 
-  testWidgets('LOGO ikonlardan DAHA YUKARIDA (kaldirma sabitiyle ayni)', (t) async {
+  // ⚠️⚠️⚠️ TURU 180ab — **KURAL DEGISTI** (kullanici emri: *"ortadaki logo
+  //	ikonlarla ayni yukseklikte ortada olsun"*). Turu 96z/180t'de logo
+  //	ikonlardan DAHA YUKARIDA isteniyordu; artik TAM AYNI HIZADA.
+  //	Karar KULLANICININ; muhafiz yeni kurali kilitler.
+  testWidgets('LOGO ikonlarla AYNI HIZADA (merkezler cakisir)', (t) async {
     await t.pumpWidget(_kur(secili: 0));
     await t.pump();
 
     final ikon = t.getCenter(find.byIcon(LucideIcons.house));
     final logo = t.getCenter(_logoBulucu);
-    // Istenen 10 dp'ydi; cubuk 66 ve logo 52 oldugu icin TASMADAN
-    // saglanabilecek EN BUYUK kaldirma (66-52)/2 = 7 dp'dir. Test sabitle
-    // karsilastirir, sayiyi TEKRAR YAZMAZ.
+    // ⚠️ Test SABITLE karsilastirir, sayiyi TEKRAR YAZMAZ: kaldirma
+    //	degisirse burasi kendiliginden uyar.
     expect((ikon.dy - logo.dy - (kAltMenuLogoKaldir - kAltMenuIkonKaldir)).abs(),
         lessThan(0.6));
-    expect(logo.dy, lessThan(ikon.dy), reason: 'logo ikonlardan YUKARIDA olmali');
-    // ⚠️ TURU 96z — kullanici logoyu 10 dp DAHA yukari istedi; bu, cubukta
-    //    tasmadan saglanamaz (66-52)/2 = 7. Artik kaldirma TAVANDAN BUYUK
-    //    ve logo cubugun ustune TASIYOR (bir alttaki test bunu olcer).
-    expect(kAltMenuLogoKaldir,
-        greaterThan((kAltMenuBoy - kAltMenuLogoCap) / 2),
-        reason: 'logo cubuktan tasacak kadar kaldirilmali');
+    // ⚠️⚠️ ASIL KURAL: iki merkez BIREBIR ayni yukseklikte.
+    expect((logo.dy - ikon.dy).abs(), lessThan(0.6),
+        reason: 'logo ikonlarla AYNI hizada olmali (kullanici emri)');
+    // ⚠️ Kaldirmanin ikon kaldirmasina ESIT olmasi YAPISAL kural: sabit bir
+    //	pay (+7 / +12) geri eklenirse hiza sessizce bozulur.
+    expect(kAltMenuLogoKaldir, kAltMenuIkonKaldir,
+        reason: 'logo kaldirmasi ikon kaldirmasiyla AYNI olmali');
   });
 
   testWidgets('LOGO daire icinde, KIRPILMADAN cizilir', (t) async {
@@ -274,21 +277,39 @@ void main() {
     expect(r.topLeft.x, greaterThan(0), reason: 'sol ust radius DURMALI');
     expect(r.topRight.x, greaterThan(0), reason: 'sag ust radius DURMALI');
 
-    // ⚠️⚠️⚠️ TURU 180t — **KURAL TERSINE DONDU.**
-    //	Turu 96p'de kullanici *"sadece alt menude border vb kalinlik
-    //	olmayacak"* demisti; turu 180r'de **border ISTEDI** ve 180t'de
-    //	*"sol sag radus border gorunmuyor"* diye duzeltti.
-    //	Muhafiz artik kenarligin VARLIGINI kilitler.
-    // ⚠️⚠️ Kenarlik `foregroundDecoration`DA olmali: `decoration`da
-    //	olsaydi cocugun kisitindan 2 x width duser ve ikon/logo konumlari
-    //	kayardi (turu 150 dersi; bu dosyadaki konum testleri kirmizi duser).
-    final on = _cubukKutusu(t).foregroundDecoration as BoxDecoration?;
-    expect(on?.border, isNotNull,
+    // ⚠️⚠️⚠️ TURU 180ab — **KENARLIK ARTIK `CustomPaint` ILE.**
+    //	Gecmis: 96p *"border olmayacak"* -> 180r **border ISTENDI** ->
+    //	180t *"sol sag radus border gorunmuyor"* (dort kenar birden) ->
+    //	180ab *"sol sag border gozukmeyecek, radus bitiminde bitecek"*.
+    //	`BoxDecoration` bunu YAPAMAZ (yuvarlak kose + tek yonlu border
+    //	yasak), o yuzden yol cizen bir `CustomPainter`a gecildi.
+    // ⚠️⚠️ **KORUNAN ASIL KURAL**: kenarlik ON PLANDA cizilir, yani
+    //	yerlesimi KAYDIRMAZ. `decoration`a konsaydi cocugun kisitindan
+    //	2 x width duser ve ikon/logo 1 dp kayardi (turu 150 dersi) —
+    //	bu dosyadaki konum testleri kirmizi duserdi.
+    // ⚠️ Cizer PRIVATE bir sinif (`_UstKenarlikCizer`) — testten TIPE
+    //	erisilemez; olcut `runtimeType` ADI. Sinif yeniden adlandirilirsa
+    //	test kirmizi duser ve serh ile govde birlikte guncellenir.
+    // ⚠️⚠️ `descendant(of: _cubukBulucu)` KULLANILAMAZ: `CustomPaint` o
+    //	`SizedBox`in ATASIDIR, cocugu DEGIL (once denendi, "Bad state:
+    //	No element" ile dustu).
+    final cizimler = t
+        .widgetList<CustomPaint>(find.byType(CustomPaint))
+        .where((w) =>
+            w.foregroundPainter?.runtimeType.toString() == '_UstKenarlikCizer')
+        .toList();
+    expect(cizimler, hasLength(1),
         reason: 'alt menude UST KENARLIK olmali (kullanici emri)');
-    expect(on?.borderRadius, isNotNull,
-        reason: 'kenarlik yuvarlak koseleri de DOLASMALI');
+    // ⚠️ Kenarlik ON PLANDA (`foregroundPainter`) — arka planda DEGIL:
+    //	`painter` kullanilsaydi cubugun zemini kenarligi ORTERDI.
+    expect(cizimler.single.painter, isNull,
+        reason: 'kenarlik ON PLANDA cizilmeli (zemin ustunu ortmesin)');
+    // ⚠️⚠️ Kenarlik `decoration`da OLMAMALI (yerlesimi kaydirir) — eski
+    //	kural AYNEN gecerli.
     expect((_cubukKutusu(t).decoration as BoxDecoration).border, isNull,
         reason: 'kenarlik `decoration`da OLMAMALI (yerlesimi kaydirir)');
+    expect(_cubukKutusu(t).foregroundDecoration, isNull,
+        reason: 'kenarlik artik `CustomPaint` ile cizilir');
     expect((_cubukKutusu(t).decoration as BoxDecoration).boxShadow, isNull,
         reason: 'golge OLMAMALI');
   });

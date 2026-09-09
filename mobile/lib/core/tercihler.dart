@@ -1,3 +1,5 @@
+import 'dart:math' show min;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -30,6 +32,81 @@ class Tercihler {
   static const _kSonAramalar = 'son_aramalar';
   static const _kYildizli = 'yildizli_mesajlar';
   static const _kTekAcilan = 'tek_kullanimlik_acilan';
+  static const _kSohbetTema = 'sohbet_tema_';
+  static const _kTakmaAd = 'takma_ad_';
+  static const _kSureli = 'sureli_mesaj_';
+  static const _kYazmaGostergesi = 'yazma_gostergesi';
+  static const _kOkunduBilgisi = 'okundu_bilgisi';
+
+  // ══════════════ TURU 180ab — SOHBET AYARLARI (CIHAZDA) ══════════════
+  //
+  // ⚠️⚠️⚠️ **BES AYARIN DA SUNUCUDA KARSILIGI YOK — OLCULDU** (backend
+  //	grep, 9 Eyl): `nickname` 0 · `theme` 0 · `ephemeral` 0 ·
+  //	`read_receipt` 0 · `restrict` 0 eslesme. Bu bir ARAYUZ TURU
+  //	(CLAUDE.md kural 9) -> deger CIHAZDA tutulur, sunucuya GONDERILMEZ.
+  // ⚠️ Her ekranda **DURUST SINIR** yaziliyor ("yalnızca bu cihazda") —
+  //	sessizce yerelde tutup kullaniciya "ayarlandi" demek turu 135'te
+  //	(uydurma kur seridi) reddedilen sinifin ta kendisi olurdu.
+  // ⚠️ Anahtarlar **SOHBET/KISI BASINA** onekli: tek bir global deger
+  //	kullanilsaydi bir sohbette secilen tema TUM sohbetlere yayilirdi.
+
+  /// Sohbet balonu rengi anahtari ('varsayilan' · 'mor' · 'mavi' · ...).
+  /// ⚠️ Bu ayar GERCEKTEN calisir (balon rengi cihazda cizilir); "yerel"
+  ///	olmasi onu YALAN yapmaz — karsi tarafta gorunmedigi ekranda yazili.
+  String sohbetTemasi(String chatId) =>
+      _p?.getString('$_kSohbetTema$chatId') ?? 'varsayilan';
+
+  Future<void> sohbetTemasiYaz(String chatId, String deger) async {
+    if (deger == 'varsayilan') {
+      await _p?.remove('$_kSohbetTema$chatId');
+      return;
+    }
+    await _p?.setString('$_kSohbetTema$chatId', deger);
+  }
+
+  /// Kisiye verilen takma ad. Bos dize = takma ad YOK.
+  String takmaAd(String peerId) =>
+      _p?.getString('$_kTakmaAd$peerId') ?? '';
+
+  Future<void> takmaAdYaz(String peerId, String ad) async {
+    final t = ad.trim();
+    if (t.isEmpty) {
+      await _p?.remove('$_kTakmaAd$peerId');
+      return;
+    }
+    // ⚠️ Tavan 40: sinirsiz birakilsaydi sohbet basligi ve liste satiri
+    //	kirpilir, ustelik tercih dosyasi sisirdi.
+    await _p?.setString('$_kTakmaAd$peerId', t.substring(0, min(40, t.length)));
+  }
+
+  /// Sureli mesaj secimi ('kapali' · 'goruldukten' · '24saat' · '7gun').
+  /// ⚠️⚠️ **YALNIZ EKRANDA**: mesajin karsi tarafta da kaybolmasi SUNUCU
+  ///	isi (`messages`ta sure sutunu YOK). Ekran bunu ACIKCA soyler.
+  String sureliMesaj(String chatId) =>
+      _p?.getString('$_kSureli$chatId') ?? 'kapali';
+
+  Future<void> sureliMesajYaz(String chatId, String deger) async {
+    if (deger == 'kapali') {
+      await _p?.remove('$_kSureli$chatId');
+      return;
+    }
+    await _p?.setString('$_kSureli$chatId', deger);
+  }
+
+  /// "Yazıyor…" gostergesi gonderilsin mi (GLOBAL).
+  /// ⚠️ Bu ayar **GERCEKTEN CALISIR**: kapaliyken istemci WS `typing`
+  ///	olayini HIC gondermez, yani karsi taraf gostergeyi GORMEZ.
+  bool get yazmaGostergesi => _p?.getBool(_kYazmaGostergesi) ?? true;
+  Future<void> yazmaGostergesiYaz(bool v) async =>
+      _p?.setBool(_kYazmaGostergesi, v);
+
+  /// Okundu bilgisi gonderilsin mi (GLOBAL).
+  /// ⚠️⚠️ **YALNIZ EKRANDA**: `POST /chats/{id}/read` cagrisini kesmek
+  ///	KENDI okunmamis rozetimizi de bozardi (ayni uc iki isi birden
+  ///	yapiyor) — o ayrim SUNUCU isi. Ekran bunu ACIKCA soyler.
+  bool get okunduBilgisi => _p?.getBool(_kOkunduBilgisi) ?? true;
+  Future<void> okunduBilgisiYaz(bool v) async =>
+      _p?.setBool(_kOkunduBilgisi, v);
 
   /// ⚠️ TURU 180y — acilmis "tek kullanimlik" fotograflar (media id).
   ///	Sunucuda karsiligi YOK; isaret CIHAZDA (bkz. `_TekKullanimlikBalon`).
