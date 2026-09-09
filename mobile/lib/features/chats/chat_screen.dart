@@ -1702,7 +1702,11 @@ class _Bubble extends StatelessWidget {
                       child: Container(
                         width: 210,
                         height: 128,
-                        color: Colors.black.withValues(alpha: 0.35),
+                        // ⚠️ TURU 180z — zemin BEYAZ-SEFFAF: sohbet zemini
+                        //	artik TAM SIYAH ve siyah-seffaf kutu orada
+                        //	GORUNMUYORDU; postersiz videoda ekranda yalniz
+                        //	bir oynat ikonu asili kaliyordu (olculdu).
+                        color: Colors.white.withValues(alpha: 0.07),
                         child: Stack(
                           fit: StackFit.expand,
                           children: [
