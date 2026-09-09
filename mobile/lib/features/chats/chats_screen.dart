@@ -8,7 +8,7 @@ import "../../core/yenile.dart";
 
 import '../../core/api.dart';
 import '../../core/tercihler.dart' show tercihler;
-import '../../core/theme.dart' show kAiZemin;
+import '../../core/theme.dart' show kAiZemin, kInputZemin;
 import '../auth/auth_provider.dart';
 import '../medya/medya_gorsel.dart';
 import 'arama_kaydi.dart';
@@ -524,9 +524,7 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
                     //	uygulama acildigi anda goze carpiyordu.
                     // ⚠️ Bu, tema iskeletinin serhinde yazan "~500 sabit renk
                     //    noktasi" borcunun EN GORUNUR ornegiydi.
-                    fillColor: Theme.of(
-                      context,
-                    ).colorScheme.onSurface.withValues(alpha: 0.06),
+                    fillColor: kInputZemin,
                     contentPadding: const EdgeInsets.symmetric(vertical: 12),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(24),

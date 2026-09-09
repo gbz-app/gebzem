@@ -76,11 +76,17 @@ Finder get _logoBulucu => find.byWidgetPredicate((w) =>
     (w.decoration as BoxDecoration).gradient != null &&
     (w.decoration as BoxDecoration).shape == BoxShape.circle);
 
-/// Gorseli tasiyan IC daire.
+/// Ortadaki dugmenin IC dairesi.
+///
+/// ⚠️⚠️⚠️ TURU 180ad — icerik **GORSEL DEGIL IKON** (kullanici emri:
+///	*"ortadaki menuye giden logo yerine bir icon koy"*). Olcut
+///	`decoration.image` idi; artik ic daire duz renkli ve icinde `Icon` var.
 Finder get _logoGorselBulucu => find.byWidgetPredicate((w) =>
     w is Container &&
     w.decoration is BoxDecoration &&
-    (w.decoration as BoxDecoration).image != null);
+    (w.decoration as BoxDecoration).shape == BoxShape.circle &&
+    (w.decoration as BoxDecoration).gradient == null &&
+    (w.decoration as BoxDecoration).color == kAltMenuZemin);
 
 /// 66 dp'lik SIYAH CUBUK (zemin kutusu ARTIK logonun tasma payini da kapsadigi
 /// icin olcut olarak KULLANILAMAZ — merkezi yukari kayar).
@@ -100,6 +106,12 @@ Finder get _cubukBulucu =>
 ///	ve TEMAYA BAGLI DEGIL); yalnizca okundugu widget tipi degisti.
 /// ⚠️⚠️ TURU 180t — cubuk artik `ClipRRect` DEGIL, kirpan ve kenarlik
 ///	cizen tek bir `Container`. Olcut o `Container`in `decoration`i.
+/// ⚠️⚠️⚠️ TURU 180ad — **OLCUT `borderRadius` DEGIL ZEMIN RENGI.**
+///	Radius kullanici emriyle KALKTI (*"simdilik radusu kaldir"*) ve
+///	`borderRadius != null` arayan bulucu cubugu BULAMAZ oldu — zemin,
+///	kenarlik ve olcu testlerinin UCU BIRDEN kirmizi dustu.
+///	Yeni olcut cubugun KENDI zemini (`kAltMenuZemin`), ki o zaten bu
+///	testlerin asil konusu.
 Container _cubukKutusu(WidgetTester t) => t.widget<Container>(
       find
           .descendant(
@@ -107,7 +119,8 @@ Container _cubukKutusu(WidgetTester t) => t.widget<Container>(
             matching: find.byWidgetPredicate((w) =>
                 w is Container &&
                 w.decoration is BoxDecoration &&
-                (w.decoration as BoxDecoration).borderRadius != null),
+                (w.decoration as BoxDecoration).shape != BoxShape.circle &&
+                (w.decoration as BoxDecoration).color == kAltMenuZemin),
           )
           .first,
     );
@@ -223,10 +236,18 @@ void main() {
       );
     }
     final sus = t.widget<Container>(gorsel).decoration as BoxDecoration;
-    expect(sus.shape, BoxShape.circle, reason: 'logo DAIRE icinde olmali');
-    expect(sus.image, isNotNull);
-    expect(sus.image!.fit, BoxFit.cover,
-        reason: 'gorsel daireyi TAM doldurmali (bosluk/ic dolgu yok)');
+    expect(sus.shape, BoxShape.circle, reason: 'icerik DAIRE icinde olmali');
+    // ⚠️⚠️⚠️ TURU 180ad — icerik artik **IKON** (kullanici emri: *"logo
+    //	yerine bir icon koy"*). Eski olcut `decoration.image` idi.
+    // ⚠️ Ikon ic dairenin ICINDE olmali: gradyan halkanin uzerine
+    //	cizilseydi beyaz ikon acik mor uzerinde 2,1:1 ile SILIK kalirdi.
+    expect(
+      find.descendant(of: gorsel, matching: find.byType(Icon)),
+      findsOneWidget,
+      reason: 'ortadaki dugmede IKON olmali',
+    );
+    expect(sus.image, isNull,
+        reason: 'logo gorseli KALDIRILDI (yerine ikon kondu)');
 
     final boyut = t.getSize(gorsel);
     expect(boyut.width, kAltMenuLogoIcCap);
@@ -271,11 +292,13 @@ void main() {
     expect((cerceve.height - cubuk.height).abs(), lessThan(0.01),
         reason: 'widget cubuktan UZUN olmamali (ustte serit yok)');
 
-    // ⚠️ UST KOSE RADIUSU **KULLANICI ISTEGI** — kaldirilamaz.
-    final r = (_cubukKutusu(t).decoration as BoxDecoration).borderRadius
-        as BorderRadius;
-    expect(r.topLeft.x, greaterThan(0), reason: 'sol ust radius DURMALI');
-    expect(r.topRight.x, greaterThan(0), reason: 'sag ust radius DURMALI');
+    // ⚠️⚠️⚠️ TURU 180ad — **RADIUS KALDIRILDI** (kullanici emri: *"simdilik
+    //	radusu kaldir"*). Turu 7'den beri duran radius, kullanici kararidir;
+    //	muhafiz artik onun YOKLUGUNU kilitler — sessizce geri gelmesin.
+    // ⚠️ Geri istenirse `borderRadius` VE `_UstKenarlikCizer.yaricap`
+    //	BIRLIKTE geri konur: ayrisirsa kenarlik kosede cubuktan TASAR.
+    expect((_cubukKutusu(t).decoration as BoxDecoration).borderRadius, isNull,
+        reason: 'radius KALDIRILDI (kullanici emri)');
 
     // ⚠️⚠️⚠️ TURU 180ab — **KENARLIK ARTIK `CustomPaint` ILE.**
     //	Gecmis: 96p *"border olmayacak"* -> 180r **border ISTENDI** ->

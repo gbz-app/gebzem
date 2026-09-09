@@ -300,15 +300,29 @@ flutter:
     #   ornekler (her agirlik ayri dosya). IPA ~7 MB kuculur.
     # ⚠️ YAPMA: bu girdileri silme — turu 180d'de fontu kaldirmak bu
     #   projenin EN AGIR hatasiydi.
-    - family: Google Sans Flex
+    # ⚠️⚠️⚠️ TURU 180ad — **GOOGLE SANS FLEX -> GOOGLE SANS** (kullanici emri:
+    #   *"yazi tipini Google Sans olarak duzenle, tum sayfalarin bu yazi
+    #   tipinde calistigina emin ol"*). Turu 180i'de TERSI istenmisti;
+    #   karar KULLANICININ.
+    # ⚠️ Dosyalar git gecmisinden (0481e43^) GERI CIKARILDI; aile adi
+    #   `name` tablosundan DOGRULANDI: "Google Sans".
+    # ⚠️⚠️ **BEDELI OLCULDU: 0,5 MB -> 7,4 MB** (agirlik basina 1,86 MB;
+    #   bunlar tam karakter setli statik dosyalar, Flex ise degisken
+    #   fonttan KESILMIS 125 KB'lik ornekti). IPA ~7 MB buyur — BU NORMALDIR.
+    # ⚠️ Satir kutusu DEGISMEZ (turu 180i'de olculdu): iki fontta da
+    #   USE_TYPO_METRICS acik ve typo metrikleri AYNI orani (1,252) veriyor,
+    #   yani turu 121/135b/157/173'un yukseklik formulleri AYNEN gecerli.
+    # ⚠️ YAPMA: bu girdileri silme — turu 180d'de fontu kaldirmak bu
+    #   projenin EN AGIR hatasiydi.
+    - family: Google Sans
       fonts:
-        - asset: assets/fonts/GoogleSansFlex-400.ttf
+        - asset: assets/fonts/GoogleSans-400.ttf
           weight: 400
-        - asset: assets/fonts/GoogleSansFlex-500.ttf
+        - asset: assets/fonts/GoogleSans-500.ttf
           weight: 500
-        - asset: assets/fonts/GoogleSansFlex-600.ttf
+        - asset: assets/fonts/GoogleSans-600.ttf
           weight: 600
-        - asset: assets/fonts/GoogleSansFlex-700.ttf
+        - asset: assets/fonts/GoogleSans-700.ttf
           weight: 700
 
   # An image asset can refer to one or more resolution-specific "variants", see

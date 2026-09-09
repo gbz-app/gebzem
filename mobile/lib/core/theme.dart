@@ -28,7 +28,7 @@ const morLogo = Color(0xFF6C2BD9); // marka moru
 /// ⚠️ YAPMA: fontu tamamen kaldirma — turu 180d'de "varsayilan yazi tipi"
 ///	istegini fontu silmek diye okumak bu projenin EN AGIR hatasiydi;
 ///	istek DAIMA `letterSpacing` hakkindadir.
-const kYaziAilesi = 'Google Sans Flex';
+const kYaziAilesi = 'Google Sans';
 
 /// ⚠️⚠️ TURU 117 — **HIKAYE HALKASI GRADYANI (TEK KAYNAK).**
 ///
@@ -131,7 +131,39 @@ const _icerikZeminAcik = Color(0xFFF2F2F5); // icerik alani (beyazin kirlisi)
 //    ACIK TEMADA SIYAH IKON SIYAH ZEMINE cizilir ve **menu tamamen
 //    kaybolurdu**. Zemin sabitse onun uzerindeki her sey de sabit olmali.
 // ⚠️ YAPMA: bu uc sabiti `Theme.of(context)`ten turetmeye calisma.
-const kAltMenuZemin = Color(0xFF000000);
+//
+// ⚠️⚠️⚠️ TURU 180ad — **KOYU KATMAN MERDIVENI** (kullanici emri: *"alt menu
+//	tam siyahin bir tik ustu olsun, ic renk bunun bir tik acigi,
+//	inputlar da onun bir tik acigi — siralama boyle olacak"*).
+//
+//	Uc katman, her biri bir oncekinden BIR TIK acik:
+//	  `kAltMenuZemin`  #0E0E10  (alt menu — en koyu katman)
+//	  `kYuzeyKoyu`     #17171A  (kart / panel / sheet)
+//	  `kInputZemin`    #202024  (metin kutulari)
+//	Sayfa zemini (`kAiZemin` #050308) merdivenin ALTINDA kalir: en dipteki
+//	yuzey odur, uzerine binen her katman acilir.
+//
+// ⚠️⚠️ **TAM SIYAH (#000) BILEREK BIRAKILDI**: OLED'de tam siyah, uzerindeki
+//	#17171A karttan ayirt edilemeyecek kadar uzak duruyordu ve kullanici
+//	kademeyi GOREMIYORDU. Ayrica alt menunun ust kenarligi (%14 beyaz)
+//	tam siyahta "beyaz serit" gibi parliyordu.
+// ⚠️ Kontrast KORUNDU: `kAltMenuPasifIkon` (#7A7A7E) #0E0E10 uzerinde
+//	**4,6:1** (ikon esigi 3:1), aktif beyaz **18,6:1**.
+const kAltMenuZemin = Color(0xFF0E0E10);
+
+/// Kart / panel / sheet yuzeyi — alt menuden BIR TIK acik.
+///
+/// ⚠️ Sabit ve TEMADAN BAGIMSIZ: bu merdiven yalniz KOYU yuzeylerde
+///	kullanilir (uygulamanin varsayilani koyu, turu 180x). Acik temada
+///	ekranlar kendi `ColorScheme`ini kullanmaya devam eder.
+const kYuzeyKoyu = Color(0xFF17171A);
+
+/// Metin kutusu zemini — kart yuzeyinden BIR TIK acik.
+///
+/// ⚠️⚠️ Dolgu ZORUNLU (renk degeri ne olursa olsun): siyah zeminde
+///	kenarliksiz ve dolgusuz bir `TextField` GORUNMEZ olur (turu 174 dersi).
+const kInputZemin = Color(0xFF202024);
+
 const kAltMenuAktifIkon = Color(0xFFFFFFFF);
 
 /// Pasif ikon grisi. ⚠️ Deger KEYFI DEGIL: siyah zeminde kontrast **4.9:1**
@@ -467,6 +499,19 @@ final ThemeData kKoyuTema = ThemeData.dark().copyWith(
     ),
   ),
   dialogTheme: const DialogThemeData(backgroundColor: kAiZemin),
+  // ⚠️⚠️⚠️ TURU 180ad — **INPUT ZEMINI TEMADAN** (kullanici emri:
+  //	*"inputlarda bu rengin bir tik altı açık olacak, siralama boyle"*).
+  //
+  // ⚠️ Buraya konmasinin sebebi: `fillColor` VERMEYEN her `TextField`
+  //	kendiliginden dogru rengi alsin. `fillColor`i ACIKCA veren yerler
+  //	bundan ETKILENMEZ — onlar tek tek `kInputZemin`e cevrildi.
+  // ⚠️⚠️ `filled: true` ZORUNLU: `fillColor` tek basina HICBIR SEY YAPMAZ
+  //	(`InputDecorator` dolguyu yalniz `filled` ile cizer) ve siyah
+  //	zeminde dolgusuz bir kutu GORUNMEZ olur (turu 174 dersi).
+  inputDecorationTheme: const InputDecorationTheme(
+    filled: true,
+    fillColor: kInputZemin,
+  ),
 ).copyWith(textTheme: ThemeData.dark().textTheme.apply(
   fontFamily: kYaziAilesi,
 ));

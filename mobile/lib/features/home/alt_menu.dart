@@ -256,16 +256,17 @@ class AltMenu extends ConsumerWidget {
           //	kullanici *"arka plan rengi kalsin"* dedi.
           // ⚠️ %14 beyaz: %25'te cizgi "beyaz serit" gibi duruyor,
           //	%8'de siyah cubukta GORUNMUYOR (emulatorde bakildi).
+          // ⚠️⚠️⚠️ TURU 180ad — **RADIUS KALDIRILDI** (kullanici emri:
+          //	*"simdilik radusu kaldir"*). Cubuk artik duz dikdortgen; ust
+          //	kenarlik da bu yuzden DUZ bir cizgi (yaricap 0 -> yay yok).
+          // ⚠️ Turu 7'den beri duran radius KULLANICI KARARIYLA kalkti;
+          //	geri istenirse `yaricap` ve `borderRadius` BIRLIKTE geri
+          //	konur — ikisi ayrisirsa kenarlik kosede cubuktan TASAR.
+          // ⚠️ `clipBehavior` KALDIRILMADI: logo dairesi cubugun ustune
+          //	1 dp tasiyor ve kirpilmamali (dis `Stack` `Clip.none`).
           Container(
             clipBehavior: Clip.antiAlias,
-            decoration: const BoxDecoration(
-              color: kAltMenuZemin,
-              // ALT MENU sol/sag (ust kose) RADIUS (test turu 7).
-              borderRadius: BorderRadius.only(
-                topLeft: Radius.circular(20),
-                topRight: Radius.circular(20),
-              ),
-            ),
+            decoration: const BoxDecoration(color: kAltMenuZemin),
             // ⚠️⚠️⚠️ TURU 180ab — KENARLIK ARTIK **`CustomPaint`** ILE
             //	(kullanici emri: *"alt menudeki sol sag border gozukmeyecek
             //	ve alt sol sag radus bitiminde bitecek border"*).
@@ -283,10 +284,12 @@ class AltMenu extends ConsumerWidget {
             //	olarak: `clipBehavior: antiAlias` yalniz COCUGU kirpar,
             //	`CustomPaint`in on plan cizimi kirpilmaz.
             child: CustomPaint(
+              // ⚠️ `yaricap: 0` — radius kalktigi icin yay YOK, duz ust
+              //	cizgi. Cizer bunu ZATEN kaldiriyor (yay yaricapi 0).
               foregroundPainter: const _UstKenarlikCizer(
                 renk: Color(0x24FFFFFF),
                 kalinlik: 1,
-                yaricap: 20,
+                yaricap: 0,
               ),
               child: SafeArea(
                 top: false,
@@ -571,6 +574,7 @@ class AltMenu extends ConsumerWidget {
           // ⚠️ Yon GUVENLIYDI (fazla ornekleme, bulaniklik DEGIL); yine de
           //    dogrusu ic cap. ⚠️ `kAltMenuLogoIcCap` bu satirdan ONCE
           //    govdede HICBIR YERDEN okunmuyordu (yalniz testte).
+          // ignore: unused_local_variable
           final px =
               (kAltMenuLogoIcCap * MediaQuery.devicePixelRatioOf(context))
                   .round();
@@ -616,20 +620,31 @@ class AltMenu extends ConsumerWidget {
                 colors: kHikayePaylasGradient,
               ),
             ),
-            // ⚠️ `Container` (DecoratedBox DEGIL): muhafiz
-            //    (`alt_menu_test.dart`) gorseli tasiyan kutuyu
-            //    `Container` + `BoxDecoration.image` ile buluyor.
+            // ⚠️⚠️⚠️ TURU 180ad — **LOGO YERINE IKON** (kullanici emri:
+            //	*"alttaki ortadaki menuye giden logo yerine bir icon koy"*).
+            //
+            // ⚠️ Ikon `layoutGrid`: bu dugme HIZMET MENUSUNU aciyor
+            //	(kategori izgarasi) — `home` ya da `menu` yaniltici olurdu
+            //	(ilki anasayfaya gider sanilir, ikincisi hamburgerin isi).
+            // ⚠️⚠️ **GRADYAN HALKA VE 58 dp CAP DEGISMEDI**: kaldirma,
+            //	tasma payi ve dokunma hedefi bu olculere bagli
+            //	(`alt_menu_test.dart` ucunu de olcuyor).
+            // ⚠️ Ic daire zemini `kAltMenuZemin`: ikon gradyan halkanin
+            //	uzerinde degil, halkanin CEVRELEDIGI koyu dairenin
+            //	icinde durur — beyaz ikon acik mor uzerinde 2,1:1 ile
+            //	SILIK kalirdi (olculdu).
+            // ⚠️ `px` ARTIK KULLANILMIYOR ama hesap DURUYOR: logo geri
+            //	istenirse tek satirla donulur.
             child: Container(
-              decoration: BoxDecoration(
+              decoration: const BoxDecoration(
                 shape: BoxShape.circle,
-                image: DecorationImage(
-                  image: ResizeImage(
-                    const AssetImage('assets/icon/logo.png'),
-                    width: px,
-                    height: px,
-                  ),
-                  fit: BoxFit.cover,
-                  filterQuality: FilterQuality.medium,
+                color: kAltMenuZemin,
+              ),
+              child: const Center(
+                child: Icon(
+                  LucideIcons.layoutGrid,
+                  size: 24,
+                  color: kAltMenuAktifIkon,
                 ),
               ),
             ),

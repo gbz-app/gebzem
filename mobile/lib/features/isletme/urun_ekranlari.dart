@@ -523,7 +523,7 @@ class _UrunKatalogEkraniState extends ConsumerState<UrunKatalogEkrani> {
           decoration: InputDecoration(
             hintText: '${widget.modul.ad} içinde ara',
             filled: true,
-            fillColor: _ks.onSurface.withValues(alpha: 0.07),
+            fillColor: kInputZemin,
             prefixIcon: const Padding(
               padding: EdgeInsets.only(left: 16, right: 10),
               child: Icon(LucideIcons.search, size: 21),

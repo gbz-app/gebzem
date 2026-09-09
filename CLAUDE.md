@@ -44,14 +44,14 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
 - **KALDIGIMIZ YER (10 Eyl 00:53): TURU 180y-180ac YAYINLANDI — SADECE iOS.**
   ios **34407569629** (**4893ac6**), R2 ipa=**29114125** (md5 8f267b9e),
   index=7972 (e8bb6327) surum.json=46 (55755628), purge OK, **CDN BIREBIR**
-  (ucu de), , ad hoc profil,  +
-   +  VAR.
-  IPAda dizeler VAR:  ·  ·  ·
-   ·  ·  ·
-   ·  ·  ·
-   ·  · ;
-  **KALKAN YOK: ** · emoji YOK. Kontrol dizesi
-   VAR (yontem dogrulandi).
+  (ucu de), `get-task-allow: false`, ad hoc profil, `MinimumOSVersion` +
+  `MapsApiKey` + `NSLocationWhenInUse` VAR.
+  IPAda dizeler VAR: `Gebzem App` · `GebzemAI` · `Paylaşılan medya` ·
+  `Süreli mesajlar` · `Takma adlar` · `Gizlilik ve emniyet` ·
+  `Sohbet kontrolleri` · `Görüldükten sonra` · `Yazma göstergesi` ·
+  `Örnek mesaj` · `Seçenekler` · `yalnızca bu cihazda`;
+  **KALKAN YOK: `Sık görüştüklerin`** · emoji YOK. Kontrol dizesi
+  `Yakınımda` VAR (yontem dogrulandi).
   ⚠️ **ADRES:** https://indir.gebzem.app/index.html?v=20260910-0053
   ⚠️ **BACKEND DEGISMEDI**: migration YOK, deploy YOK, **DB TRUNCATE
      EDILMEDI** — kullanicinin canli test verisi (8 sohbet + 2 kanal)

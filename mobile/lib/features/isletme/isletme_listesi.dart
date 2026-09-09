@@ -1578,7 +1578,7 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
         //	border): yalniz birini bosaltmak odaga girince cizginin
         //	geri gelmesine yol acar.
         filled: true,
-        fillColor: Colors.white.withValues(alpha: 0.07),
+        fillColor: kInputZemin,
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(kYaricap(kInputBoy)),
           borderSide: BorderSide.none,

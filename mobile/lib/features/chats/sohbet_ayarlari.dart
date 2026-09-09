@@ -231,7 +231,6 @@ class _TakmaAdEkraniState extends State<TakmaAdEkrani> {
   Widget build(BuildContext context) => koyuSayfa(Builder(builder: _govde));
 
   Widget _govde(BuildContext c) {
-    final ks = Theme.of(c).colorScheme;
     return Scaffold(
       backgroundColor: kAiZemin,
       appBar: YemekHeader(
@@ -255,7 +254,7 @@ class _TakmaAdEkraniState extends State<TakmaAdEkrani> {
               filled: true,
               // ⚠️ Dolgu ZORUNLU: siyah zeminde kenarliksiz ve dolgusuz bir
               //	`TextField` GORUNMEZ olur (turu 174 dersi).
-              fillColor: ks.onSurface.withValues(alpha: 0.06),
+              fillColor: kInputZemin,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide.none,
@@ -676,7 +675,7 @@ class _MesajAramaEkraniState extends ConsumerState<MesajAramaEkrani> {
                 filled: true,
                 // ⚠️ Dolgu ZORUNLU: siyah zeminde kenarliksiz ve dolgusuz bir
                 //	`TextField` GORUNMEZ olur (turu 174 dersi).
-                fillColor: ks.onSurface.withValues(alpha: 0.06),
+                fillColor: kInputZemin,
                 isDense: true,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(22),
