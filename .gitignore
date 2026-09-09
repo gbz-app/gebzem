@@ -87,3 +87,6 @@ mobile/test/_olcum*
 #    Sunucuya (R2) yuklendi; depoda tutmanin faydasi yok.
 #    ⚠️ Bunlar TESCILLI MARKA icerigidir — ornek/tanitim verisi.
 feedmc/
+
+# Gradle build ciktisi (turu 180z: yanlislikla commit edilmisti)
+mobile/android/build/
