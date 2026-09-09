@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -8,6 +7,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import "../../core/yenile.dart";
 
 import '../../core/api.dart';
+import '../../core/theme.dart' show kAiZemin;
 import '../auth/auth_provider.dart';
 import '../medya/medya_gorsel.dart';
 import 'arama_kaydi.dart';
@@ -181,6 +181,47 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
         ],
       ),
     );
+  }
+
+  /// Sohbetler + kanallar **TEK LISTE**, en yeni mesaj EN USTTE.
+  ///
+  /// ⚠️⚠️⚠️ TURU 180aa — kullanici emri: *"kanallar ve sohbet vs diye ayirma,
+  ///	sohbet alaninda hepsi ayni olsun, yeni mesaj gelen en uste olsun"*.
+  ///	Onceden "Kanallar" ve "Sohbetler" bolum basliklariyla IKI blok vardi
+  ///	ve kanallar DAIMA ustte duruyordu — bir yil once yazilmis bir kanal
+  ///	gonderisi, iki dakika onceki mesajin USTUNDE kaliyordu.
+  ///
+  /// ⚠️ Iki kaynak AYRI UCLARDAN geliyor (`/chats` ve `/channels`), yani
+  ///	siralamayi SUNUCU yapamaz; tek ortak olcut zaman damgasi.
+  /// ⚠️⚠️ **SABITLENENLER (`pinned`) DAIMA EN USTTE**: sabitleme kullanicinin
+  ///	ACIK kararidir, yeni bir mesaj onu asagi itemez (WhatsApp deseni).
+  ///	Kanalda sabitleme YOK -> hepsi zaman havuzuna girer.
+  /// ⚠️ Zamani OLMAYAN kayit (hic mesaj gelmemis sohbet / bos kanal) DAIMA
+  ///	SONA duser — `DateTime(0)` ile: ustte gorunseydi "en yeni" iddiasi
+  ///	YALAN olurdu (turu 122'de ilan fiyatinda birebir ayni tuzak).
+  List<Widget> _siraliSatirlar(List<Chat> sohbetler, List<Kanal> kanallar) {
+    final kayitlar = <({DateTime zaman, bool sabit, Widget satir})>[
+      for (final c in sohbetler)
+        (
+          zaman: c.lastAt ?? DateTime.fromMillisecondsSinceEpoch(0),
+          sabit: c.pinned,
+          satir: _ChatTile(chat: c),
+        ),
+      for (final k in kanallar)
+        (
+          // ⚠️ `Kanal.sonZaman` bir **String** (sunucu ISO doner); cozulemezse
+          //	sifir damga -> kayit sona duser, ekrandan KAYBOLMAZ.
+          zaman:
+              DateTime.tryParse(k.sonZaman) ??
+              DateTime.fromMillisecondsSinceEpoch(0),
+          sabit: false,
+          satir: _ToplulukTile(kanal: k),
+        ),
+    ]..sort((a, b) {
+      if (a.sabit != b.sabit) return a.sabit ? -1 : 1;
+      return b.zaman.compareTo(a.zaman);
+    });
+    return [for (final k in kayitlar) k.satir];
   }
 
   /// ⚠️⚠️ TURU 180y — **BOS DURUM DAIRESI** (kullanici emri: *"eger sohbet
@@ -531,14 +572,14 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
                           //	kapatmisti). Son ogeye SizedBox koymak YETMEZ: liste sonuna
                           //	gelinmeden once de ortme olur.
                           padding: const EdgeInsets.only(bottom: 88),
-                          children: [
-                            if (kanallar.isNotEmpty) ...[
-                              const _BolumBasligi('Kanallar'),
-                              for (final k in kanallar) _ToplulukTile(kanal: k),
-                              const _BolumBasligi('Sohbetler'),
-                            ],
-                            for (final c in visible) _ChatTile(chat: c),
-                          ],
+                          // ⚠️⚠️⚠️ TURU 180aa — **BOLUM BASLIKLARI KALKTI, TEK
+                          //	LISTE** (kullanici emri: *"kanallar ve sohbet vs
+                          //	diye ayirma, sohbet alaninda hepsi ayni olsun,
+                          //	yeni mesaj gelen en uste olsun"*).
+                          // ⚠️ Kanal ile sohbet AYRI UCLARDAN geliyor (`/channels`
+                          //	ve `/chats`); tek listede gorunmeleri icin ortak bir
+                          //	SIRA OLCUTU gerekiyor -> `_siraliSatirlar`.
+                          children: _siraliSatirlar(visible, kanallar),
                         ),
                       );
                     },
@@ -617,9 +658,10 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
 
 /// Liste ici bolum basligi ("Topluluklar" / "Sohbetler").
 ///
-/// ⚠️ Baslik YALNIZ topluluk VARSA cizilir: hicbir toplulugu olmayan
-///	kullaniciya bos bir "Topluluklar" basligi gostermek, ozelligi
-///	kirikmis gibi gosterirdi.
+/// ⚠️⚠️ TURU 180aa — **CAGRI YERI KALDIRILDI** (kullanici emri: *"kanallar ve
+///	sohbet vs diye ayirma, hepsi ayni olsun"*). Govde BILEREK duruyor:
+///	bu dosyada uye silmek bes kez komsu uyeyi de goturdu.
+// ignore: unused_element
 class _BolumBasligi extends StatelessWidget {
   const _BolumBasligi(this.metin);
   final String metin;
@@ -647,12 +689,12 @@ class _BolumBasligi extends StatelessWidget {
 ///	bagli. Topluluk bunlarin HICBIRINE sahip degil (abonelik modeli ayri);
 ///	sahte bir `Chat` uretmek satiri kaydirinca var olmayan bir sohbeti
 ///	arsivlemeye calisirdi.
-class _ToplulukTile extends StatelessWidget {
+class _ToplulukTile extends ConsumerWidget {
   const _ToplulukTile({required this.kanal});
   final Kanal kanal;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final scheme = Theme.of(context).colorScheme;
     return ListTile(
       leading: Stack(
@@ -693,6 +735,85 @@ class _ToplulukTile extends StatelessWidget {
       onTap: () => Navigator.of(
         context,
       ).push(MaterialPageRoute(builder: (_) => KanalEkrani(kanalId: kanal.id))),
+      // ⚠️⚠️ TURU 180aa — kanal satirinda da UZUN BASMA MENUSU. Sohbet ve
+      //	kanal artik AYNI LISTEDE yan yana duruyor; birinde menu cikip
+      //	otekinde cikmamasi kullaniciya "bu satir bozuk" gibi gorunurdu.
+      // ⚠️ Eylemler kanalin KENDI modeline gore: `arsivle`/`sil` kanalda YOK
+      //	(abonelik modeli ayri) — uydurulmadi, menude YAZILMADI.
+      onLongPress: () => _kanalMenusu(context, ref),
+    );
+  }
+
+  void _kanalMenusu(BuildContext context, WidgetRef ref) {
+    final ks = Theme.of(context).colorScheme;
+    final svc = ref.read(kanalServisiProvider);
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: kAiZemin,
+      showDragHandle: true,
+      builder: (bc) => SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 6),
+              child: Text(
+                kanal.ad,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: ks.onSurface,
+                ),
+              ),
+            ),
+            ListTile(
+              leading: Icon(
+                kanal.sessiz ? LucideIcons.bell : LucideIcons.bellOff,
+                size: 21,
+                color: ks.onSurface,
+              ),
+              title: Text(kanal.sessiz ? 'Sesi aç' : 'Sessize al'),
+              onTap: () async {
+                Navigator.pop(bc);
+                try {
+                  await svc.sessizAyarla(kanal.id, !kanal.sessiz);
+                } catch (e) {
+                  rootMessengerKey.currentState?.showSnackBar(
+                    SnackBar(content: Text(apiErrorMessage(e))),
+                  );
+                }
+              },
+            ),
+            ListTile(
+              leading: const Icon(
+                LucideIcons.logOut,
+                size: 21,
+                color: Color(0xFFE0523F),
+              ),
+              title: const Text(
+                'Abonelikten çık',
+                style: TextStyle(color: Color(0xFFE0523F)),
+              ),
+              onTap: () async {
+                Navigator.pop(bc);
+                try {
+                  // ⚠️ Servis `kanalDegisimi` sinyalini KENDISI atar; sohbet
+                  //	listesi bu yuzden kendiliginden tazelenir (turu 180x).
+                  await svc.abonelikBirak(kanal.id);
+                } catch (e) {
+                  rootMessengerKey.currentState?.showSnackBar(
+                    SnackBar(content: Text(apiErrorMessage(e))),
+                  );
+                }
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -1116,62 +1237,112 @@ class _ChatTile extends ConsumerWidget {
           },
         );
       },
+      // ⚠️⚠️⚠️ TURU 180aa — **UZUN BASMA MENUSU** (kullanici emri: *"mesaja
+      //	basili tutunca popup acilsin sil arsivle vs; sag sol yapinca
+      //	onlara gerek yok"*). Kaydirma (`Slidable`) KALDIRILDI.
+      // ⚠️ Turu 76'da TAM TERSI istenmisti (*"mesaj sol sag yapinca sil/
+      //	arsivle cikmali"*). Karar KULLANICININ; son soz onda.
+      // ⚠️⚠️ Islevlerin HICBIRI kaybolmadi: Sabitle · Sessiz · Arsivle · Sil
+      //	dordu de menude. Kaydirma tek giristi, menu de tek giris —
+      //	yani ULASILAMAZ eylem kalmiyor.
+      onLongPress: () => _menuAc(context, ref),
     );
 
-    // ⚠️⚠️ TURU 76 — KAYDIRMA AKSIYONLARI (kullanici emri: "mesaj sol sag
-    //    yapinca sil/arsivle cikmali"). Uygulamada daha once HICBIR swipe
-    //    hareketi YOKTU (Dismissible/Slidable proje genelinde 0 kullanim).
-    // ⚠️ `Dismissible` DEGIL `Slidable`: Dismissible ogeyi AGACTAN SILER; arsiv
-    //    gibi GERI ALINABILIR bir islemde satiri geri getirmek icin ek durum
-    //    yonetimi gerekirdi. Slidable panel acar, satir YERINDE kalir.
-    // ⚠️ `groupTag` ZORUNLU: ayni gruptaki baska bir satir acilinca bu
-    //    kendiliginden KAPANIR (iki satir birden acik kalmaz).
-    return Slidable(
-      key: ValueKey(chat.id),
-      groupTag: 'sohbet',
-      startActionPane: ActionPane(
-        motion: const DrawerMotion(),
-        extentRatio: 0.5,
-        children: [
-          SlidableAction(
-            onPressed: (_) => _ayar(context, ref, pinned: !chat.pinned),
-            backgroundColor: const Color(0xFF3A3A45),
-            foregroundColor: Colors.white,
-            icon: chat.pinned ? LucideIcons.pinOff : LucideIcons.pin,
-            label: chat.pinned ? 'Kaldır' : 'Sabitle',
-          ),
-          SlidableAction(
-            onPressed: (_) => _ayar(context, ref, muted: !chat.sessiz),
-            backgroundColor: const Color(0xFF4A4A55),
-            foregroundColor: Colors.white,
-            icon: chat.sessiz ? LucideIcons.bell : LucideIcons.bellOff,
-            label: chat.sessiz ? 'Sesi aç' : 'Sessiz',
-          ),
-        ],
+    return satir;
+  }
+
+  /// Sohbet satirina uzun basinca acilan eylem menusu.
+  ///
+  /// ⚠️ Ornek (`demo-`) kayitta ACILMAZ: eylemlerin sunucuda karsiligi yok,
+  ///	her biri hata dondururdu (turu 180t "ornek sohbet acilmaz" karari).
+  /// ⚠️⚠️ Sheet **KENDI `Builder` context'ini** kullanir (`bc`): eylemler
+  ///	sheet KAPANDIKTAN sonra kosar ve `_sil`in dialogu ile `_ayar`in
+  ///	`ScaffoldMessenger`i OLU bir context'e baglanamaz (turu 138 dersi).
+  void _menuAc(BuildContext context, WidgetRef ref) {
+    if (chat.id.startsWith('demo-')) {
+      rootMessengerKey.currentState?.showSnackBar(
+        const SnackBar(content: Text('Bu bir örnek sohbet.')),
+      );
+      return;
+    }
+    final ks = Theme.of(context).colorScheme;
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: kAiZemin,
+      showDragHandle: true,
+      builder: (bc) => SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 6),
+              child: Text(
+                chat.title.isNotEmpty ? chat.title : 'Sohbet',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: ks.onSurface,
+                ),
+              ),
+            ),
+            _menuSatiri(
+              bc,
+              ikon: chat.pinned ? LucideIcons.pinOff : LucideIcons.pin,
+              metin: chat.pinned ? 'Sabitlemeyi kaldır' : 'Sabitle',
+              onTap: () => _ayar(context, ref, pinned: !chat.pinned),
+            ),
+            _menuSatiri(
+              bc,
+              ikon: chat.sessiz ? LucideIcons.bell : LucideIcons.bellOff,
+              metin: chat.sessiz ? 'Sesi aç' : 'Sessize al',
+              onTap: () => _ayar(context, ref, muted: !chat.sessiz),
+            ),
+            _menuSatiri(
+              bc,
+              ikon: chat.archived
+                  ? LucideIcons.archiveRestore
+                  : LucideIcons.archive,
+              metin: chat.archived ? 'Arşivden çıkar' : 'Arşivle',
+              onTap: () => _ayar(context, ref, archived: !chat.archived),
+            ),
+            _menuSatiri(
+              bc,
+              ikon: LucideIcons.trash2,
+              metin: 'Sil',
+              renk: const Color(0xFFE0523F),
+              onTap: () => _sil(context, ref),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
       ),
-      endActionPane: ActionPane(
-        motion: const DrawerMotion(),
-        extentRatio: 0.5,
-        children: [
-          SlidableAction(
-            onPressed: (_) => _ayar(context, ref, archived: !chat.archived),
-            backgroundColor: const Color(0xFF6C2BD9),
-            foregroundColor: Colors.white,
-            icon: chat.archived
-                ? LucideIcons.archiveRestore
-                : LucideIcons.archive,
-            label: chat.archived ? 'Geri al' : 'Arşivle',
-          ),
-          SlidableAction(
-            onPressed: (_) => _sil(context, ref),
-            backgroundColor: const Color(0xFFD32F2F),
-            foregroundColor: Colors.white,
-            icon: LucideIcons.trash2,
-            label: 'Sil',
-          ),
-        ],
+    );
+  }
+
+  /// ⚠️ Sheet ONCE kapanir, eylem SONRA kosar: `_sil` bir dialog aciyor ve
+  ///	sheet ustunde kalsaydi onay penceresi ARKADA cizilirdi.
+  Widget _menuSatiri(
+    BuildContext bc, {
+    required IconData ikon,
+    required String metin,
+    required VoidCallback onTap,
+    Color? renk,
+  }) {
+    final ks = Theme.of(bc).colorScheme;
+    final c = renk ?? ks.onSurface;
+    return ListTile(
+      leading: Icon(ikon, size: 21, color: c),
+      title: Text(
+        metin,
+        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: c),
       ),
-      child: satir,
+      onTap: () {
+        Navigator.pop(bc);
+        onTap();
+      },
     );
   }
 
