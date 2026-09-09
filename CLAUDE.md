@@ -41,6 +41,136 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
       kaybettiriyorsun"*. **Üçüncüsü olmayacak.**
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
+- **KALDIGIMIZ YER (10 Eyl): TURU 180y-180ac KODU BITTI, iOS BUILD ALINDI
+  (34407569629, commit 4893ac6). YAYIN ADIMLARI (R2 + purge + dogrulama)
+  BEKLIYOR.**
+  ⚠️ **BACKEND DEGISMEDI**: migration YOK, deploy YOK, **DB TRUNCATE
+     EDILMEDI** — kullanicinin canli test verisi (8 sohbet + 2 kanal)
+     KORUNDU. Tohum KOSULMADI (kosulsaydi mevcut kayitlarin USTUNE eklerdi).
+  ✅ analyze **0/0** · test **97/97** (86 -> 97) · emulatorde ON UC madde
+     gozle dogrulandi.
+
+- 💬 **TURU 180aa — SOHBET LISTESI: TEK LISTE + UZUN BASMA MENUSU.**
+  · "Sık görüştüklerin" seridi KALKTI (govde `unused_element` ile duruyor).
+  · ⚠️⚠️ **BOLUM BASLIKLARI (Kanallar/Sohbetler) KALKTI** — kanal ve sohbet
+    TEK LISTEDE, **en yeni mesaj EN USTTE** (`_siraliSatirlar`). Iki kaynak
+    AYRI UCLARDAN geliyor (`/channels` + `/chats`), yani siralamayi SUNUCU
+    YAPAMAZ; ortak olcut zaman damgasi.
+  ⚠️ Sabitlenenler (`pinned`) DAIMA ustte; zamani OLMAYAN kayit DAIMA sona
+     (`DateTime(0)`) — ustte gorunseydi "en yeni" iddiasi YALAN olurdu
+     (turu 122 ilan fiyati tuzagi).
+  · ⚠️⚠️ **KAYDIRMA (`Slidable`) KALDIRILDI -> UZUN BASMA MENUSU**
+    (Sabitle · Sessize al · Arsivle · Sil). Turu 76'da TAM TERSI istenmisti;
+    karar KULLANICININ. Kanal satirinda da menu (Sessize al · Abonelikten
+    cik): ikisi ayni listede yan yana ve birinde menu cikip otekinde
+    cikmamasi kullaniciya "bu satir bozuk" gibi gorunurdu.
+  ⚠️ Sheet ONCE kapanir, eylem SONRA kosar (`_sil` bir dialog aciyor;
+     sheet ustunde kalsaydi onay penceresi ARKADA cizilirdi).
+
+- 🧱 ⚠️⚠️⚠️ **TURU 180ab — ALT MENU UST KENARLIGI `CustomPaint` ILE.**
+  Kullanici: *"sol sag border gozukmeyecek, alt sol sag radus bitiminde
+  bitecek border"*.
+  ⚠️⚠️ **`BoxDecoration` BUNU YAPAMAZ**: yuvarlak kose ile **tek yonlu**
+     kenarlik kabul etmez (*"A borderRadius can only be given for a uniform
+     Border"*) — turu 180t tam bu yuzden DORT KENARI birden cizmisti.
+     `Border(top:)` de COZMEZ: DUZ cizgi ceker, iki uctaki yaylarda HICBIR
+     SEY olmaz (turu 180r'de sahada goruldu).
+  **Cizilen yol:** sol kenarda r kadar asagidan basla -> sol ust yay -> duz
+  ust kenar -> sag ust yay -> sag kenarda r kadar asagida BIT.
+  ⚠️ `foregroundPainter` (arka plan DEGIL): cocugun USTUNE cizer, yerlesime
+     DOKUNMAZ — `decoration`daki kenarlik kisittan 2 x width duser ve
+     ikon/logo 1 dp kayar (turu 150 dersi).
+  ⚠️ Cizgi kalinligin YARISI kadar iceri cekilir · `StrokeCap.butt` ·
+     yaricap kutuya clamp (dar cubukta yaylar ust uste binip `Path` kendini
+     keserdi — turu 179 dersi).
+  · **`kAltMenuLogoKaldir` = `kAltMenuIkonKaldir`** (+7 payi KALKTI): ikon
+    ve logo merkezleri ikisi de **28 dp**, fark YAPISAL OLARAK sifir.
+  ⚠️ YAPMA: buraya tekrar sabit bir pay (+7/+12) ekleme.
+  ✅ `alt_menu_test.dart` **15/15**, IKI BICIMDE bozularak kanitlandi.
+
+- ⚙️ **TURU 180ab — INSTAGRAM SOHBET AYARLARI** (kullanici dort ekran
+  goruntusu gonderdi).
+  ⚠️⚠️⚠️ **ONCE OLCULDU** (backend grep, 9 Eyl): `nickname` 0 · `theme` 0 ·
+     `ephemeral` 0 · `read_receipt` 0 · `restrict` 0 eslesme. -> CLAUDE.md
+     **kural 9**: arayuz YAPILIR, deger CIHAZDA tutulur, sunucuya
+     GONDERILMEZ, bekleyen is LISTEYE yazilir.
+  · `kisi_bilgi` Instagram duzeninde: basliksiz header · avatar + ad · DORT
+    hizli eylem (Profil · Ara · Sessize al · Seçenekler) · ayar listesi.
+  · Yeni `chats/sohbet_ayarlari.dart`: SureliMesajlar · SohbetTema ·
+    TakmaAd · SohbetKontrolleri · GizlilikEmniyet · **MesajArama**.
+
+  | Ayar | Durum |
+  |---|---|
+  | Tema (balon rengi) | ✅ GERCEK — `ChatColors.bubbleMineTema` TEK KAYNAK |
+  | Takma ad | ✅ GERCEK — sohbet basligi VE liste satiri |
+  | Yazma gostergesi | ✅ GERCEK — kapaliyken WS `typing` HIC gitmez |
+  | Sohbet kontrolleri · engelle · sikayet · ara | ✅ mevcut uclar |
+  | Süreli mesajlar | ⚠️ YALNIZ EKRANDA (ekran ACIKCA soyluyor) |
+  | Okundu bilgisi | ⚠️ YALNIZ EKRANDA (ayni uc iki isi birden yapiyor) |
+  | Kısıtla | ❌ CIZILMEDI — karsiligi YOK, ne oldugu SOYLENIYOR |
+
+  ⚠️ Hizli eylem 3 -> 4 oldu: 4 x 84 = 336 dp, 360 dp'de TASIYORDU ->
+     `Expanded` + etiket `FittedBox(scaleDown)`.
+  ⚠️⚠️ Kisi bilgisinden DONUSTE `setState` ZORUNLU: tema/takma ad cihazda
+     yaziliyor, sohbet yeniden CIZILMEZSE degisiklik ancak ekran kapanip
+     acilinca gorunurdu ("ayar calisiyor ama gorunmuyor" sinifi).
+  ⚠️ Yazma gostergesi kapisi **KISMALAMANIN USTUNDE** (altina konsaydi ayar
+     acildiginda ilk 2 saniye sessiz kalirdi).
+  ⚠️ `Radio`/`RadioListTile` KULLANILMADI (yeni Flutter `RadioGroup` sarmali
+     istiyor) -> daire ELLE cizildi.
+  ⚠️ Mesaj aramasi Turkce'ye duyarsiz: `toLowerCase()` TEK BASINA YETMEZ
+     ('İ' birlesik noktaya doner) -> `_sadelestir` (turu 140/175 tuzagi).
+
+- 🖼️ ⚠️⚠️⚠️ **TURU 180ac — GALERI UC PROFILDE DE VAR** (kullanici:
+  *"profillere tikladigimda galeri vs gorunmuyor, hem kisiselde hem grup
+  kanalda; BUNU ATLIYORSUN SUREKLI"*).
+  **OLCULDU:** izgara YALNIZ kanal profilinde vardi (turu 180z); kisi ve
+  grup bilgisinde YOKTU.
+  · Yeni `medya/paylasilan_medya.dart` — **`PaylasilanMedyaBolumu` TEK
+    KAYNAK** (izgara + belgeler + bos durum). Kanal profilindeki KOPYA
+    kaldirildi; kisi ve grup bilgisine eklendi.
+  ⚠️ Kaynak `messagesProvider`: mesajlar ZATEN bellekte -> **YENI UC
+     GEREKMEDI**, ek istek YOK.
+  ⚠️ En YENI once (`reversed`) · silinmis mesaj ELENIR · belgeler AYRI
+     liste (bir PDF'in kapagi yoktur, ADI okunmalidir).
+  ⚠️ DURUST SINIR: yalniz YUKLENMIS sayfa taranir — bos metin bunu soyluyor.
+
+- 🤖 **TURU 180ac — GebzemAI + Gebzem App SOHBETLERI** (listenin EN USTUNDE).
+  ⚠️⚠️ Sunucuda `chats` satiri **ACILMADI**: ikisi de kullanici verisi
+     DEGIL. Sahte satir onlari silinebilir/arsivlenebilir/engellenebilir bir
+     "kisi" yapardi + her hesapta migration/tohum isi olurdu.
+  ⚠️ `_ChatTile` YENIDEN KULLANILMADI (o satir `Chat` modeline, uzun basma
+     menusune ve `/chat/{id}` rotasina bagli — turu 180x'te topluluk
+     satirinda AYNI karar).
+  ⚠️ YALNIZ "Hepsi"de ve arama YOKKEN cizilir: "Grup" listesinde grup
+     olmayan iki satir suzgeci YALANCI yapardi.
+  · `gebzem_app_sohbeti.dart`: 11 tanitim balonu, **SALT OKUNUR** (giris
+    kutusu YOK) ve bunu EKRANDA soyluyor; icerik UYDURULMADI — her madde
+    GERCEKTEN var olan bir ozelligi anlatiyor.
+  · **Sag alttaki GebzemAI balonu KALDIRILDI** (kullanici emri); islev
+    kaybolmadi (listenin en ustunde). Liste alt dolgusu 88 -> 24.
+  ⚠️ Emoji ("Hoş geldin" + el emojisi) yazildi ve ekran goruntusunde
+     YAKALANIP kaldirildi — turu 62 kurali: *"arayuze emoji geri koyma
+     (metin ICINE de)"*.
+
+- 🛡️ **TURU 180ab/ac — YENI MUHAFIZ `test/sohbet_ayarlari_test.dart` (11).**
+  Riskin adi **OLU OZELLIK** (bu projede DOKUZ kez sahaya cikti): deger
+  yazilir, OKUYAN yol yazilmaz. Muhafiz her ayarin TUKETICISINI kaynaktan
+  dogrular + uc profil ekraninin da galeriyi cizdigini kilitler.
+  ⚠️⚠️ **BIR KONTROL YALANCI-YESILDI ve BOZULARAK YAKALANDI**: galeri
+     testi yalnizca `PaylasilanMedyaBolumu` METNINI ariyordu; grup
+     ekranindan CAGRI YERI silindiginde bolum artik cizilmiyor ama metin
+     yardimci metodun GOVDESINDE durdugu icin test YINE GECIYORDU. Olcut
+     **CAGRI YERINE** cevrildi (tanim + cagri = en az 2 gecis).
+  ✅ **DORT BICIMDE BOZULARAK KANITLANDI**: (a) balon temayi okumasin,
+     (b) yazma kapisi kismalamanin altina, (c) palete karsiligi olmayan
+     renk, (d) grup ekranindan galeri cagrisini sil. Dordu de geri alindi.
+
+- ⏳ **BEKLEYEN (BACKEND TURU):** `chat_members.tema` · `takma_ad` ·
+  `sureli_sn` + mesaj supurgesi (karsi tarafta da silinmeli) ·
+  `users.okundu_kapali` · `yazma_kapali` · "Kisitla" (engellemenin yumusak
+  hali: mesaj isteklere duser).
+
 - **KALDIGIMIZ YER (9 Eyl 01:53): TURU 180x YAYINLANDI — SADECE iOS.**
   ios **34287170007** (**4fada14**), R2 ipa=**29065242** (md5 255253dd),
   index=7967 (818049ce) surum.json=45 (13a3d031), purge OK, **CDN BIREBIR**

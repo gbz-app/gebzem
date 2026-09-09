@@ -1,3 +1,120 @@
+# Oturum — Turu 180y-180ac (9-10 Eyl 2026) — SOHBET KATMANI YENIDEN
+
+⚠️ **BACKEND DEGISMEDI**: migration YOK, deploy YOK, DB TRUNCATE EDILMEDI.
+Kullanicinin canli test verisi (8 sohbet + 2 kanal) KORUNDU.
+
+## Kullanici emirleri (sirayla)
+
+1. *"chatte sik gorustuklerini kaldir, hepsi istekler vs grup gibi yazilar
+   buton sekline olsun"*
+2. *"kanallar ve sohbet vs diye ayirma, sohbet alaninda hepsi ayni olsun,
+   yeni mesaj gelen en uste olsun; mesaja basili tutunca popup acilsin sil
+   arsivle vs; sag sol yapinca onlara gerek yok"*
+3. (dort Instagram ekran goruntusu) *"bunlari da ayni sekilde cok iyi
+   analiz ve test et, derinlemesine tek tek kontrol et"*
+4. *"alt menudeki sol sag border gozukmeyecek ve alt sol sag radus
+   bitiminde bitecek border; ortadaki logo ikonlarla ayni yukseklikte
+   ortada olsun"*
+5. *"sohbete GebzemAI ve Gebzem App diye sohbet olsun; Gebzem App whatsapp
+   gibi bilgilendirme olsun, detayli yazilar; GebzemAI tikladiginda gebzem
+   ai gitsin; sagdaki balonu kaldir; profil ve kanal profiline
+   tikladigimda galeri vs gorunmuyor hem kisiselde hem grup kanalda,
+   **bunu atliyorsun surekli**"*
+
+## Yapilanlar
+
+### TURU 180aa — sohbet listesi
+- "Sık görüştüklerin" seridi KALDIRILDI (govde `unused_element` ile duruyor).
+- **Bolum basliklari ("Kanallar" / "Sohbetler") KALKTI, TEK LISTE**
+  (`_siraliSatirlar`). Kanal ve sohbet AYRI UCLARDAN geliyor (`/channels` +
+  `/chats`), yani siralamayi SUNUCU yapamaz; ortak olcut zaman damgasi.
+  · Sabitlenenler (`pinned`) DAIMA ustte (kullanicinin ACIK karari).
+  · Zamani olmayan kayit DAIMA sona (`DateTime(0)`) — ustte gorunseydi
+    "en yeni" iddiasi YALAN olurdu (turu 122 tuzagi).
+- **Kaydirma (`Slidable`) KALDIRILDI -> UZUN BASMA MENUSU**: Sabitle /
+  Sessize al / Arsivle / Sil. Kanal satirinda da menu (Sessize al /
+  Abonelikten cik) — ikisi ayni listede yan yana, birinde menu cikip
+  otekinde cikmamasi "bozuk" gorunurdu.
+- Filtre seridi ZATEN 180z'de butona cevrilmisti (kullanicinin elindeki
+  180x buildinde eski cip serit vardi).
+
+### TURU 180ab — alt menu
+- **Ust kenarlik `BoxDecoration` -> `_UstKenarlikCizer` (CustomPainter)**.
+  `BoxDecoration` bunu YAPISAL OLARAK yapamaz: yuvarlak kose ile tek yonlu
+  border yasak. `Border(top:)` de cozmez (yaylarda hicbir sey olmaz).
+  Cizilen yol: sol kenarda r kadar asagidan basla -> sol ust yay -> duz ust
+  kenar -> sag ust yay -> sag kenarda r kadar asagida BIT.
+- `kAltMenuLogoKaldir` = `kAltMenuIkonKaldir` (+7 payi KALKTI): ikon merkezi
+  ve logo merkezi ikisi de **28 dp**.
+- ✅ IKI BICIMDE BOZULARAK KANITLANDI (+7 geri / foregroundPainter->painter).
+
+### TURU 180ab — Instagram sohbet ayarlari
+**ONCE OLCULDU** (backend grep): `nickname` 0 · `theme` 0 · `ephemeral` 0 ·
+`read_receipt` 0 · `restrict` 0 eslesme -> CLAUDE.md kural 9: arayuz YAPILIR,
+deger CIHAZDA tutulur, bekleyen is listeye yazilir.
+
+- `kisi_bilgi` Instagram duzenine gecti: basliksiz header · avatar + ad ·
+  DORT hizli eylem (Profil · Ara · Sessize al · Seçenekler) · ayar listesi.
+- Yeni `sohbet_ayarlari.dart`: SureliMesajlar · SohbetTema · TakmaAd ·
+  SohbetKontrolleri · GizlilikEmniyet · MesajArama.
+
+| Ayar | Durum |
+|---|---|
+| Tema | ✅ GERCEK (balon rengi, `bubbleMineTema` tek kaynak) |
+| Takma ad | ✅ GERCEK (sohbet basligi + liste satiri) |
+| Yazma gostergesi | ✅ GERCEK (kapaliyken WS `typing` HIC gitmez) |
+| Sohbet kontrolleri / engelle / sikayet / ara | ✅ mevcut uclar |
+| Sureli mesajlar | ⚠️ YALNIZ EKRANDA (ekran ACIKCA soyluyor) |
+| Okundu bilgisi | ⚠️ YALNIZ EKRANDA (ayni uc iki isi birden yapiyor) |
+| Kisitla | ❌ CIZILMEDI — karsiligi yok, ne oldugu SOYLENIYOR |
+
+### TURU 180ac — galeri · sistem sohbetleri
+- **OLCULDU**: paylasilan medya izgarasi YALNIZ kanal profilinde vardi
+  (turu 180z); kisi ve grup bilgisinde YOKTU — kullanicinin sikayeti buydu.
+- Yeni `medya/paylasilan_medya.dart` — `PaylasilanMedyaBolumu` TEK KAYNAK.
+  Kanal profilindeki KOPYA kaldirildi; kisi ve grup bilgisine eklendi.
+  Kaynak `messagesProvider` (mesajlar ZATEN bellekte -> yeni uc GEREKMEDI).
+- **GebzemAI + Gebzem App** sohbet listesinin EN USTUNDE. `chats` satiri
+  ACILMADI (kullanici verisi degil). `_ChatTile` yeniden kullanilmadi.
+- Sag alttaki GebzemAI balonu KALDIRILDI; liste alt dolgusu 88 -> 24.
+- `gebzem_app_sohbeti.dart`: 11 tanitim balonu, SALT OKUNUR, icerik
+  UYDURULMADI (her madde gercekten var olan bir ozellik).
+
+## Emulatorde GOZLE DOGRULANAN
+
+alt menu kenarligi (yanlarda cizgi YOK) · logo hizasi · filtre butonlari ·
+"Sık görüştüklerin" YOK · **tek liste, en yeni ustte** (19:24 -> 16:51 ->
+15:01 -> kanallar -> 02:13; simulasyonla BIREBIR) · uzun basma menusu ·
+Instagram ayar ekrani · Tema ekrani -> **YESIL secilince balonlar GERCEKTEN
+yesil oldu** · Gizlilik ve emniyet · Süreli mesajlar · GebzemAI + Gebzem App
+satirlari · Gebzem App icerigi · **paylasilan medya izgarasi (2 foto +
+1 video posterli) + Belgeler (PDF)**.
+
+## Muhafiz
+
+Yeni `test/sohbet_ayarlari_test.dart` — **11 kontrol**. Riskin adi
+**OLU OZELLIK** (bu projede DOKUZ kez sahaya cikti).
+
+⚠️⚠️ **BIR TEST YALANCI-YESILDI ve BOZULARAK YAKALANDI**: galeri kontrolu
+yalnizca `PaylasilanMedyaBolumu` METNINI ariyordu; grup ekranindan CAGRI
+YERI silindiginde bolum artik cizilmiyor ama metin yardimci metodun
+GOVDESINDE durdugu icin test YINE GECIYORDU. Olcut CAGRI YERINE cevrildi
+(tanim + cagri = en az 2 gecis).
+
+✅ **DORT BICIMDE BOZULARAK KANITLANDI**: (a) balon temayi okumasin,
+(b) yazma kapisi kismalamanin altina, (c) palete karsiligi olmayan renk,
+(d) grup ekranindan galeri cagrisini sil. Dordu de geri alindi.
+
+## Olcumler
+
+`flutter analyze` **0 hata 0 uyari** · `flutter test` **86 -> 97**.
+
+## Surec notu
+
+⚠️ Emoji ("Hoş geldin 👋") yazildi ve EKRAN GORUNTUSUNDE yakalanip
+kaldirildi — CLAUDE.md turu 62 kurali: *"arayuze emoji geri koyma
+(metin ICINE de)"*.
+
 # Oturum — Turu 180x (9 Eyl 2026, 01:53 YAYINLANDI) — MESAJ SEKMESI ARAYUZU
 
 ## Kullanici emri (ekran goruntusu: Instagram "Yeni mesaj")
