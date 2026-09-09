@@ -468,10 +468,18 @@ class _MedyaVideoState extends ConsumerState<MedyaVideo>
           //    zaten milisaniyeler icinde gelir; koyu zemin yeterli.
           if (!_hazir && widget.yerelDosya != null)
             const ColoredBox(color: Color(0xFF14101C)),
+          // ⚠️⚠️⚠️ TURU 180z — `yalnizThumb` ZORUNLU (EMULATORDE OLCULDU).
+          //	Ustteki serhin *"kucuk resim yuklenmemisse sessizce koyu bir
+          //	kutuya duser (kirik ikon YOK)"* iddiasi YANLISTI: bayraksiz
+          //	hali `thumb_url ?? url` yapiyor ve postersiz videoda HAM mp4
+          //	adresini `CachedNetworkImage`e veriyordu. Logcat saniyede
+          //	defalarca `ImageDecoder$DecodeException` basiyordu; emulatorde
+          //	**ANR** bu dongunun uzerine geldi.
           if (!_hazir && widget.yerelDosya == null)
             MedyaGorsel(
               mediaId: widget.kapakMediaId ?? widget.mediaId,
               kucuk: true,
+              yalnizThumb: true,
               fit: widget.dolgu,
             ),
           if (_hazir && c != null)

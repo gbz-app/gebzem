@@ -156,12 +156,28 @@ class _MedyaGorselState extends ConsumerState<MedyaGorsel> {
     if (_demoMedya) {
       ic = _kutu(const SizedBox.shrink());
     } else if (_hata) {
-      ic = _kutu(const Icon(LucideIcons.imageOff, size: 22, color: Colors.white54));
+      // ⚠️⚠️⚠️ TURU 180z — `yalnizThumb` ile birlikte kullanildiginda hata
+      //	dali **HICBIR SEY CIZMEZ**. Gerekce EMULATORDE OLCULDU: posteri
+      //	olmayan bir videoda `yalnizThumb` hata dalina duser ve buradaki
+      //	"kirik gorsel" ikonu, cagiranin ALTA cizdigi koyu kutu + OYNAT
+      //	rozetinin USTUNU kapatiyordu — kullanici saglam bir videoyu BOZUK
+      //	saniyordu.
+      // ⚠️ Yalniz bu bayrakla susar: normal gorsellerde kirik ikon KALIR
+      //	(sessizce bos kutu birakmak "yukleniyor mu, yok mu" belirsizligi
+      //	uretirdi).
+      ic = widget.yalnizThumb
+          ? const SizedBox.shrink()
+          : _kutu(const Icon(LucideIcons.imageOff, size: 22, color: Colors.white54));
     } else if (_url == null) {
-      ic = _kutu(const SizedBox(
-          width: 18,
-          height: 18,
-          child: CircularProgressIndicator(strokeWidth: 2)));
+      // ⚠️ `yalnizThumb` (video hucresi): burada da SESSIZ kalinir —
+      //	cagiranin oynat rozetiyle ust uste binen ikinci bir gosterge
+      //	olurdu. Rozet zaten "bu bir video" diyor.
+      ic = widget.yalnizThumb
+          ? const SizedBox.shrink()
+          : _kutu(const SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2)));
     } else {
       ic = CachedNetworkImage(
         imageUrl: _url!,
@@ -190,8 +206,12 @@ class _MedyaGorselState extends ConsumerState<MedyaGorsel> {
             width: 18,
             height: 18,
             child: CircularProgressIndicator(strokeWidth: 2))),
-        errorWidget: (_, _, _) =>
-            _kutu(const Icon(LucideIcons.imageOff, size: 22, color: Colors.white54)),
+        // ⚠️ `yalnizThumb`: UCUNCU sessiz dal. Poster adresi DONSE BILE
+        //	R2'de dosya yoksa (eski, postersiz videolar) buraya dusulur ve
+        //	kirik ikon yine cagiranin oynat rozetini orterdi.
+        errorWidget: (_, _, _) => widget.yalnizThumb
+            ? const SizedBox.shrink()
+            : _kutu(const Icon(LucideIcons.imageOff, size: 22, color: Colors.white54)),
       );
     }
     if (widget.radius > 0) {
@@ -360,7 +380,33 @@ class KapakGorseli extends StatelessWidget {
     //	bir GORSEL, `MedyaVideo` DEGIL.
     final videoId = _ilkVideo(mediaIds, mediaKinds);
     if (videoId != null) {
-      return MedyaGorsel(mediaId: videoId, kucuk: true, fit: fit, width: width);
+      // ⚠️⚠️⚠️ TURU 180z — `yalnizThumb` ZORUNLU (EMULATORDE OLCULDU).
+      //	Bayraksiz hali `thumb_url ?? url` yapiyordu; POSTERI OLMAYAN bir
+      //	videoda bu HAM mp4 adresini `CachedNetworkImage`e veriyor ve
+      //	logcat saniyede defalarca
+      //	  `ImageDecoder$DecodeException: Failed to create image decoder`
+      //	basiyordu — bos yere indirme + decode denemesi. Emulatorde
+      //	**ANR** ("Gebzem isn't responding") bu dongunun uzerine geldi.
+      // ⚠️ Ustteki serhin *"poster yuklenmemisse sessizce koyu bir kutuya
+      //	duser"* iddiasi YANLISTI: fallback ham dosyaya dusuyordu.
+      //	Artik gercekten sessiz — `yalnizThumb` hata/yukleme/errorWidget
+      //	UC dalinda da hicbir sey cizmiyor ve altta bu yer tutucu kaliyor.
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          const ColoredBox(color: Color(0xFF14101C)),
+          MedyaGorsel(
+            mediaId: videoId,
+            kucuk: true,
+            yalnizThumb: true,
+            fit: fit,
+            width: width,
+          ),
+          const Center(
+            child: Icon(LucideIcons.play, color: Colors.white70, size: 26),
+          ),
+        ],
+      );
     }
     return const ColoredBox(
       color: Color(0xFF14101C),
