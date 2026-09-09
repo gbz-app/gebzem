@@ -41,9 +41,18 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
       kaybettiriyorsun"*. **Üçüncüsü olmayacak.**
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
-- **KALDIGIMIZ YER (10 Eyl): TURU 180y-180ac KODU BITTI, iOS BUILD ALINDI
-  (34407569629, commit 4893ac6). YAYIN ADIMLARI (R2 + purge + dogrulama)
-  BEKLIYOR.**
+- **KALDIGIMIZ YER (10 Eyl 00:53): TURU 180y-180ac YAYINLANDI — SADECE iOS.**
+  ios **34407569629** (**4893ac6**), R2 ipa=**29114125** (md5 8f267b9e),
+  index=7972 (e8bb6327) surum.json=46 (55755628), purge OK, **CDN BIREBIR**
+  (ucu de), , ad hoc profil,  +
+   +  VAR.
+  IPAda dizeler VAR:  ·  ·  ·
+   ·  ·  ·
+   ·  ·  ·
+   ·  · ;
+  **KALKAN YOK: ** · emoji YOK. Kontrol dizesi
+   VAR (yontem dogrulandi).
+  ⚠️ **ADRES:** https://indir.gebzem.app/index.html?v=20260910-0053
   ⚠️ **BACKEND DEGISMEDI**: migration YOK, deploy YOK, **DB TRUNCATE
      EDILMEDI** — kullanicinin canli test verisi (8 sohbet + 2 kanal)
      KORUNDU. Tohum KOSULMADI (kosulsaydi mevcut kayitlarin USTUNE eklerdi).
