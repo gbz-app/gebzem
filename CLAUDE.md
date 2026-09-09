@@ -41,6 +41,24 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
       kaybettiriyorsun"*. **Üçüncüsü olmayacak.**
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
+- **KALDIGIMIZ YER (10 Eyl 01:50): TURU 180ad YAYINLANDI — SADECE iOS.**
+  ios **34413274338** (**f8c6de2**), R2 ipa=**31956040** (md5 0e9cf2f5),
+  index=7972 (a6a89661) surum.json=46 (e2c6fc9a), purge OK, **CDN BIREBIR**
+  (ucu de), `get-task-allow: false`, ad hoc profil, `MinimumOSVersion` +
+  `MapsApiKey` + `NSLocationWhenInUse` VAR.
+  ✅ **YAZI TIPI IPA ICINDE DOGRULANDI — EN GUCLU KANIT `FontManifest.json`**
+  (Flutter'in CALISMA ANINDA okudugu dosya):
+  `{"family":"Google Sans","fonts":[400,500,600,700]}` · pakette
+  `GoogleSans-{400,500,600,700}.ttf` **4/4** · `GoogleSansFlex-*` **YOK**.
+  ⚠️ **IPA 29,1 -> 31,96 MB** (+2,8 MB): fontlar 0,5 -> 7,4 MB ama IPA
+     sikistirildigi icin artis daha az. **BU NORMALDIR.**
+  ⚠️ **ADRES:** https://indir.gebzem.app/index.html?v=20260910-0150
+  ⚠️ **BACKEND DEGISMEDI**: migration YOK, deploy YOK, **DB TRUNCATE
+     EDILMEDI**. health ok.
+  ✅ analyze **0/0** · test **104/104** · emulatorde gozle dogrulandi
+     (izgara ikonu · radius yok · duz ust cizgi · alt menu tam siyah degil ·
+     font hatasi YOK).
+
 - **KALDIGIMIZ YER (10 Eyl 00:53): TURU 180y-180ac YAYINLANDI — SADECE iOS.**
   ios **34407569629** (**4893ac6**), R2 ipa=**29114125** (md5 8f267b9e),
   index=7972 (e8bb6327) surum.json=46 (55755628), purge OK, **CDN BIREBIR**
