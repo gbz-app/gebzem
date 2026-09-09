@@ -20,6 +20,7 @@ import '../kanal/kanal_olustur.dart' show KanalOlustur;
 import '../kanal/kanal_servisi.dart'
     show Kanal, kanalDegisimi, kanalServisiProvider;
 import '../kanal/kanallar_sekmesi.dart' show KanallarSayfasi;
+import 'gebzem_app_sohbeti.dart' show GebzemAppEkrani;
 import 'grup_olustur.dart';
 import 'yeni_mesaj_ekrani.dart';
 import '../ai/gebzem_ai.dart' show GebzemAiEkrani;
@@ -184,6 +185,109 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
     );
   }
 
+  /// Sistem sohbetleri (GebzemAI · Gebzem App) cizilsin mi.
+  ///
+  /// ⚠️ Suzgec seciliyken ya da arama yapilirken CIZILMEZ: "Grup" listesinde
+  ///	grup olmayan iki satir, suzgeci YALANCI yapardi.
+  bool get _sistemSohbetiGoster =>
+      _filtre == _Filtre.hepsi && _arama.isEmpty;
+
+  /// ⚠️⚠️⚠️ TURU 180ac — **GebzemAI + Gebzem App SOHBETLERI** (kullanici emri).
+  ///
+  /// ⚠️⚠️ Sunucuda `chats` satiri ACILMADI: ikisi de KULLANICI VERISI DEGIL,
+  ///	uygulamanin kendi girisleri. Sahte bir sohbet satiri acmak onlari
+  ///	silinebilir / arsivlenebilir / engellenebilir bir "kisi" yapardi ve
+  ///	her hesapta migration + tohum isi olurdu.
+  /// ⚠️ Bu yuzden `_ChatTile` YENIDEN KULLANILMADI: o satir `Chat` modeline,
+  ///	uzun basma menusune (arsivle/sil) ve `/chat/{id}` rotasina bagli;
+  ///	sahte bir `Chat` uretmek uzun basinca var olmayan bir sohbeti
+  ///	arsivlemeye calisirdi (turu 180x'te topluluk satirinda ayni karar).
+  List<Widget> _sistemSohbetleri(BuildContext c) {
+    final ks = Theme.of(c).colorScheme;
+    return [
+      _sistemSatiri(
+        c,
+        ikon: LucideIcons.sparkles,
+        renkler: const [Color(0xFF9D5CE9), Color(0xFF6C2BD9)],
+        ad: 'GebzemAI',
+        alt: 'Yapay zekâ ile yazış',
+        onTap: () => Navigator.of(
+          c,
+        ).push(MaterialPageRoute(builder: (_) => const GebzemAiEkrani())),
+      ),
+      _sistemSatiri(
+        c,
+        ikon: LucideIcons.info,
+        renkler: const [Color(0xFF2E8BE6), Color(0xFF1B5FA8)],
+        ad: 'Gebzem App',
+        alt: 'Uygulama hakkında bilgilendirme',
+        // ⚠️ Mavi onay tiki: bu satirin UYGULAMANIN KENDISI oldugunu gosterir
+        //	(WhatsApp'in resmi sohbetiyle ayni dil). Kullanici hesaplarinda
+        //	tik YALNIZ `onayli` alanindan gelir — burada uydurma degil,
+        //	tanim geregi dogru.
+        onayli: true,
+        onTap: () => Navigator.of(
+          c,
+        ).push(MaterialPageRoute(builder: (_) => const GebzemAppEkrani())),
+      ),
+      Divider(height: 1, color: ks.onSurface.withValues(alpha: 0.08)),
+    ];
+  }
+
+  Widget _sistemSatiri(
+    BuildContext c, {
+    required IconData ikon,
+    required List<Color> renkler,
+    required String ad,
+    required String alt,
+    required VoidCallback onTap,
+    bool onayli = false,
+  }) {
+    final ks = Theme.of(c).colorScheme;
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      leading: Container(
+        width: 52,
+        height: 52,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: renkler,
+          ),
+        ),
+        child: Icon(ikon, size: 24, color: Colors.white),
+      ),
+      title: Row(
+        children: [
+          Flexible(
+            child: Text(
+              ad,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+            ),
+          ),
+          if (onayli) ...[
+            const SizedBox(width: 4),
+            Icon(LucideIcons.badgeCheck, size: 15, color: ks.primary),
+          ],
+        ],
+      ),
+      subtitle: Text(
+        alt,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          fontSize: 13.5,
+          color: ks.onSurface.withValues(alpha: 0.6),
+        ),
+      ),
+      onTap: onTap,
+    );
+  }
+
   /// Sohbetler + kanallar **TEK LISTE**, en yeni mesaj EN USTTE.
   ///
   /// ⚠️⚠️⚠️ TURU 180aa — kullanici emri: *"kanallar ve sohbet vs diye ayirma,
@@ -222,7 +326,18 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
       if (a.sabit != b.sabit) return a.sabit ? -1 : 1;
       return b.zaman.compareTo(a.zaman);
     });
-    return [for (final k in kayitlar) k.satir];
+    // ⚠️⚠️⚠️ TURU 180ac — **SISTEM SOHBETLERI EN USTTE** (kullanici emri:
+    //	*"sohbete GebzemAI ve Gebzem App diye sohbet olsun"*).
+    // ⚠️ Zaman havuzuna GIRMEZLER: ikisinin de "son mesaj zamani" YOK ve
+    //	sifir damgayla girselerdi listenin DIBINE duserlerdi (WhatsApp da
+    //	kendi resmi sohbetini ustte tutar).
+    // ⚠️⚠️ YALNIZ "Hepsi" gorunumunde ve ARAMA YOKKEN: bir suzgec (Grup /
+    //	Arsiv / İstekler) seciliyken ya da arama yapilirken gorunselerdi
+    //	suzgec YALAN soylerdi ("Grup" listesinde grup olmayan iki satir).
+    return [
+      if (_sistemSohbetiGoster) ..._sistemSohbetleri(context),
+      for (final k in kayitlar) k.satir,
+    ];
   }
 
   /// ⚠️⚠️ TURU 180y — **BOS DURUM DAIRESI** (kullanici emri: *"eger sohbet
@@ -297,7 +412,7 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
         //	FAB, akistaki son gonderinin "Kaydet" dugmesini tam boyle
         //	kapatmisti). Son ogeye SizedBox koymak YETMEZ: liste sonuna
         //	gelinmeden once de ortme olur.
-        padding: const EdgeInsets.only(bottom: 88),
+        padding: const EdgeInsets.only(bottom: 24),
         children: [for (final k in liste) _ToplulukTile(kanal: k)],
       ),
     );
@@ -596,8 +711,16 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
           //	SAG ALTTA bir FAB tasiyor — ikisi PIKSEL PIKSEL ust uste
           //	biner ve dokunusu ustteki yutardi (turu 76b`de birebir bu
           //	yasandi: "iki tane dugme var ve FARKLI IS YAPIYORLAR").
-          if (_filtre != _Filtre.arama)
-            Positioned(right: 16, bottom: 16, child: _aiDugmesi(context)),
+          // ⚠️⚠️⚠️ TURU 180ac — **SAG ALTTAKI GebzemAI BALONU KALDIRILDI**
+          //	(kullanici emri: *"GebzemAI tikladiginda gebzem ai gitsin,
+          //	sagdaki balonu kaldir"*).
+          // ⚠️ Islev KAYBOLMADI: GebzemAI artik listenin EN USTUNDE bir
+          //	SOHBET satiri (`_sistemSohbetleri`) ve ayni ekrani aciyor.
+          // ⚠️⚠️ `_aiDugmesi` govdesi SILINMEDI (`unused_element` serhiyle):
+          //	bu dosyada uye silmek bes kez komsu uyeyi de goturdu ve karar
+          //	tek satirla geri alinabilmeli.
+          // ⚠️ Liste alt dolgusu (88 dp) da 24'e indi: dugme gittigi icin
+          //	son sohbeti orten bir sey KALMADI (turu 180z olcumu).
         ],
       ),
     );
@@ -605,6 +728,10 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
 
   /// ⚠️⚠️⚠️ TURU 180z — **GebzemAI DUGMESI** (kullanici emri: *"sag alta
   /// GebzemAI butonu yap"*).
+  ///
+  /// ⚠️⚠️ TURU 180ac — **CAGRI YERI KALDIRILDI** (kullanici emri: *"sagdaki
+  ///	balonu kaldir"*). Govde BILEREK duruyor.
+  // ignore: unused_element
   ///
   /// ⚠️⚠️ **YALNIZ SUNUCUDA AI ACIKSA CIZILIR** (`aiDurumProvider`):
   ///	kapaliyken ekran acilir ve ilk soruda **503** doner — yani OLU
@@ -615,6 +742,7 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
   ///	GebzemAI'i o ailenin bir uyesi gibi gosterirdi.
   /// ⚠️ 56 dp SABIT ve ICINDE METIN YOK: yazi olcegi buyudugunde tasma
   ///	YAPISAL OLARAK imkansiz.
+  // ignore: unused_element
   Widget _aiDugmesi(BuildContext c) {
     final acik = ref.watch(aiDurumProvider).valueOrNull?.acik ?? false;
     if (!acik) return const SizedBox.shrink();

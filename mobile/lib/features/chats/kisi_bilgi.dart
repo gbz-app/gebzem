@@ -10,6 +10,7 @@ import '../isletme/kategori_kabuk.dart' show YemekHeader;
 import '../medya/medya_gorsel.dart';
 import '../sosyal/profil_sayfasi.dart';
 import '../sosyal/sosyal_servisi.dart';
+import '../medya/paylasilan_medya.dart';
 import 'chats_provider.dart';
 import 'grup_olustur.dart' show GrupOlusturEkrani;
 import 'moderasyon_sheet.dart';
@@ -389,12 +390,65 @@ class _KisiBilgiEkraniState extends ConsumerState<KisiBilgiEkrani> {
             subtitle: const Text('Yalnızca sende gizlenir'),
             onTap: _temizle,
           ),
+          // ⚠️⚠️⚠️ TURU 180ac — **PAYLASILAN MEDYA** (kullanici emri:
+          //	*"profillere tikladigimda galeri vs gorunmuyor, bunu atliyorsun
+          //	surekli"*).
+          // ⚠️ Ayri bir UC GEREKMEDI: sohbetin mesajlari `messagesProvider`da
+          //	ZATEN yuklu; medya oradan TURETILIR (kanal profilinin turu 180z'de
+          //	gonderilerden turetmesiyle AYNI desen).
+          // ⚠️⚠️ Izgara KOPYALANMADI — `PaylasilanMedyaBolumu` TEK KAYNAK
+          //	(kanal profili de artik onu kullaniyor).
+          _paylasilanMedya(c),
           // ⚠️⚠️ ENGELLE/SIKAYET **BURADAN KALDIRILMADI, TASINDI**: ikisi de
           //	"Seçenekler" popup'inda ve "Gizlilik ve emniyet" ekraninda.
           //	App Store Review Guideline 1.2 (UGC) ikisini de kullanicinin
           //	ULASABILECEGI bir yerde sart kosuyor — iki ayri yol var.
         ],
       ),
+    );
+  }
+
+  /// Sohbette paylasilan fotograf · video · belgeler.
+  ///
+  /// ⚠️⚠️ Kaynak `messagesProvider`: sohbetin mesajlari ZATEN bellekte, yani
+  ///	ek istek YOK ve ayri bir uc GEREKMEZ.
+  /// ⚠️ **En YENI once** (`reversed`): `messagesProvider` eskiden yeniye
+  ///	sirali; galeri en son paylasilani ustte gostermeli.
+  /// ⚠️ Silinmis mesaj (`deletedForAll`) ELENIR — medyasi da erisilemez.
+  /// ⚠️⚠️ DURUST SINIR: yalniz YUKLENMIS sayfa taranir (sohbet cok uzunsa
+  ///	eskiler icin yukari kaydirmak gerekir); bos metin bunu soyluyor.
+  Widget _paylasilanMedya(BuildContext c) {
+    final durum = ref.watch(messagesProvider(widget.chatId));
+    return durum.when(
+      loading: () => const PaylasilanMedyaBolumu(
+        medya: [],
+        yukleniyor: true,
+      ),
+      error: (_, _) => const PaylasilanMedyaBolumu(
+        medya: [],
+        bosMetin: 'Paylaşılan medya alınamadı.',
+      ),
+      data: (liste) {
+        final medya = <PaylasilanMedya>[];
+        final belgeler = <String>[];
+        for (final m in liste.reversed) {
+          if (m.deletedForAll) continue;
+          final id = m.mediaId ?? '';
+          if (id.isEmpty) continue;
+          if (m.type == 'image' || m.type == 'video') {
+            medya.add((id: id, tur: m.type));
+          } else if (m.type == 'document') {
+            belgeler.add(id);
+          }
+        }
+        return PaylasilanMedyaBolumu(
+          medya: medya,
+          belgeler: belgeler,
+          bosMetin:
+              'Bu sohbette henüz fotoğraf veya video paylaşılmamış.\n'
+              'Yalnızca yüklenmiş mesajlar tarandı.',
+        );
+      },
     );
   }
 

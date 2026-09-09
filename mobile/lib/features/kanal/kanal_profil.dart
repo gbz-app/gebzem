@@ -1,15 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/api.dart';
 import '../../core/theme.dart';
 import '../../router.dart' show rootMessengerKey;
 import '../isletme/kategori_kabuk.dart' show YemekHeader;
-import '../medya/belge_karti.dart';
 import '../medya/medya_gorsel.dart';
-import '../medya/tam_ekran_gorsel.dart';
-import '../medya/tam_ekran_video.dart';
+import '../medya/paylasilan_medya.dart';
 import '../sosyal/gonderi_karti.dart' show sayiBicimle;
 import 'kanal_servisi.dart';
 
@@ -271,98 +268,18 @@ class _KanalProfilEkraniState extends ConsumerState<KanalProfilEkrani> {
                     ),
                   ),
                 const SizedBox(height: 20),
-                _bolumBasligi(c, 'Paylaşılan medya'),
-                if (_medya.isEmpty)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 24,
-                      vertical: 18,
-                    ),
-                    child: Text(
+                // ⚠️⚠️⚠️ TURU 180ac — IZGARA + BELGELER **ORTAK BILESENE**
+                //	TASINDI (`PaylasilanMedyaBolumu`). Kisi ve grup bilgisi
+                //	ekranlari da AYNI bileseni kullanir; kopyalansaydi uc
+                //	kopya kacinilmaz olarak DRIFT ederdi (turu 78 dersi).
+                // ⚠️ Davranis DEGISMEDI: ayni izgara, ayni bos metin, ayni
+                //	belge listesi.
+                PaylasilanMedyaBolumu(
+                  medya: _medya,
+                  belgeler: _belgeler,
+                  bosMetin:
                       'Bu kanalda henüz fotoğraf veya video paylaşılmamış.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: scheme.onSurface.withValues(alpha: 0.6),
-                      ),
-                    ),
-                  )
-                else
-                  // ⚠️ `shrinkWrap` + `NeverScrollable`: izgara DIS `ListView`in
-                  //	cocugu; kendi kaydirmasi olsaydi sayfada IKI dikey
-                  //	kaydirma alani olurdu (turu 180j'de olculen "sayfa
-                  //	takiliyor" hatasinin ta kendisi).
-                  GridView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    padding: const EdgeInsets.symmetric(horizontal: 2),
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 3,
-                          mainAxisSpacing: 2,
-                          crossAxisSpacing: 2,
-                        ),
-                    itemCount: _medya.length,
-                    itemBuilder: (gc, i) {
-                      final m = _medya[i];
-                      final video = m.tur == 'video';
-                      return GestureDetector(
-                        onTap: () => Navigator.of(gc).push(
-                          MaterialPageRoute(
-                            fullscreenDialog: true,
-                            builder: (_) => video
-                                ? TamEkranVideo(mediaId: m.id)
-                                : TamEkranGorsel(mediaId: m.id),
-                          ),
-                        ),
-                        child: Stack(
-                          fit: StackFit.expand,
-                          children: [
-                            // ⚠️ Video icin `MedyaGorsel` CIZILMEZ: kanal
-                            //	videosunun kapak karesi YOK ve id dogrudan
-                            //	verilseydi KIRIK GORSEL cizilirdi (turu 83b).
-                            // ⚠️⚠️ TURU 180z — VIDEO HUCRESINDE **POSTER**
-                            //	varsa cizilir (kullanici: *"videolarda on
-                            //	izleme olsun"*). `yalnizThumb` ZORUNLU:
-                            //	poster yoksa `MedyaGorsel` HAM VIDEO
-                            //	adresine duser ve KIRIK GORSEL cizer.
-                            //	Eski videolarda poster YOK -> koyu kutu +
-                            //	oynat rozeti gorunur (eski davranis).
-                            if (video) ...[
-                              ColoredBox(
-                                color: Colors.white.withValues(alpha: 0.06),
-                              ),
-                              MedyaGorsel(
-                                mediaId: m.id,
-                                kucuk: true,
-                                yalnizThumb: true,
-                                fit: BoxFit.cover,
-                              ),
-                              const Center(
-                                child: Icon(LucideIcons.play, size: 26),
-                              ),
-                            ]
-                            else
-                              MedyaGorsel(
-                                mediaId: m.id,
-                                kucuk: true,
-                                fit: BoxFit.cover,
-                              ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
-                // ⚠️⚠️⚠️ TURU 180z — **BELGELER** (kullanici emri: *"kanalda
-                //	sadece gorsel degil video BELGE vs de paylasiliyor"*).
-                // ⚠️ Bolum belge YOKKEN HIC CIZILMEZ: bos bir "Belgeler"
-                //	basligi, ozelligin calismadigi izlenimi verirdi
-                //	(turu 66b "gorunen ama calismayan" dersi).
-                if (_belgeler.isNotEmpty) ...[
-                  const SizedBox(height: 18),
-                  _bolumBasligi(c, 'Belgeler'),
-                  for (final id in _belgeler)
-                    BelgeKarti(mediaId: id, kompakt: true),
-                ],
+                ),
               ],
             ),
     );
@@ -370,6 +287,7 @@ class _KanalProfilEkraniState extends ConsumerState<KanalProfilEkrani> {
 
   /// Bolum basligi — iki bolum de AYNI kaynaktan cizilir ki ileride biri
   /// degisince oteki geride kalmasin.
+  // ignore: unused_element
   Widget _bolumBasligi(BuildContext c, String metin) => Padding(
     padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
     child: Text(

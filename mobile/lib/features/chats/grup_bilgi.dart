@@ -6,6 +6,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/api.dart';
 import '../medya/medya_gorsel.dart';
+import '../medya/paylasilan_medya.dart';
 import '../sosyal/profil_sayfasi.dart';
 import 'chats_provider.dart';
 
@@ -257,9 +258,54 @@ class _GrupBilgiEkraniState extends ConsumerState<GrupBilgiEkrani> {
                   ),
                 ),
                 for (final u in l) _uyeSatiri(u),
+                // ⚠️⚠️⚠️ TURU 180ac — **PAYLASILAN MEDYA** (kullanici emri:
+                //	*"profillere tikladigimda galeri vs gorunmuyor, hem
+                //	kisiselde hem grup kanalda; bunu atliyorsun surekli"*).
+                // ⚠️ Izgara KOPYALANMADI: `PaylasilanMedyaBolumu` TEK KAYNAK
+                //	(kanal profili ve kisi bilgisi de onu kullaniyor).
+                const Divider(height: 24),
+                _paylasilanMedya(),
                 const SizedBox(height: 24),
               ],
             ),
+    );
+  }
+
+  /// Grupta paylasilan fotograf · video · belgeler.
+  ///
+  /// ⚠️ Kaynak `messagesProvider`: grup mesajlari ZATEN bellekte, ek istek YOK.
+  /// ⚠️ **En YENI once** (`reversed`) — saglayici eskiden yeniye sirali.
+  /// ⚠️ Silinmis mesaj ELENIR (medyasi da erisilemez).
+  Widget _paylasilanMedya() {
+    final durum = ref.watch(messagesProvider(widget.chatId));
+    return durum.when(
+      loading: () =>
+          const PaylasilanMedyaBolumu(medya: [], yukleniyor: true),
+      error: (_, _) => const PaylasilanMedyaBolumu(
+        medya: [],
+        bosMetin: 'Paylaşılan medya alınamadı.',
+      ),
+      data: (liste) {
+        final medya = <PaylasilanMedya>[];
+        final belgeler = <String>[];
+        for (final m in liste.reversed) {
+          if (m.deletedForAll) continue;
+          final id = m.mediaId ?? '';
+          if (id.isEmpty) continue;
+          if (m.type == 'image' || m.type == 'video') {
+            medya.add((id: id, tur: m.type));
+          } else if (m.type == 'document') {
+            belgeler.add(id);
+          }
+        }
+        return PaylasilanMedyaBolumu(
+          medya: medya,
+          belgeler: belgeler,
+          bosMetin:
+              'Bu grupta henüz fotoğraf veya video paylaşılmamış.\n'
+              'Yalnızca yüklenmiş mesajlar tarandı.',
+        );
+      },
     );
   }
 

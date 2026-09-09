@@ -136,6 +136,77 @@ void main() {
     expect(s, contains('Kısıtlama seçeneği henüz yok'),
         reason: 'kullaniciya kisitlamanin OLMADIGI soylenmeli');
   });
+
+  // ══════════ 4) GALERI: UC PROFIL EKRANINDA DA VAR ══════════
+
+  const profilEkranlari = [
+    'lib/features/chats/kisi_bilgi.dart',
+    'lib/features/chats/grup_bilgi.dart',
+    'lib/features/kanal/kanal_profil.dart',
+  ];
+
+  test('kisi · grup · kanal profillerinin UCUNDE DE paylasilan medya var', () {
+    // ⚠️⚠️⚠️ TURU 180ac — kullanici: *"profillere tikladigimda galeri vs
+    //	gorunmuyor, hem kisiselde hem grup kanalda; BUNU ATLIYORSUN
+    //	SUREKLI"*. Muhafiz o atlamayi YAPISAL olarak kapatir: uc ekranin
+    //	ucu de ORTAK bileseni kullanmak ZORUNDA.
+    //
+    // ⚠️⚠️ **BU TEST ILK YAZIMDA YALANCI-YESILDI** (bozularak bulundu):
+    //	yalnizca `PaylasilanMedyaBolumu` METNINI ariyordu. Grup ekranindan
+    //	CAGRI YERI (`_paylasilanMedya()`) silindiginde bolum ARTIK
+    //	CIZILMIYOR ama metin yardimci metodun GOVDESINDE durdugu icin test
+    //	YINE GECIYORDU — tam da "olu ozellik" riskinin kendisi.
+    //	Olcut artik CAGRI YERI: yardimci metot tanimliysa adi EN AZ IKI KEZ
+    //	gecmeli (tanim + cagri).
+    for (final yol in profilEkranlari) {
+      final govde = _yorumsuz(_oku(yol));
+      expect(govde, contains('PaylasilanMedyaBolumu'),
+          reason: '$yol icinde paylasilan medya bolumu YOK');
+      final adet = RegExp('_paylasilanMedya').allMatches(govde).length;
+      if (adet > 0) {
+        expect(adet, greaterThanOrEqualTo(2),
+            reason:
+                '$yol: `_paylasilanMedya` tanimli ama HIC CAGRILMIYOR '
+                '(olu kod — galeri ekranda cizilmez)');
+      }
+    }
+  });
+
+  test('izgara KOPYALANMADI (tek kaynak)', () {
+    // ⚠️ Uc kopya kacinilmaz olarak DRIFT ederdi (turu 78 dersi). Izgarayi
+    //	kuran widget YALNIZ ortak dosyada olmali.
+    for (final yol in profilEkranlari) {
+      expect(_yorumsuz(_oku(yol)).contains('GridView.builder'), isFalse,
+          reason: '$yol kendi izgarasini kuruyor — ortak bilesen kullanilmali');
+    }
+    expect(_oku('lib/features/medya/paylasilan_medya.dart'),
+        contains('GridView.builder'));
+  });
+
+  // ══════════ 5) SISTEM SOHBETLERI ══════════
+
+  test('GebzemAI ve Gebzem App sohbet listesinde, sag alt balon YOK', () {
+    final s = _oku('lib/features/chats/chats_screen.dart');
+    expect(s, contains("'GebzemAI'"), reason: 'GebzemAI satiri YOK');
+    expect(s, contains("'Gebzem App'"), reason: 'Gebzem App satiri YOK');
+    expect(s, contains('GebzemAiEkrani'),
+        reason: 'GebzemAI dokununca AI ekranina GITMELI');
+    expect(s, contains('GebzemAppEkrani'),
+        reason: 'Gebzem App dokununca bilgilendirme ekranina GITMELI');
+    // ⚠️ Kullanici emri: *"sagdaki balonu kaldir"*. Govde duruyor ama
+    //	CAGRI YERI olmamali.
+    expect(_yorumsuz(s).contains('child: _aiDugmesi('), isFalse,
+        reason: 'sag alttaki GebzemAI balonu KALDIRILMALI');
+  });
+
+  test('Gebzem App sohbeti SALT OKUNUR ve durustce soyluyor', () {
+    final s = _oku('lib/features/chats/gebzem_app_sohbeti.dart');
+    // ⚠️ Gorunen ama calismayan bir giris kutusu turu 66b dersinin tekrari.
+    expect(_yorumsuz(s).contains('TextField'), isFalse,
+        reason: 'bilgilendirme sohbetinde mesaj kutusu OLMAMALI');
+    expect(s, contains('mesaj gönderilemez'),
+        reason: 'salt okunur oldugu kullaniciya SOYLENMELI');
+  });
 }
 
 String _oku(String yol) => File(yol).readAsStringSync();
