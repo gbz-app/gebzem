@@ -355,11 +355,30 @@ async function sosyalTohum(j, kullanicilar, isletmeler, etkinlikler) {
     const kid = k.d && (k.d.id || k.d.channel_id);
     if (!kid) continue;
     ozet.topluluk++;
-    for (const metin of gonderiler) {
+    // ⚠️⚠️ TURU 180z — KANAL GONDERILERINE GORSEL (kanal profilindeki
+    //	"Paylasilan gorseller" izgarasi bunlardan TURETILIYOR). Medyasiz
+    //	tohumda izgara DAIMA bos cikiyor ve ozellik kirik sanilirdi.
+    // ⚠️ Gorsel KANAL SAHIBININ token'iyla yuklenir: sunucu medyanin
+    //	yukleyene ait olmasini SART kosuyor (baskasinin id'siyle gonderi
+    //	**403 "gecersiz medya"** doner — sohbet tohumunda olculdu).
+    const kanalGorsel = [];
+    for (let i = 0; i < 3; i++) {
+      try {
+        // ⚠️ `kapakUret` tohumu SAYI bekler: string gecilirse `tohum % PALET.length`
+        //	**NaN** olur ve `PALET[NaN]` undefined donup destructure PATLAR.
+        kanalGorsel.push(await gorselYukle(j, h.token, ozet.toplulukGonderi + i));
+      } catch (_) {
+        // en iyi caba: gorsel yuklenemezse gonderiler METINLE atilir
+      }
+    }
+    for (let i = 0; i < gonderiler.length; i++) {
       const g = await j(`/channels/${kid}/posts`, {
         yontem: 'POST',
         token: h.token,
-        govde: { metin, media_ids: [] },
+        govde: {
+          metin: gonderiler[i],
+          media_ids: i < kanalGorsel.length ? [kanalGorsel[i]] : [],
+        },
       });
       if (g.kod === 201 || g.kod === 200) ozet.toplulukGonderi++;
     }
