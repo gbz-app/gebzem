@@ -22,7 +22,9 @@
 
 const crypto = require('crypto');
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
+const { execFileSync } = require('child_process');
 const { kapakUret } = require('./kapak_uret');
 const { sohbetTohum } = require('./sohbet_tohum');
 
@@ -67,6 +69,41 @@ async function gorselYukle(j, token, tohum) {
 /// UYARI `kind: video` ZORUNLU — sunucu tavanlari tur basina AYRI
 ///    (video 100 MB, gorsel cok daha az) ve mime beyaz listesi
 ///    `video/mp4` bekliyor ('video/mpeg4' vb. REDDEDILIR).
+/// ⚠️⚠️⚠️ TURU 180z — TOHUM VIDEOSUNA **POSTER** (kullanici emri:
+/// *"videolarda on izleme olsun"*).
+///
+/// Uygulama posteri gonderim aninda uretiyor (`video_poster.dart` + native
+/// kanal), ama TOHUMLA yuklenen videolarin posteri OLMAZDI — kullanici
+/// emulator/telefonda kanal ve sohbet videolarinda bos bir oynat rozeti
+/// gorur ve "on izleme calismiyor" derdi.
+///
+/// ⚠️ Kare **ffmpeg ile GERCEK VIDEODAN** cikarilir (1. saniye), uydurma bir
+///    gorsel URETILMEZ (turu 135 dersi: sunucuda karsiligi olmayan veriyi
+///    gercekmis gibi gosterme).
+/// ⚠️ ffmpeg YOKSA `null` doner ve video POSTERSIZ yuklenir — tohum
+///    BOZULMAZ (ffmpeg bir gelistirme araci, calisma zamani bagimliligi
+///    DEGIL).
+function videoPosteriCikar(dosya) {
+  const hedef = path.join(
+    os.tmpdir(),
+    `gebzem_poster_${path.basename(dosya)}.jpg`,
+  );
+  try {
+    // ⚠️ `-ss 1`: bircok videonun ILK karesi siyah bir gecistir ve poster
+    //    bombos cikardi (istemci tarafi da 1 sn'den aliyor — AYNI kural).
+    execFileSync(
+      'ffmpeg',
+      ['-y', '-ss', '1', '-i', dosya, '-frames:v', '1',
+        '-vf', 'scale=640:-2', '-q:v', '5', hedef],
+      { stdio: 'ignore' },
+    );
+    const b = fs.readFileSync(hedef);
+    return b.length > 0 ? b : null;
+  } catch (_) {
+    return null;
+  }
+}
+
 async function videoYukle(j, token, dosya) {
   let bayt;
   try {
@@ -75,6 +112,10 @@ async function videoYukle(j, token, dosya) {
     return null;
   }
   const md5 = crypto.createHash('md5').update(bayt).digest('base64');
+  const poster = videoPosteriCikar(dosya);
+  const posterMd5 = poster
+    ? crypto.createHash('md5').update(poster).digest('base64')
+    : '';
   const pr = await j('/media/upload', {
     yontem: 'POST',
     token,
@@ -86,6 +127,11 @@ async function videoYukle(j, token, dosya) {
       file_name: path.basename(dosya),
       width: 720,
       height: 1280,
+      // ⚠️ Sunucu `thumb_bytes > 0` gorurse AYRI bir PUT adresi
+      //    (`<anahtar>_t`) verir ve `thumb_key` sutununu doldurur
+      //    (`media/handler.go:162-165`). 0 ise poster zinciri HIC kurulmaz.
+      thumb_bytes: poster ? poster.length : 0,
+      thumb_md5: posterMd5,
     },
   });
   if (pr.kod !== 200) return null;
@@ -95,6 +141,17 @@ async function videoYukle(j, token, dosya) {
     body: bayt,
   });
   if (!put.ok) return null;
+  // ⚠️ POSTER PUT'u COMMIT'TEN ONCE: commit dogrulama sirasinda thumb
+  //    nesnesini de arar; sonra yuklenirse `thumb_key` dolu ama nesne YOK
+  //    olur ve istemci imzali adresten 404 alirdi.
+  if (poster && pr.d.thumb_url) {
+    const tp = await fetch(pr.d.thumb_url, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'image/jpeg', 'Content-MD5': posterMd5 },
+      body: poster,
+    });
+    if (!tp.ok) return null;
+  }
   const c = await j(`/media/${pr.d.media_id}/commit`, { yontem: 'POST', token });
   if (c.kod !== 200) return null;
   return pr.d.media_id;
