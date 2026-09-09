@@ -170,6 +170,28 @@ import flutter_callkit_incoming
       default:      result(FlutterMethodNotImplemented)
       }
     }
+    // ── TURU 180z: VIDEO POSTERI KANALI ──
+    // ⚠️ Kanal adi Dart (`video_poster.dart`) ve Android
+    //    (`MainActivity.kt`) ile BIREBIR ayni: "gebzem/poster".
+    // ⚠️ AYRI DOSYA ACILMADI: pbxproj'a yeni Swift dosyasi eklemek bu
+    //    projede BOM tuzagi uretiyor (turu 155) — sinif bu dosyanin
+    //    sonunda.
+    let posterCh = FlutterMethodChannel(
+      name: "gebzem/poster",
+      binaryMessenger: engineBridge.pluginRegistry.registrar(forPlugin: "gebzem.poster")!.messenger())
+    posterCh.setMethodCallHandler { call, result in
+      guard call.method == "uret",
+            let a = call.arguments as? [String: Any],
+            let video = a["video"] as? String,
+            let hedef = a["hedef"] as? String else {
+        result(nil); return
+      }
+      let enBoy = (a["enBoy"] as? Int) ?? 640
+      let kalite = (a["kalite"] as? Int) ?? 70
+      GebzemPoster.uret(video: video, hedef: hedef, enBoy: enBoy, kalite: kalite) { yol in
+        result(yol)
+      }
+    }
     pipCh.setMethodCallHandler { call, result in
       guard #available(iOS 15.0, *) else {
         // iOS<15: PiP yok
@@ -1936,5 +1958,65 @@ private extension UIView {
       sub.topAnchor.constraint(equalTo: topAnchor),
       sub.bottomAnchor.constraint(equalTo: bottomAnchor),
     ])
+  }
+}
+
+// ⚠️⚠️⚠️ TURU 180z — VIDEO POSTERI (ILK KARE) — kullanici emri:
+// *"videolarda on izleme olsun"*.
+//
+// **NEDEN NATIVE, NEDEN HARICI PAKET DEGIL (OLCULDU):**
+// `video_thumbnail` (compileSdkVersion 33) ve `flutter_video_thumbnail_plus`
+// (34) denendi; ikisi de ANDROID tarafinda Gradle'i `checkDebugAarMetadata`
+// ile patlatti (`flutter_plugin_android_lifecycle` 36 istiyor). Root
+// `build.gradle.kts`ten `compileSdk` yukseltme denemesi de AGP 9 + Flutter
+// plugin-loader duzeninde TUTMADI. Ayni sinif turu 87'de `geocoding 3.0.0`
+// ile yasandi. Bu yuzden poster projenin KENDI kanal desenine alindi.
+//
+// ⚠️ `AVAssetImageGenerator` ek izin GEREKTIRMEZ ve SES OTURUMUNA DOKUNMAZ —
+//    bu KRITIK: `video_player` ile kare almak iOS'ta AVAudioSession'i yeniden
+//    yapilandirip SUREN ARAMAYI sagirlastirirdi (turu 64/65/73/76b).
+// ⚠️ Uretim ARKA PLAN KUYRUGUNDA: kare cikarma agir bir is, ana is
+//    parcaciginda arayuzu DONDURUR. Sonuc ANA is parcaciginda dondurulur —
+//    `FlutterResult` baska kuyruktan cagrilirsa davranis TANIMSIZDIR.
+enum GebzemPoster {
+  static func uret(
+    video: String,
+    hedef: String,
+    enBoy: Int,
+    kalite: Int,
+    tamamlandi: @escaping (String?) -> Void
+  ) {
+    DispatchQueue.global(qos: .userInitiated).async {
+      let bitir: (String?) -> Void = { yol in
+        DispatchQueue.main.async { tamamlandi(yol) }
+      }
+      let asset = AVURLAsset(url: URL(fileURLWithPath: video))
+      let gen = AVAssetImageGenerator(asset: asset)
+      gen.appliesPreferredTrackTransform = true   // dikey video DIK kalsin
+      // ⚠️ Genislik SINIRI: ham kare 1080x1920 olabilir; poster kullanicinin
+      //    AYLIK DEPOLAMA kotasindan duser ve balon en fazla ~320 dp cizer.
+      gen.maximumSize = CGSize(width: CGFloat(enBoy), height: 0)
+      // ⚠️ Kare **1 SANIYEDEN** alinir, 0'dan DEGIL: bircok videonun ilk
+      //    karesi siyah bir gecistir ve poster bombos cikardi.
+      // ⚠️ Tolerans SERBEST birakilir (`positiveInfinity`): sifir tolerans
+      //    tam o anda anahtar kare yoksa BASARISIZ olur; serbest tolerans en
+      //    yakin kareyi verir ve kisa videoda da bir kare GARANTIDIR.
+      gen.requestedTimeToleranceBefore = .positiveInfinity
+      gen.requestedTimeToleranceAfter = .positiveInfinity
+      let an = CMTime(seconds: 1, preferredTimescale: 600)
+      do {
+        let cg = try gen.copyCGImage(at: an, actualTime: nil)
+        let ui = UIImage(cgImage: cg)
+        guard let veri = ui.jpegData(compressionQuality: CGFloat(kalite) / 100.0)
+        else { bitir(nil); return }
+        try veri.write(to: URL(fileURLWithPath: hedef))
+        bitir(hedef)
+      } catch {
+        // ⚠️ EN IYI CABA: poster uretilemezse video POSTERSIZ yuklenir.
+        //    Poster yuzunden bir video gonderiminin basarisiz olmasi kabul
+        //    edilemez.
+        bitir(nil)
+      }
+    }
   }
 }

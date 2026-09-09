@@ -28,7 +28,9 @@ import 'user_search_screen.dart';
 import '../etkinlik/etkinlik_ekranlari.dart';
 import '../etkinlik/etkinlik_servisi.dart';
 import '../medya/atac_paneli.dart';
+import '../medya/belge_karti.dart';
 import '../medya/medya_kapisi.dart';
+import '../medya/video_poster.dart';
 import '../medya/konum_servisi.dart';
 import '../sosyal/profil_sayfasi.dart';
 import '../medya/medya_gorsel.dart';
@@ -190,6 +192,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         return _galeriden(video: true);
       case 'kamera':
         return _kameradan();
+      // ⚠️ TURU 180z — BELGE (sunucu mesaj tipi beyaz listesinde
+      //	'document' ZATEN VAR; yeni tip acilmadi).
+      case 'belge':
+        return _belgeGonder();
       case 'konum':
         return _konumGonder();
       case 'kisi':
@@ -201,6 +207,32 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       case 'anket':
         return _anketGonder();
     }
+  }
+
+  /// ⚠️⚠️⚠️ TURU 180z — SOHBETE **BELGE** (PDF/Word/Excel/txt).
+  ///
+  /// ⚠️ Sunucu bunu ZATEN destekliyordu: mesaj tipi beyaz listesinde
+  ///	`document` VAR ve `media_assets.kind` CHECK'i onu kabul ediyor.
+  ///	Eksik olan TEK sey istemci yoluydu.
+  /// ⚠️ Uzanti/MIME/boyut kapilari `MedyaSecici.belge` icinde TEK KAYNAKTA.
+  Future<void> _belgeGonder() async {
+    if (!MedyaKapisi.izinVer(ref)) {
+      rootMessengerKey.currentState?.showSnackBar(
+        SnackBar(
+          content: Text(
+            MedyaKapisi.engelSebebi(ref) ?? 'Şu anda dosya seçilemez',
+          ),
+        ),
+      );
+      return;
+    }
+    final dosya = await MedyaSecici.belge(
+      uyar: (m) => rootMessengerKey.currentState?.showSnackBar(
+        SnackBar(content: Text(m)),
+      ),
+    );
+    if (dosya == null || !mounted) return;
+    return _medyaGonder(AtacSecimi([dosya], 'document'));
   }
 
   /// ⚠️ SOLDAKI MOR DAIRE ve serit'teki "Fotoğraf"/"Video" AYNI yoldan gecer.
@@ -321,8 +353,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           //    BOZULUR ve karsi tarafta acilmayan bir balon cizilirdi.
           //    Boyut ve SURE kapilari `MedyaSecici.video` icinde (tek kaynak).
           final videoMu = secim.tur == 'video';
+          // ⚠️ TURU 180z — BELGE dali: sikistirilmaz, EXIF temizlenmez
+          //	(bir PDF'e JPEG uretici uygulamak dosyayi BOZAR).
+          final belgeMu = secim.tur == 'document';
           final File hazir;
-          if (videoMu) {
+          if (videoMu || belgeMu) {
             hazir = ham;
           } else {
             // ⚠️ Sıkıştırma + EXIF temizleme ZORUNLU (gizlilik: konum bilgisi).
@@ -334,10 +369,22 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             }
             hazir = h;
           }
+          // ⚠️⚠️⚠️ TURU 180z — **VIDEO POSTERI** (kullanici: *"videolarda
+          //	on izleme olsun"*). Sunucu ffmpeg CALISTIRMAZ; poster
+          //	istemcide uretilip `thumb_bytes` ile yuklenir. Uretilemezse
+          //	video POSTERSIZ gider (en iyi caba).
+          final poster = videoMu ? await videoPosteriUret(hazir) : null;
+          final ad = ham.uri.pathSegments.last;
           final mediaId = await servis.yukle(
             dosya: hazir,
-            kind: videoMu ? 'video' : 'image',
-            mime: videoMu ? 'video/mp4' : 'image/jpeg',
+            kind: secim.tur == '' ? 'image' : secim.tur,
+            mime: switch (secim.tur) {
+              'video' => 'video/mp4',
+              'document' => MedyaSecici.belgeMime(ad),
+              _ => 'image/jpeg',
+            },
+            kucukResim: poster,
+            fileName: ad,
             ilerleme: (o) {
               if (mounted) {
                 setState(() => _ilerleme = (i + o) / secim.dosyalar.length);
@@ -348,7 +395,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           //    her fotoğrafa kopyalamak gürültü olurdu.
           await notifier.send(
             i == 0 ? altyazi : '',
-            type: videoMu ? 'video' : 'image',
+            // ⚠️ Sunucu mesaj tipi beyaz listesinde 'document' ZATEN
+            //	VAR (chat/handler.go) — yeni tip ACILMADI.
+            type: secim.tur == '' ? 'image' : secim.tur,
             mediaId: mediaId,
             clientRef:
                 mediaId, // media_id benzersiz -> ideal idempotency anahtarı
@@ -698,7 +747,21 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         DateTime.now().difference(notifier.typingAt!).inSeconds < 3;
 
     return Scaffold(
+      // ⚠️⚠️⚠️ TURU 180z — ZEMIN **TAM SIYAH** (kullanici: *"arka plan siyah
+      //	degil"*). Sohbet ekrani temanin `scaffoldBackgroundColor`ini
+      //	(`_icerikZemin` = **#1C1C1E**, "siyahin BIR TIK acigi") kullaniyordu;
+      //	kardes ekranlarin hepsi `kAiZemin` (**#050308**) ile ciziliyor ve
+      //	fark listeden sohbete gecerken GORULUYORDU.
+      // ⚠️ `koyuSayfa` ile SARILMADI: bu dosyada onlarca `State` metodu
+      //	ciplak `context` okuyor ve `koyuSayfa` temayi `build`in DONDURDUGU
+      //	agaca koyar — o metotlar temayi GORMEZ (bu projede ONBIR kez sahaya
+      //	cikan tuzak). Zemini dogrudan boyamak ayni sonucu veriyor ve
+      //	hicbir renk kaynagini degistirmiyor.
+      backgroundColor: kAiZemin,
       appBar: AppBar(
+        // ⚠️ Header de AYNI siyah: varsayilan M3 `AppBar` yuzeyi govdeden
+        //	acik kalir ve tepede GORUNUR bir dikis birakirdi (turu 180r).
+        backgroundColor: kAiZemin,
         // ⚠️ TURU 76: baslikta AVATAR. Avatari basligin ICINE koyduk (leading'e
         //    degil) — geri oku ve mevcut "actions" duzeni BOZULMAZ.
         titleSpacing: 0,
@@ -955,108 +1018,132 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                         onDurum: (k) => setState(() => _sesKayitta = k),
                       ),
                     )
-                  else ...[
-                    // ⚠️⚠️⚠️ TURU 180z — GIRIS CUBUGU YENIDEN KURULDU
-                    //	(kullanici emri: *"solda fotograf ikonu, arkada bizim
-                    //	MOR DAIRE olsun; alt input TAM GENISLIK; sagda ise
-                    //	mikrofon ve +"*).
-                    //	ESKI: atac (klips) hapin ICINDEYDI, sagda tek dugme.
-                    //	YENI: [mor daire fotograf] [tam genislik input]
-                    //	      [mikrofon/gonder] [+]
+                  else
+                    // ⚠️⚠️⚠️ TURU 180z — **HER SEY TEK KAPSULUN (INPUTUN)
+                    //	ICINDE** (kullanici emri: *"mesaj inputun icinde olacak
+                    //	dedim her sey"*).
+                    //	ESKI: [mor daire] [input] [mik] [+] — DORDU DE AYRI
+                    //	kutulardi ve hap yalniz yazi alaniydi.
+                    //	YENI: tek hap; solda mor daire fotograf, ortada yazi,
+                    //	sagda mikrofon/gonder ve "+".
+                    // ⚠️⚠️ `CrossAxisAlignment.end` ZORUNLU: `maxLines: 5` ile
+                    //	yazi cok satira cikinca hap UZAR; ortalanmis olsaydi
+                    //	ikonlar hapin ORTASINDA asili kalir ve ilk satirla
+                    //	hizasi bozulurdu (WhatsApp da ikonlari ALTA yaslar).
                     // ⚠️ Medya sunucuda kapaliysa (R2 env yok) medya dugmeleri
-                    //	HIC CIZILMEZ (`media_acik`) — gorunen ama calismayan
+                    //	HIC CIZILMEZ (`_medyaAcik`) — gorunen ama calismayan
                     //	dugme turu 66b dersinin tekrari olurdu.
-                    if (_medyaAcik) ...[
-                      _YuvarlakDugme(
-                        ikon: LucideIcons.image,
-                        ipucu: 'Fotoğraf',
-                        // ⚠️ MARKA MORU (`morGradient`) — alt menudeki FAB ve
-                        //	hikaye paylas dairesiyle AYNI kaynak; sabit hex
-                        //	yazilsaydi biri degisince oteki geride kalirdi.
-                        gradient: morGradient,
-                        onTap: _yukleniyor
-                            ? null
-                            : () => _galeriden(video: false),
-                      ),
-                      const SizedBox(width: 6),
-                    ],
                     Expanded(
                       child: Container(
                         decoration: BoxDecoration(
                           color: Theme.of(
                             context,
                           ).colorScheme.onSurface.withValues(alpha: 0.06),
+                          // ⚠️ Yaricap hapin YARI YUKSEKLIGINDEN buyuk:
+                          //	tek satirda tam hap, cok satirda yumusak kose.
                           borderRadius: BorderRadius.circular(24),
                         ),
-                        child: TextField(
-                          controller: _input,
-                          onChanged: _onChanged,
-                          onSubmitted: (_) => _send(),
-                          textCapitalization: TextCapitalization.sentences,
-                          minLines: 1,
-                          maxLines: 5,
-                          decoration: const InputDecoration(
-                            hintText: 'Mesaj yazın',
-                            border: InputBorder.none,
-                            isDense: true,
-                            contentPadding: EdgeInsets.fromLTRB(16, 12, 16, 12),
-                          ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 4,
+                          vertical: 4,
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            if (_medyaAcik)
+                              _YuvarlakDugme(
+                                ikon: LucideIcons.image,
+                                ipucu: 'Fotoğraf',
+                                // ⚠️ MARKA MORU (`morGradient`) — alt menudeki
+                                //	FAB ve hikaye paylas dairesiyle AYNI
+                                //	kaynak; sabit hex yazilsaydi biri
+                                //	degisince oteki geride kalirdi.
+                                gradient: morGradient,
+                                onTap: _yukleniyor
+                                    ? null
+                                    : () => _galeriden(video: false),
+                              ),
+                            Expanded(
+                              child: TextField(
+                                controller: _input,
+                                onChanged: _onChanged,
+                                onSubmitted: (_) => _send(),
+                                textCapitalization:
+                                    TextCapitalization.sentences,
+                                minLines: 1,
+                                maxLines: 5,
+                                decoration: const InputDecoration(
+                                  hintText: 'Mesaj yazın',
+                                  border: InputBorder.none,
+                                  isDense: true,
+                                  // ⚠️ Dikey dolgu 10: ikon dairelerinin
+                                  //	(36 dp) dikey merkeziyle yazi TABANI
+                                  //	ayni hizaya gelsin.
+                                  contentPadding: EdgeInsets.fromLTRB(
+                                    10,
+                                    10,
+                                    6,
+                                    10,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            // ⚠️ TURU 74 — metin BOŞKEN mikrofon, DOLUYKEN
+                            //	gönder (WhatsApp). Ses notu kaydı arama/oda/
+                            //	yayın sırasında ENGELLİ; kapı
+                            //	`SesNotuKaydedici._basla` içinde. Ölçülmüş
+                            //	gerekçe: turu 64 `!pri`, turu 65 `didActivate`
+                            //	gelmiyor, turu 62-C rota.
+                            if (_medyaAcik && _input.text.trim().isEmpty)
+                              SesNotuKaydedici(
+                                key: _sesKey,
+                                onKayit: _sesNotuGonder,
+                                onDurum: (k) =>
+                                    setState(() => _sesKayitta = k),
+                              )
+                            else
+                              // ⚠️ `FloatingActionButton` DEGIL: FAB'in kendi
+                              //	6 dp golgesi ve 40 dp sabit olcusu var;
+                              //	hapin ICINE sigmiyordu.
+                              Material(
+                                color: Theme.of(context).colorScheme.primary,
+                                shape: const CircleBorder(),
+                                child: InkWell(
+                                  customBorder: const CircleBorder(),
+                                  onTap: _sending ? null : _send,
+                                  child: SizedBox(
+                                    width: 36,
+                                    height: 36,
+                                    child: Icon(
+                                      LucideIcons.send,
+                                      size: 18,
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.onPrimary,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            // ⚠️ TURU 180z — "+": panel INPUTUN USTUNDE acilir
+                            //	(`_AtacSerit`), alt sayfa DEGIL.
+                            if (_medyaAcik)
+                              IconButton(
+                                tooltip: 'Ekle',
+                                constraints: const BoxConstraints(
+                                  minWidth: 36,
+                                  minHeight: 36,
+                                ),
+                                padding: EdgeInsets.zero,
+                                icon: Icon(
+                                  _atacAcik ? LucideIcons.x : LucideIcons.plus,
+                                  size: 21,
+                                ),
+                                onPressed: _yukleniyor ? null : _atacDegistir,
+                              ),
+                          ],
                         ),
                       ),
                     ),
-                    const SizedBox(width: 6),
-                    // ⚠️ TURU 74 — metin BOŞKEN mikrofon, DOLUYKEN gönder (WhatsApp).
-                    //    Ses notu kaydı arama/oda/yayın sırasında ENGELLİ; kapı
-                    //    `SesNotuKaydedici._basla` içinde. Ölçülmüş gerekçe:
-                    //    turu 64 `!pri`, turu 65 `didActivate` gelmiyor, turu 62-C rota.
-                    if (_medyaAcik && _input.text.trim().isEmpty)
-                      SesNotuKaydedici(
-                        key: _sesKey,
-                        onKayit: _sesNotuGonder,
-                        onDurum: (k) => setState(() => _sesKayitta = k),
-                      )
-                    else
-                      // ⚠️ `FloatingActionButton` DEGIL: FAB'in kendi 6 dp
-                      //    golgesi ve 40 dp sabit olcusu var; giris hapiyla
-                      //    hizalanmiyordu. Duz daire hapla AYNI dikey eksende.
-                      // ⚠️ Dokunma alani 44 dp (Apple/Material tavsiyesi) —
-                      //    ikon 20 dp ama kutu buyuk.
-                      Material(
-                        color: Theme.of(context).colorScheme.primary,
-                        shape: const CircleBorder(),
-                        child: InkWell(
-                          customBorder: const CircleBorder(),
-                          onTap: _sending ? null : _send,
-                          child: SizedBox(
-                            width: 44,
-                            height: 44,
-                            child: Icon(
-                              LucideIcons.send,
-                              size: 20,
-                              color: Theme.of(context).colorScheme.onPrimary,
-                            ),
-                          ),
-                        ),
-                      ),
-                    // ⚠️ TURU 180z — "+": panel INPUTUN USTUNDE acilir
-                    //	(`_AtacSerit`), alt sayfa DEGIL.
-                    if (_medyaAcik)
-                      IconButton(
-                        tooltip: 'Ekle',
-                        // ⚠️ Dokunma hedefi 44 dp: klavye acikken ekranin EN
-                        //	ALTINDAKI dugme (turu 115c olcumu).
-                        constraints: const BoxConstraints(
-                          minWidth: 44,
-                          minHeight: 44,
-                        ),
-                        padding: EdgeInsets.zero,
-                        icon: Icon(
-                          _atacAcik ? LucideIcons.x : LucideIcons.plus,
-                          size: 22,
-                        ),
-                        onPressed: _yukleniyor ? null : _atacDegistir,
-                      ),
-                  ],
                 ],
               ),
             ),
@@ -1472,12 +1559,14 @@ class _Bubble extends StatelessWidget {
           color: sadeMedya
               ? Colors.transparent
               : (mine ? scheme.bubbleMine : scheme.bubbleOther),
-          borderRadius: BorderRadius.only(
-            topLeft: const Radius.circular(12),
-            topRight: const Radius.circular(12),
-            bottomLeft: Radius.circular(mine ? 12 : 2),
-            bottomRight: Radius.circular(mine ? 2 : 12),
-          ),
+          // ⚠️⚠️ TURU 180z — **TAM RADUS** (kullanici emri: *"sohbetler tam
+          //	radus olacak"*). Eskiden bir kose 2 dp idi (WhatsApp'in
+          //	"kuyruk" hissi); artik DORT KOSE de esit ve yuvarlak
+          //	(Instagram DM dili).
+          // ⚠️ 12 -> **18**: tek satirlik balon HAP gorunur; 22 denendi ve
+          //	iki satirli balonda kose yayi metnin ilk harfini kirpiyordu
+          //	(yatay dolgu 12 dp).
+          borderRadius: BorderRadius.circular(18),
           // ⚠️ Zemin yokken GOLGE de olmaz: seffaf bir kutunun altinda
           //	golge, medyanin cevresinde acikligi belli olmayan gri bir
           //	hale birakirdi.
@@ -1597,40 +1686,67 @@ class _Bubble extends StatelessWidget {
                         builder: (_) => TamEkranVideo(mediaId: message.mediaId!),
                       ),
                     ),
-                    child: Container(
-                      width: 210,
-                      height: 128,
-                      decoration: BoxDecoration(
+                    // ⚠️⚠️⚠️ TURU 180z — **ON IZLEME (POSTER)** (kullanici emri:
+                    //	*"videolarda on izleme olsun"*). Poster GONDERIM aninda
+                    //	uretilip `thumb_bytes` ile yuklenir (`video_poster.dart`).
+                    // ⚠️⚠️ `yalnizThumb: true` ZORUNLU: bayraksiz `MedyaGorsel`
+                    //	poster yoksa HAM VIDEO adresine duser ve
+                    //	`CachedNetworkImage` bir mp4 cozemeyip KIRIK GORSEL cizer
+                    //	(turu 83b sinifi). Bayrakla poster yoksa alttaki koyu kutu
+                    //	KALIR — eski davranis kaybolmuyor.
+                    // ⚠️ BALONDA OYNATICI KURULMAZ (turu 76b/77b): listede canli
+                    //	`video_player` iOS'ta AVAudioSession'a dokunur ve SUREN
+                    //	ARAMAYI sagirlastirir. Cizilen sey bir GORSEL.
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(14),
+                      child: Container(
+                        width: 210,
+                        height: 128,
                         color: Colors.black.withValues(alpha: 0.35),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Container(
-                            width: 44,
-                            height: 44,
-                            decoration: const BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: Colors.white24,
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            MedyaGorsel(
+                              mediaId: message.mediaId!,
+                              kucuk: true,
+                              yalnizThumb: true,
+                              fit: BoxFit.cover,
                             ),
-                            child: const Icon(
-                              LucideIcons.play,
-                              size: 22,
-                              color: Colors.white,
+                            Center(
+                              child: Container(
+                                width: 44,
+                                height: 44,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: Colors.black.withValues(alpha: 0.45),
+                                ),
+                                child: const Icon(
+                                  LucideIcons.play,
+                                  size: 22,
+                                  color: Colors.white,
+                                ),
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 8),
-                          const Text(
-                            'Video',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.white70,
-                            ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
+                  ),
+                ),
+              // ⚠️⚠️⚠️ TURU 180z — **BELGE BALONU**. Bu dal OLMADAN
+              //	sunucunun kabul ettigi 'document' mesaji istemcide HIC
+              //	CIZILMEZDI (yalniz metin govdesi kalirdi) — ozellik
+              //	gonderilebilir ama GORULEMEZ olurdu.
+              // ⚠️ Ad, mesajin `content` alanindan gelir (gonderirken dosya
+              //	adi altyazi olarak YAZILMAZ; bos ise kart MIME'dan notr bir
+              //	ad turetir, UYDURMA ad yazmaz).
+              if (message.type == 'document' &&
+                  (message.mediaId ?? '').isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: SizedBox(
+                    width: 230,
+                    child: BelgeKarti(mediaId: message.mediaId!),
                   ),
                 ),
               // ⚠️ TURU 74 — SES NOTU BALONU. Dalga formu ve süre SUNUCUDAN gelir
@@ -2023,10 +2139,16 @@ class _YuvarlakDugme extends StatelessWidget {
             child: InkWell(
               customBorder: const CircleBorder(),
               onTap: onTap,
+              // ⚠️ TURU 180z — 44 -> **36**: dugme artik giris hapinin ICINDE
+              //	(kullanici: *"her sey inputun icinde"*). 44 dp kalsaydi hap
+              //	52 dp'ye cikip ekranin dibinde sisman bir serit birakirdi.
+              //	Dokunma hedefi 36 dp; Material'in 48 dp tavsiyesinin altinda
+              //	ama WhatsApp/Instagram da hap ici ikonlari boyle olcuyor ve
+              //	hapin KENDISI (44 dp) parmagi yakaliyor.
               child: SizedBox(
-                width: 44,
-                height: 44,
-                child: Icon(ikon, size: 21, color: Colors.white),
+                width: 36,
+                height: 36,
+                child: Icon(ikon, size: 19, color: Colors.white),
               ),
             ),
           ),
@@ -2057,6 +2179,7 @@ class _AtacSerit extends StatelessWidget {
     (anahtar: 'foto', ikon: LucideIcons.image, ad: 'Fotoğraf', renk: Color(0xFF7C4DFF)),
     (anahtar: 'video', ikon: LucideIcons.video, ad: 'Video', renk: Color(0xFFEC407A)),
     (anahtar: 'kamera', ikon: LucideIcons.camera, ad: 'Kamera', renk: Color(0xFF00BFA5)),
+    (anahtar: 'belge', ikon: LucideIcons.fileText, ad: 'Belge', renk: Color(0xFF5C7CFA)),
     (anahtar: 'konum', ikon: LucideIcons.mapPin, ad: 'Konum', renk: Color(0xFFEF5350)),
     (anahtar: 'kisi', ikon: LucideIcons.userRound, ad: 'Kişi', renk: Color(0xFF42A5F5)),
     (anahtar: 'iban', ikon: LucideIcons.creditCard, ad: 'IBAN', renk: Color(0xFF26A69A)),

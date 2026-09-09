@@ -6,6 +6,7 @@ import '../../core/api.dart';
 import '../../core/theme.dart';
 import '../../router.dart' show rootMessengerKey;
 import '../isletme/kategori_kabuk.dart' show YemekHeader;
+import '../medya/belge_karti.dart';
 import '../medya/medya_gorsel.dart';
 import '../medya/tam_ekran_gorsel.dart';
 import '../medya/tam_ekran_video.dart';
@@ -17,17 +18,26 @@ import 'kanal_servisi.dart';
 ///	olacak; gorseller, kanalda paylasilan dosyalar vs olacak"*).
 ///
 /// Kullanici profiliyle AYNI dil: buyuk avatar · ad · @adres · aciklama ·
-/// sayilar (abone / gonderi) · eylemler · **paylasilan medya izgarasi**.
+/// sayilar (abone / gonderi / medya / belge) · eylemler · **paylasilan medya
+/// izgarasi** · **belgeler listesi**.
 ///
 /// ⚠️⚠️ **BACKEND DEGISMEDI — YENI UC YOK.** Iki mevcut uc yetiyor:
 ///	  · `GET /channels/{id}`        -> ad · adres · aciklama · sayilar
 ///	  · `GET /channels/{id}/posts`  -> `media_ids` + `media_kinds`
-///	"Paylasilan gorseller" o gonderilerin medyasindan TURETILIR.
-/// ⚠️ **"Dosyalar" BOLUMU CIZILMEDI**: kanal gonderisi yalniz gorsel/video
-///	tasir (`kind` beyaz listesi) — belge yukleme yolu YOK. Bos ya da sahte
-///	bir "Dosyalar" sekmesi, turu 66b'nin "gorunen ama calismayan dugme"
-///	dersinin tekrari olurdu.
-///	⏳ Gerekli: `document` medya turu + kanal gonderisine ekleme yolu.
+///	Iki bolum de o gonderilerin medyasindan TURETILIR.
+///
+/// ⚠️⚠️⚠️ **TURU 180z — ONCEKI SERH YANLISTI, DUZELTILDI.** Burada
+///	*"kanal gonderisi yalniz gorsel/video tasir (`kind` beyaz listesi) —
+///	belge yukleme yolu YOK"* yaziyordu. **SUNUCU BOYLE BIR KISIT
+///	KOYMUYOR** (kod okundu): `PostOlustur` medyayi YALNIZ sahiplik ve
+///	durum ile dogruluyor, `kind`e HIC BAKMIYOR; `media_assets.kind`
+///	CHECK'i `document` degerini KABUL EDIYOR (015/037) ve `sniff.go`
+///	PDF · DOC · DOCX · XLS · XLSX · TXT'yi 32 MB tavanla geciriyor.
+///	Eksik olan TEK sey ISTEMCI yoluydu — bu turda acildi.
+/// ⚠️ **DURUST SINIR:** liste ucu `file_name` DONDURMUYOR, bu yuzden belge
+///	satirlari GERCEK dosya adini gosteremiyor (MIME'den turetilen notr ad
+///	yazilir; uydurma ad YAZILMAZ). ⏳ Gerekli: sunucunun `file_name`i
+///	yanit haritasina eklemesi — BACKEND TURU.
 class KanalProfilEkrani extends ConsumerStatefulWidget {
   const KanalProfilEkrani({super.key, required this.kanalId, this.onIsim = ''});
 
@@ -43,8 +53,13 @@ class _KanalProfilEkraniState extends ConsumerState<KanalProfilEkrani> {
   bool _yukleniyor = true;
   String? _hata;
 
-  /// (mediaId, tur) — gonderilerden TURETILEN paylasilan medya.
+  /// (mediaId, tur) — gonderilerden TURETILEN paylasilan medya
+  /// (`image` | `video`). Belgeler AYRI listede (bkz. [_belgeler]).
   List<({String id, String tur})> _medya = const [];
+
+  /// ⚠️ TURU 180z — paylasilan BELGELER (`kind: document`). Izgaraya
+  ///	KONULMAZ: bir PDF'in kapagi yoktur, adi okunabilmelidir.
+  List<String> _belgeler = const [];
   bool _mesgul = false;
 
   @override
@@ -67,13 +82,27 @@ class _KanalProfilEkraniState extends ConsumerState<KanalProfilEkrani> {
       ]);
       final k = sonuc[0] as Kanal;
       final gonderiler = sonuc[1] as List<KanalGonderi>;
+      // ⚠️⚠️⚠️ TURU 180z — MEDYA ve BELGE **AYRI TOPLANIR** (kullanici emri:
+      //	*"kanalda sadece gorsel degil video BELGE vs de paylasiliyor"*).
+      //	Ikisi ayni izgaraya konsaydi bir PDF, 1:1 bir gorsel hucresine
+      //	sikisip adi OKUNAMAZ hale gelirdi; belge bir KAPAK degil, bir
+      //	DOSYADIR ve satir olarak gosterilir (WhatsApp/Telegram dili).
       final liste = <({String id, String tur})>[];
+      final belgeler = <String>[];
       for (final g in gonderiler) {
         for (var i = 0; i < g.mediaIds.length; i++) {
           final tur = i < g.mediaKinds.length ? g.mediaKinds[i] : 'image';
           // ⚠️ `'yok'` = medya SILINMIS (sunucu boyle isaretliyor); cizmek
           //	KIRIK GORSEL demek olurdu.
           if (tur == 'yok') continue;
+          if (tur == 'document') {
+            belgeler.add(g.mediaIds[i]);
+            continue;
+          }
+          // ⚠️ `audio` da buraya DUSMEZ: kanal gonderisinde ses yolu YOK
+          //	(paylasim kutusunda foto/video/belge var) ve gorsel gibi
+          //	cizilseydi KIRIK GORSEL olurdu. Bilinmeyen her tur ELENIR.
+          if (tur != 'image' && tur != 'video') continue;
           liste.add((id: g.mediaIds[i], tur: tur));
         }
       }
@@ -81,6 +110,7 @@ class _KanalProfilEkraniState extends ConsumerState<KanalProfilEkrani> {
       setState(() {
         _k = k;
         _medya = liste;
+        _belgeler = belgeler;
         _yukleniyor = false;
       });
     } catch (e) {
@@ -198,7 +228,13 @@ class _KanalProfilEkraniState extends ConsumerState<KanalProfilEkrani> {
                     const SizedBox(width: 36),
                     _sayi(c, sayiBicimle(k.gonderiSayisi), 'Gönderi'),
                     const SizedBox(width: 36),
-                    _sayi(c, sayiBicimle(_medya.length), 'Görsel'),
+                    // ⚠️ TURU 180z — "Görsel" -> **"Medya"**: sayi artik
+                    //	fotograf + VIDEO topluyor, eski etiket YANLIS BILGIYDI.
+                    _sayi(c, sayiBicimle(_medya.length), 'Medya'),
+                    if (_belgeler.isNotEmpty) ...[
+                      const SizedBox(width: 36),
+                      _sayi(c, sayiBicimle(_belgeler.length), 'Belge'),
+                    ],
                   ],
                 ),
                 if (k.aciklama.isNotEmpty) ...[
@@ -235,17 +271,7 @@ class _KanalProfilEkraniState extends ConsumerState<KanalProfilEkrani> {
                     ),
                   ),
                 const SizedBox(height: 20),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                  child: Text(
-                    'Paylaşılan görseller',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: scheme.onSurface.withValues(alpha: 0.7),
-                    ),
-                  ),
-                ),
+                _bolumBasligi(c, 'Paylaşılan medya'),
                 if (_medya.isEmpty)
                   Padding(
                     padding: const EdgeInsets.symmetric(
@@ -253,7 +279,7 @@ class _KanalProfilEkraniState extends ConsumerState<KanalProfilEkrani> {
                       vertical: 18,
                     ),
                     child: Text(
-                      'Bu kanalda henüz görsel paylaşılmamış.',
+                      'Bu kanalda henüz fotoğraf veya video paylaşılmamış.',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         color: scheme.onSurface.withValues(alpha: 0.6),
@@ -294,13 +320,27 @@ class _KanalProfilEkraniState extends ConsumerState<KanalProfilEkrani> {
                             // ⚠️ Video icin `MedyaGorsel` CIZILMEZ: kanal
                             //	videosunun kapak karesi YOK ve id dogrudan
                             //	verilseydi KIRIK GORSEL cizilirdi (turu 83b).
-                            if (video)
+                            // ⚠️⚠️ TURU 180z — VIDEO HUCRESINDE **POSTER**
+                            //	varsa cizilir (kullanici: *"videolarda on
+                            //	izleme olsun"*). `yalnizThumb` ZORUNLU:
+                            //	poster yoksa `MedyaGorsel` HAM VIDEO
+                            //	adresine duser ve KIRIK GORSEL cizer.
+                            //	Eski videolarda poster YOK -> koyu kutu +
+                            //	oynat rozeti gorunur (eski davranis).
+                            if (video) ...[
                               ColoredBox(
                                 color: Colors.white.withValues(alpha: 0.06),
-                                child: const Center(
-                                  child: Icon(LucideIcons.play, size: 26),
-                                ),
-                              )
+                              ),
+                              MedyaGorsel(
+                                mediaId: m.id,
+                                kucuk: true,
+                                yalnizThumb: true,
+                                fit: BoxFit.cover,
+                              ),
+                              const Center(
+                                child: Icon(LucideIcons.play, size: 26),
+                              ),
+                            ]
                             else
                               MedyaGorsel(
                                 mediaId: m.id,
@@ -312,10 +352,35 @@ class _KanalProfilEkraniState extends ConsumerState<KanalProfilEkrani> {
                       );
                     },
                   ),
+                // ⚠️⚠️⚠️ TURU 180z — **BELGELER** (kullanici emri: *"kanalda
+                //	sadece gorsel degil video BELGE vs de paylasiliyor"*).
+                // ⚠️ Bolum belge YOKKEN HIC CIZILMEZ: bos bir "Belgeler"
+                //	basligi, ozelligin calismadigi izlenimi verirdi
+                //	(turu 66b "gorunen ama calismayan" dersi).
+                if (_belgeler.isNotEmpty) ...[
+                  const SizedBox(height: 18),
+                  _bolumBasligi(c, 'Belgeler'),
+                  for (final id in _belgeler)
+                    BelgeKarti(mediaId: id, kompakt: true),
+                ],
               ],
             ),
     );
   }
+
+  /// Bolum basligi — iki bolum de AYNI kaynaktan cizilir ki ileride biri
+  /// degisince oteki geride kalmasin.
+  Widget _bolumBasligi(BuildContext c, String metin) => Padding(
+    padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+    child: Text(
+      metin,
+      style: TextStyle(
+        fontSize: 13,
+        fontWeight: FontWeight.w700,
+        color: Theme.of(c).colorScheme.onSurface.withValues(alpha: 0.7),
+      ),
+    ),
+  );
 
   Widget _sayi(BuildContext c, String deger, String etiket) => Column(
     children: [

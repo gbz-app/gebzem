@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'dart:io';
 
+import 'package:file_selector/file_selector.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:video_player/video_player.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
@@ -146,6 +147,26 @@ class MedyaKapisi {
 ///
 /// ⚠️ YAPMA: `pickMultiImage`i ekranlarda dogrudan cagirma.
 /// ⚠️ YAPMA: `take(kalan)` kirpmasini kaldirma.
+/// ⚠️⚠️⚠️ TURU 180z — BELGE UZANTILARI **TEK KAYNAK**.
+///
+/// Sunucunun `media/sniff.go` beyaz listesi PDF · DOC · DOCX · XLS ·
+/// XLSX · TXT diyor; bu liste **DAHA DAR** ve gerekcesi CANLI SUNUCUDA
+/// OLCULDU:
+///   · **txt CIKARILDI** — commit asamasindaki icerik kokulamasi
+///     (`GercekTip`) duz metnin imzasi olmadigi icin onu TANIYAMIYOR ve
+///     **422 "dosya turu taninamadi"** donuyor.
+///   · **xls CIKARILDI** — OLE kabi `application/msword` olarak
+///     kokulaniyor, beyan `application/vnd.ms-excel` ->
+///     **422 "beyanla uyusmuyor"**.
+/// Ikisini de listede biraksaydik kullanici dosyayi SECER, YUKLER ve en
+/// SONDA reddedilirdi — turu 66b'nin "gorunen ama calismayan dugme"
+/// dersinin en pahali hali.
+/// ⏳ BACKEND TURU: `GercekTip`e text/plain dali + .xls OLE esdegerligi
+///    (audio/video mp4 icin ZATEN var olan desen).
+/// ⚠️ Bu liste ile [MedyaSecici.belgeMime] AYRISAMAZ: biri digerini
+///    tanimadiginda yukleme sunucuda 415 ile duser.
+const kBelgeUzantilari = <String>['pdf', 'doc', 'docx', 'xlsx'];
+
 class MedyaSecici {
   MedyaSecici._();
 
@@ -244,6 +265,115 @@ class MedyaSecici {
       return null;
     }
     return dosya;
+  }
+
+  /// ⚠️⚠️⚠️ TURU 180z — **BELGE SECICI** (kullanici emri: *"kanalda sadece
+  /// gorsel degil video BELGE vs de paylasiliyor"*).
+  ///
+  /// ⚠️⚠️ **UZANTI BEYAZ LISTESI SUNUCUDAN TURETILIR, ICAT EDILMEZ.**
+  ///	`media/sniff.go` `document` icin TAM SU MIME'lari kabul ediyor:
+  ///	  application/pdf · application/msword ·
+  ///	  ...wordprocessingml.document · application/vnd.ms-excel ·
+  ///	  ...spreadsheetml.sheet · text/plain
+  ///	Daha genis bir liste sunmak (zip/apk/ppt) kullaniciya dosya
+  ///	sectirip yuklemenin SONUNDA sunucudan 415 aldirirdi — turu 66b'nin
+  ///	"gorunen ama calismayan dugme" dersinin en pahali hali (dosya
+  ///	secildi, sikistirildi, yuklendi, sonra reddedildi).
+  /// ⚠️ `withData: false` ZORUNLU: 32 MB'lik bir PDF'i BELLEGE okumak dusuk
+  ///	bellekli Android'de uygulamayi OLDURUR (turu 76'daki `readAsBytes`
+  ///	dersi). Yukleme zinciri zaten `dosya.openRead()` ile akitiyor.
+  /// ⚠️ `pickerAcik` bayragi ZORUNLU: galeri/dosya secici acikken gelen
+  ///	arama ekrani ile cakismayi `MedyaKapisi` bu bayrakla onluyor.
+  static Future<File?> belge({
+    required void Function(String) uyar,
+  }) async {
+    XFile? sonuc;
+    var hata = false;
+    try {
+      MedyaKapisi.pickerAcik = true;
+      // ⚠️⚠️ `file_picker` DEGIL `file_selector` (Flutter ekibinin RESMI
+      //	paketi): `file_picker` **compileSdk 34** ile geliyor ve bu
+      //	projede Gradle'i `checkDebugAarMetadata` ile PATLATTI
+      //	(`flutter_plugin_android_lifecycle` 36 istiyor — turu 87'nin
+      //	birebir tekrari). `file_selector_android` ise
+      //	`compileSdk = flutter.compileSdkVersion` kullaniyor, yani
+      //	catismasi YAPISAL OLARAK imkansiz.
+      //	⚠️ YAPMA: `file_picker`a geri donme.
+      sonuc = await openFile(acceptedTypeGroups: const [
+        XTypeGroup(
+          label: 'Belge',
+          extensions: kBelgeUzantilari,
+          // ⚠️ iOS/macOS uzantiyi DEGIL UTI'yi ister; verilmezse secici
+          //	HER dosyayi gosterir ve kullanici sunucunun reddedecegi bir
+          //	tur secebilirdi.
+          uniformTypeIdentifiers: <String>[
+            'com.adobe.pdf',
+            'com.microsoft.word.doc',
+            'org.openxmlformats.wordprocessingml.document',
+            'org.openxmlformats.spreadsheetml.sheet',
+          ],
+          mimeTypes: <String>[
+            'application/pdf',
+            'application/msword',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          ],
+        ),
+      ]);
+    } catch (e) {
+      hata = true;
+      unawaited(Sentry.captureMessage('belge secici hatasi: $e'));
+    } finally {
+      MedyaKapisi.pickerAcik = false;
+    }
+    // ⚠️ Secici PATLARSA kullaniciya SOYLENIR (video dalindaki ayni ders):
+    //	sessiz `null` donmek dugmeyi OLU gosterirdi.
+    if (hata) {
+      uyar('Dosya seçici açılamadı, tekrar deneyin');
+      return null;
+    }
+    final yol = sonuc?.path;
+    if (yol == null) return null;
+
+    final dosya = File(yol);
+    final bayt = await dosya.length();
+    final tavan = kTavanlar['document'] ?? (32 << 20);
+    if (bayt > tavan) {
+      uyar('Dosya çok büyük (en fazla ${(tavan / (1 << 20)).round()} MB)');
+      return null;
+    }
+    // ⚠️ 0 baytlik dosya: sunucu `Content-MD5` dogrulamasindan gecer ama
+    //	karsi tarafta acilmayan bir ek birakir.
+    if (bayt <= 0) {
+      uyar('Dosya boş görünüyor');
+      return null;
+    }
+    return dosya;
+  }
+
+  /// Bir dosya adindan sunucunun bekledigi MIME'i turetir.
+  ///
+  /// ⚠️⚠️ Sunucu MIME'i **ISTEMCININ BEYANIYLA** karsilastiriyor
+  ///	(`TipIzinli(kind, mime)`) ve imzaya da o MIME giriyor — yanlis
+  ///	beyan R2'de **403 SignatureDoesNotMatch** ya da sunucuda 415 uretir.
+  /// ⚠️ Bilinmeyen uzanti `application/octet-stream` DONDURMEZ: o tur beyaz
+  ///	listede YOK ve istek 415 ile reddedilirdi. Uzanti listesi
+  ///	`belge()` seciciyle AYNI kaynaktan gelmeli.
+  static String belgeMime(String dosyaAdi) {
+    final n = dosyaAdi.toLowerCase();
+    if (n.endsWith('.pdf')) return 'application/pdf';
+    if (n.endsWith('.doc')) return 'application/msword';
+    if (n.endsWith('.docx')) {
+      return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+    }
+    if (n.endsWith('.xls')) return 'application/vnd.ms-excel';
+    if (n.endsWith('.xlsx')) {
+      return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    }
+    // ⚠️ Buraya DUSMEK, secicinin beyaz listesiyle bu haritanin
+    //	AYRISTIGI anlamina gelir. `text/plain` sunucuda 422 aliyor;
+    //	varsayilan PDF: en azindan kokulanabilen bir tur.
+    return 'application/pdf';
   }
 
   /// Video suresini olcer. Olculemezse `null` doner (kapiyi ACIK birakir).

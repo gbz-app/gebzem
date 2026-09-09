@@ -100,6 +100,75 @@ async function videoYukle(j, token, dosya) {
   return pr.d.media_id;
 }
 
+/// Bagimliliksiz, gecerli bir tek sayfalik PDF uretir.
+///
+/// ⚠️⚠️⚠️ **NEDEN PDF, NEDEN `text/plain` DEGIL — CANLI SUNUCUDA OLCULDU.**
+///	Ilk yazim `text/plain` gonderiyordu ve commit **422** ile reddedildi.
+///	Sebep: `media/sniff.go` `GercekTip()` icerigi KOKLUYOR ve duz metnin
+///	bir imzasi YOK -> "dosya turu taninamadi". Yani sunucu `text/plain`i
+///	beyaz listede KABUL ediyor ama commit'te REDDEDIYOR — bu SUNUCU
+///	TARAFINDA gercek bir kusur (⏳ backend turu). PDF `%PDF-` imzasiyla
+///	kokulanabildigi icin zincirin TAMAMINDAN gecer.
+/// ⚠️ Ayni sinif `.xls`te de var: OLE kabi `application/msword` olarak
+///	kokulaniyor, beyan `application/vnd.ms-excel` -> "beyanla uyusmuyor".
+/// ⚠️ Kutuphane KULLANILMADI: PDF'in minimal govdesi elle yazilabiliyor ve
+///	tohumun harici bagimliligi olmamali.
+function pdfUret(baslik) {
+  const icerik = `BT /F1 14 Tf 72 720 Td (${baslik.replace(/[()\\]/g, '')}) Tj ET`;
+  const nesneler = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] '
+      + '/Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>',
+    `<< /Length ${icerik.length} >>\nstream\n${icerik}\nendstream`,
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+  ];
+  let govde = '%PDF-1.4\n';
+  const ofsetler = [];
+  for (let i = 0; i < nesneler.length; i++) {
+    ofsetler.push(govde.length);
+    govde += `${i + 1} 0 obj\n${nesneler[i]}\nendobj\n`;
+  }
+  const xrefKonum = govde.length;
+  govde += `xref\n0 ${nesneler.length + 1}\n0000000000 65535 f \n`;
+  for (const o of ofsetler) {
+    govde += `${String(o).padStart(10, '0')} 00000 n \n`;
+  }
+  govde += `trailer\n<< /Size ${nesneler.length + 1} /Root 1 0 R >>\n`
+    + `startxref\n${xrefKonum}\n%%EOF\n`;
+  return Buffer.from(govde, 'latin1');
+}
+
+/// ⚠️⚠️⚠️ TURU 180z — **BELGE YUKLEME** (kanal profilindeki "Belgeler"
+/// bolumunu besler).
+///
+/// ⚠️ `width/height` GONDERILMEZ: belge bir gorsel degil.
+async function belgeYukle(j, token, kanalAdi) {
+  const govde = pdfUret(`${kanalAdi} - kanal duyuru metni`);
+  const md5 = crypto.createHash('md5').update(govde).digest('base64');
+  const p = await j('/media/upload', {
+    yontem: 'POST',
+    token,
+    govde: {
+      kind: 'document',
+      mime: 'application/pdf',
+      bytes: govde.length,
+      md5,
+      file_name: 'kanal-duyuru.pdf',
+    },
+  });
+  if (p.kod !== 200) throw new Error(`belge presign ${p.kod}`);
+  const put = await fetch(p.d.upload_url, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/pdf', 'Content-MD5': md5 },
+    body: govde,
+  });
+  if (!put.ok) throw new Error(`belge PUT ${put.status}`);
+  const c = await j(`/media/${p.d.media_id}/commit`, { yontem: 'POST', token });
+  if (c.kod !== 200) throw new Error(`belge commit ${c.kod}`);
+  return p.d.media_id;
+}
+
 /// Gonderi metinleri — Gebze'de yasayan gercek insanlarin yazacagi dilde.
 ///
 /// ⚠️ Marka adi ve gercek kisi adi YOK: tohum verisi yayina sizsa bile
@@ -361,6 +430,11 @@ async function sosyalTohum(j, kullanicilar, isletmeler, etkinlikler) {
     // ⚠️ Gorsel KANAL SAHIBININ token'iyla yuklenir: sunucu medyanin
     //	yukleyene ait olmasini SART kosuyor (baskasinin id'siyle gonderi
     //	**403 "gecersiz medya"** doner — sohbet tohumunda olculdu).
+    // ⚠️⚠️ TURU 180z — KANALA **VIDEO ve BELGE** de konur (kullanici:
+    //	*"kanalda sadece gorsel degil video belge vs de paylasiliyor"*).
+    //	Kanal profilindeki "Paylasilan medya" izgarasi ve "Belgeler"
+    //	bolumu bunlardan besleniyor; yalniz gorsel konsaydi iki yuzeyden
+    //	biri DAIMA bos gorunur ve ozellik kirik sanilirdi.
     const kanalGorsel = [];
     for (let i = 0; i < 3; i++) {
       try {
@@ -371,13 +445,31 @@ async function sosyalTohum(j, kullanicilar, isletmeler, etkinlikler) {
         // en iyi caba: gorsel yuklenemezse gonderiler METINLE atilir
       }
     }
+    // Kanal sahibinin token'iyla bir VIDEO ve bir BELGE.
+    // ⚠️ Medya YUKLEYENE ait olmali: baskasinin id'siyle gonderi 403
+    //	"gecersiz medya" doner (sohbet tohumunda olculdu).
+    let kanalVideo = null;
+    try {
+      kanalVideo = await videoYukle(j, h.token, 'feedmc/33.mp4');
+    } catch (_) {}
+    let kanalBelge = null;
+    try {
+      kanalBelge = await belgeYukle(j, h.token, govde.ad);
+    } catch (_) {}
+    const ekMedya = [kanalVideo, kanalBelge].filter(Boolean);
     for (let i = 0; i < gonderiler.length; i++) {
       const g = await j(`/channels/${kid}/posts`, {
         yontem: 'POST',
         token: h.token,
         govde: {
           metin: gonderiler[i],
-          media_ids: i < kanalGorsel.length ? [kanalGorsel[i]] : [],
+          // ⚠️ Once gorseller, sonra video/belge: ilk gonderiler
+          //	izgarayi, sondakiler "Belgeler" bolumunu doldurur.
+          media_ids: i < kanalGorsel.length
+            ? [kanalGorsel[i]]
+            : (i - kanalGorsel.length < ekMedya.length
+                ? [ekMedya[i - kanalGorsel.length]]
+                : []),
         },
       });
       if (g.kod === 201 || g.kod === 200) ozet.toplulukGonderi++;
@@ -387,4 +479,4 @@ async function sosyalTohum(j, kullanicilar, isletmeler, etkinlikler) {
   return ozet;
 }
 
-module.exports = { sosyalTohum, gorselYukle, videoYukle };
+module.exports = { sosyalTohum, gorselYukle, videoYukle, belgeYukle };

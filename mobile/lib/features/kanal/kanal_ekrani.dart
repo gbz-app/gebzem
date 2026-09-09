@@ -9,10 +9,12 @@ import 'package:image_picker/image_picker.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../chats/moderasyon_sheet.dart';
+import '../medya/belge_karti.dart';
 import '../medya/medya_gorsel.dart';
 import '../medya/medya_kapisi.dart';
 import '../medya/medya_servisi.dart';
 import '../medya/tam_ekran_gorsel.dart';
+import '../medya/video_poster.dart';
 import '../sosyal/medya_video.dart';
 import '../sosyal/gonderi_karti.dart' show gonderiZamani, sayiBicimle;
 import 'kanal_profil.dart';
@@ -158,7 +160,7 @@ class _KanalEkraniState extends ConsumerState<KanalEkrani> {
     if (secim.isEmpty || !mounted) return;
     setState(
       () => _secilenler.addAll(
-        secim.map((x) => _KanalMedya(File(x.path), false)),
+        secim.map((x) => _KanalMedya(File(x.path), 'image')),
       ),
     );
   }
@@ -195,7 +197,29 @@ class _KanalEkraniState extends ConsumerState<KanalEkrani> {
       _uyar('Video çok büyük (en fazla ${(tavan / (1 << 20)).round()} MB)');
       return;
     }
-    setState(() => _secilenler.add(_KanalMedya(dosya, true)));
+    setState(() => _secilenler.add(_KanalMedya(dosya, 'video')));
+  }
+
+  /// ⚠️⚠️⚠️ TURU 180z — KANALA **BELGE** (kullanici emri: *"kanalda sadece
+  /// gorsel degil video BELGE vs de paylasiliyor"*).
+  ///
+  /// ⚠️ Uzanti/MIME/boyut kapilarinin HEPSI `MedyaSecici.belge` icinde TEK
+  ///	KAYNAKTA; buraya kopyalanmaz (iki kopya kacinilmaz olarak DRIFT eder
+  ///	— bu projede ALTI kez yasandi).
+  /// ⚠️ `MedyaKapisi.izinVer` cagrilir: dosya secici de uygulamayi arka plana
+  ///	atar ve suren bir aramanin kamera/ses yikimini tetikleyebilir.
+  Future<void> _belgeSec() async {
+    if (!MedyaKapisi.izinVer(ref)) {
+      _uyar(MedyaKapisi.engelSebebi(ref) ?? 'Şu anda dosya seçilemez');
+      return;
+    }
+    if (_secilenler.length >= 10) {
+      _uyar('En fazla 10 medya ekleyebilirsin');
+      return;
+    }
+    final dosya = await MedyaSecici.belge(uyar: _uyar);
+    if (dosya == null || !mounted) return;
+    setState(() => _secilenler.add(_KanalMedya(dosya, 'document')));
   }
 
   void _uyar(String m) {
@@ -221,16 +245,33 @@ class _KanalEkraniState extends ConsumerState<KanalEkrani> {
         // ⚠️ VIDEO: sikistirilmaz/temizlenmez, HAM gider (gonderi tarafiyla
         //    ayni davranis; video EXIF temizligi ayri bir is).
         File gonderilecek = m.dosya;
-        if (!m.video) {
+        // ⚠️⚠️ SIKISTIRMA/EXIF YALNIZ FOTOGRAFA: `gorseliHazirla` bir JPEG
+        //	uretir; videoya ya da PDF'e uygulansaydi dosya BOZULUR ve karsi
+        //	tarafta acilmayan bir ek kalirdi (turu 180x video dersi).
+        if (m.tur == 'image') {
           final hazir = await MedyaServisi.gorseliHazirla(m.dosya);
           if (hazir == null) throw Exception('Fotoğraf hazırlanamadı');
           gonderilecek = hazir;
         }
+        final ad = m.dosya.uri.pathSegments.last;
+        // ⚠️⚠️⚠️ TURU 180z — **VIDEO POSTERI** (kullanici: *"videolarda on
+        //	izleme olsun"*). Sunucu ffmpeg CALISTIRMAZ; poster istemcide
+        //	uretilip `thumb_bytes` ile yuklenir. En iyi caba: uretilemezse
+        //	video POSTERSIZ gider (eski davranis).
+        final poster = m.video ? await videoPosteriUret(m.dosya) : null;
         final id = await medyaS.yukle(
           dosya: gonderilecek,
-          kind: m.video ? 'video' : 'image',
-          mime: m.video ? 'video/mp4' : 'image/jpeg',
-          fileName: m.dosya.uri.pathSegments.last,
+          kind: m.tur,
+          // ⚠️ Belge MIME'i UZANTIDAN turetilir ve sunucunun beyaz listesiyle
+          //	BIREBIR ayni kaynaktan gelir (`MedyaSecici.belgeMime`);
+          //	yanlis beyan R2'de 403 SignatureDoesNotMatch uretir.
+          mime: switch (m.tur) {
+            'video' => 'video/mp4',
+            'document' => MedyaSecici.belgeMime(ad),
+            _ => 'image/jpeg',
+          },
+          kucukResim: poster,
+          fileName: ad,
           iptal: _iptal,
           ilerleme: (p) {
             if (mounted) {
@@ -702,6 +743,20 @@ class _KanalEkraniState extends ConsumerState<KanalEkrani> {
         dolgu: BoxFit.cover,
       );
     }
+    // ⚠️⚠️⚠️ TURU 180z — **BELGE DALI** (kullanici emri).
+    //	Bu dal OLMADAN belge id'si asagidaki `MedyaGorsel`e duser ve
+    //	**KIRIK GORSEL** cizilirdi (turu 83b sinifi) — sunucu `document`
+    //	baglamayi ZATEN engellemiyor, yani risk teorik degil.
+    // ⚠️ Ad ve boyut SUNUCUDAN GELMIYOR (`GET /channels/{id}/posts` yalniz
+    //	`media_ids` + `media_kinds` donduruyor) -> kart UYDURMA bir dosya
+    //	adi YAZMAZ, notr "Belge" der. ⏳ Ad icin sunucunun `file_name`
+    //	dondurmesi gerekir.
+    if (tur == 'document') {
+      return Padding(
+        padding: const EdgeInsets.all(10),
+        child: Center(child: BelgeKarti(mediaId: id)),
+      );
+    }
     return GestureDetector(
       onTap: () => Navigator.of(
         context,
@@ -760,14 +815,18 @@ class _KanalEkraniState extends ConsumerState<KanalEkrani> {
                       borderRadius: BorderRadius.circular(8),
                       // ⚠️ Video icin `Image.file` CIZILEMEZ (kirik kare) —
                       //    kapak yerine ikon gosterilir.
-                      child: _secilenler[i].video
+                      // ⚠️ TURU 180z — UC DAL: video ve BELGE icin `Image.file`
+                      //	CIZILEMEZ (kirik kare); ikisi de ikonla temsil edilir.
+                      child: _secilenler[i].video || _secilenler[i].belge
                           ? Container(
                               width: 56,
                               height: 64,
                               color: const Color(0xFF1A1A24),
                               alignment: Alignment.center,
-                              child: const Icon(
-                                LucideIcons.video,
+                              child: Icon(
+                                _secilenler[i].belge
+                                    ? LucideIcons.fileText
+                                    : LucideIcons.video,
                                 color: Colors.white70,
                                 size: 22,
                               ),
@@ -833,6 +892,19 @@ class _KanalEkraniState extends ConsumerState<KanalEkrani> {
                 tooltip: 'Video',
                 onPressed: _paylasiliyor ? null : _videoSec,
               ),
+              // ⚠️⚠️⚠️ TURU 180z — **BELGE** dugmesi (kullanici emri:
+              //	*"kanalda sadece gorsel degil video BELGE vs de
+              //	paylasiliyor"*).
+              // ⚠️ Sunucu bunu ZATEN destekliyordu: `media_assets.kind`
+              //	CHECK'i `document` iceriyor (015/037), `sniff.go` PDF ·
+              //	DOC · DOCX · XLS · XLSX · TXT kabul ediyor, tavan 32 MB
+              //	ve kanal gonderisi baglamasi `kind`e HIC BAKMIYOR
+              //	(yalniz sahiplik). Eksik olan TEK sey istemci yoluydu.
+              IconButton(
+                icon: const Icon(LucideIcons.fileText),
+                tooltip: 'Belge',
+                onPressed: _paylasiliyor ? null : _belgeSec,
+              ),
               Expanded(
                 child: TextField(
                   controller: _metin,
@@ -864,8 +936,22 @@ class _KanalEkraniState extends ConsumerState<KanalEkrani> {
 /// ⚠️ TURU 76b: kanal artik VIDEO da kabul ediyor; duz `File` listesi turu
 ///    tasiyamadigi icin bu kucuk sarmalayici gerekti (yukleme yolu farkli:
 ///    fotograf sikistirilir + EXIF temizlenir, video HAM gider).
+///
+/// ⚠️⚠️⚠️ TURU 180z — TUR ARTIK **`bool video` DEGIL, `String tur`**
+///	(kullanici emri: *"kanalda sadece gorsel degil video BELGE vs de
+///	paylasiliyor"*). Uc deger: `image` · `video` · `document`.
+///	`bool` UCUNCU degeri YAPISAL OLARAK tasiyamiyordu; belge dali ancak
+///	tip degistirilerek acilabilirdi.
+/// ⚠️ Degerler SUNUCUNUN `media_assets.kind` kumesinden birebir alinmistir
+///	(`image|video|audio|document|avatar|kapak`) — istemcide AYRI bir ad
+///	uydurmak (`belge`, `dosya`) yukleme zincirinde sessiz bir 415 uretirdi.
 class _KanalMedya {
-  _KanalMedya(this.dosya, this.video);
+  _KanalMedya(this.dosya, this.tur);
   final File dosya;
-  final bool video;
+
+  /// `image` | `video` | `document`
+  final String tur;
+
+  bool get video => tur == 'video';
+  bool get belge => tur == 'document';
 }

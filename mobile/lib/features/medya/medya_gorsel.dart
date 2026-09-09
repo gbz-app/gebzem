@@ -49,6 +49,7 @@ class MedyaGorsel extends ConsumerStatefulWidget {
     this.width,
     this.height,
     this.radius = 0,
+    this.yalnizThumb = false,
   });
 
   final String mediaId;
@@ -60,6 +61,16 @@ class MedyaGorsel extends ConsumerStatefulWidget {
   final double? width;
   final double? height;
   final double radius;
+
+  /// ⚠️⚠️⚠️ TURU 180z — **POSTER YOKSA HAM DOSYAYA DUSME**.
+  ///
+  /// Varsayilan davranis `thumb_url ?? url`: kucuk resim yoksa TAM DOSYAYA
+  /// duser. Bir VIDEO icin bu, `CachedNetworkImage`e bir **video/mp4**
+  /// adresi vermek demektir -> **KIRIK GORSEL** (turu 83b sinifi).
+  /// Bu bayrak acikken poster yoksa hata dalina dusulur ve CAGIRAN kendi
+  /// yer tutucusunu (oynat rozetli koyu kutu) cizmeye devam eder.
+  /// ⚠️ YAPMA: video cizen bir yerde bu bayragi kapatma.
+  final bool yalnizThumb;
 
   @override
   ConsumerState<MedyaGorsel> createState() => _MedyaGorselState();
@@ -124,8 +135,11 @@ class _MedyaGorselState extends ConsumerState<MedyaGorsel> {
     }
     try {
       final d = await ref.read(medyaServisiProvider).adres(widget.mediaId);
-      final u = (widget.kucuk ? d['thumb_url'] : d['url']) as String? ??
-          d['url'] as String?;
+      final t = d['thumb_url'] as String?;
+      // ⚠️ `yalnizThumb`: poster yoksa HAM DOSYAYA DUSME (bkz. alan serhi).
+      final u = widget.kucuk
+          ? (widget.yalnizThumb ? t : (t ?? d['url'] as String?))
+          : d['url'] as String?;
       if (u == null) throw Exception('adres yok');
       final sn = (d['expires_sec'] as num?)?.toInt() ?? 600;
       _adresOnbellek[anahtar] =

@@ -735,6 +735,9 @@ class _ChatTile extends ConsumerWidget {
         return LucideIcons.mic;
       case 'location':
         return LucideIcons.mapPin;
+      // ⚠️ TURU 180z — BELGE (sunucu tipi ZATEN kabul ediyordu).
+      case 'document':
+        return LucideIcons.fileText;
       // ⚠️ TURU 81 — yeni tiplerin ikonlari (metinle BIRLIKTE eklenir; ikon
       //    olmadan satirlar birbirine benzer ve tur ayirt edilemez).
       case 'contact':
@@ -764,6 +767,8 @@ class _ChatTile extends ConsumerWidget {
         return 'Sesli mesaj';
       case 'location':
         return 'Konum';
+      case 'document':
+        return 'Belge';
       case 'system':
         // TURU 59 — ARAMA KAYDI: eskiden HAM icerik basiliyordu, kullanici sohbet
         // listesinde "call:ended:audio:75" goruyordu. Ayristirma `AramaKaydi`de TEK

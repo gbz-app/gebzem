@@ -82,6 +82,9 @@ dependencies:
   # PAYLASILAN `videoCapturer` tutuyor (turu 50'de iki capture oturumu birbirini
   # oldurmustu). Sistem picker'i AYRI SUREC oldugu icin bu catismayi yasamaz.
   image_picker: ^1.2.3
+  # Belge secici (PDF/Word/Excel/txt). Sunucu `kind: document` tavani 32 MB
+  # ve MIME beyaz listesi (media/sniff.go) TAM BU turleri kabul ediyor.
+  file_selector: ^1.1.0
   # Sikistirma + EXIF temizleme (platform API, saf Dart 'image' paketinden ~10x hizli)
   flutter_image_compress: ^2.5.1
   # Gecici dosya dizinleri (sikistirma cikti yolu, indirme onbellegi)

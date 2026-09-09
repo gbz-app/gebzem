@@ -74,6 +74,37 @@ class MainActivity : FlutterActivity() {
                 else -> result.notImplemented()
             }
         }
+        // ── TURU 180z: VIDEO POSTERI KANALI ──
+        // ⚠️ AYRI KANAL (`gebzem/pip`e case eklemek yerine): turu 155'in
+        //    dersi — kanal adi ile Dart cagrisi uyusmazsa hata DERLEME
+        //    ZAMANI YAKALANMAZ, `MissingPluginException` olarak calisma
+        //    aninda cikar ve Dart tarafinda yutulur.
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger, "gebzem/poster"
+        ).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "uret" -> {
+                    val video = call.argument<String>("video")
+                    val hedef = call.argument<String>("hedef")
+                    val enBoy = call.argument<Int>("enBoy") ?: 640
+                    val kalite = call.argument<Int>("kalite") ?: 70
+                    if (video == null || hedef == null) {
+                        result.success(null)
+                    } else {
+                        // ⚠️ ARKA PLAN IS PARCACIGI: kare cikarma AGIR bir
+                        //    is; ana is parcaciginda kosarsa arayuz DONAR
+                        //    (ANR). Sonuc ANA is parcaciginda dondurulur —
+                        //    `MethodChannel.Result` baska parcaciktan
+                        //    cagrilirsa PATLAR.
+                        Thread {
+                            val yol = VideoPoster.uret(video, hedef, enBoy, kalite)
+                            runOnUiThread { result.success(yol) }
+                        }.start()
+                    }
+                }
+                else -> result.notImplemented()
+            }
+        }
         kanal?.setMethodCallHandler { call, result ->
             when (call.method) {
                 "setPipIzinli" -> {
