@@ -70,7 +70,7 @@ class _KanallarSekmesiState extends ConsumerState<KanallarSekmesi>
       if (!mounted) return;
       setState(() {
         _yukleniyor = false;
-        _hata = 'Topluluklar yüklenemedi';
+        _hata = 'Kanallar yüklenemedi';
       });
     }
   }
@@ -106,7 +106,7 @@ class _KanallarSekmesiState extends ConsumerState<KanallarSekmesi>
       if (!mounted) return;
       await Navigator.of(context).push(
         MaterialPageRoute(
-          builder: (_) => KanalEkrani(kanalId: id, onIsim: 'Topluluk'),
+          builder: (_) => KanalEkrani(kanalId: id, onIsim: 'Kanal'),
         ),
       );
       if (mounted) unawaited(_yukle());
@@ -151,7 +151,7 @@ class _KanallarSekmesiState extends ConsumerState<KanallarSekmesi>
         heroTag: 'fabKanalAc', // TURU 76: bkz. akis_ekrani hero serhi
         onPressed: _olustur,
         icon: const Icon(LucideIcons.plus),
-        label: const Text('Topluluk aç'),
+        label: const Text('Kanal aç'),
       ),
       body: YenileSarmali(
         onRefresh: _yukle,
@@ -188,7 +188,7 @@ class _KanallarSekmesiState extends ConsumerState<KanallarSekmesi>
                 padding: const EdgeInsets.only(bottom: 90),
                 children: [
                   if (_benim.isNotEmpty) ...[
-                    _baslik('Topluluklarım'),
+                    _baslik('Kanallarım'),
                     ..._benim.map(_benimSatir),
                     const Divider(height: 24),
                   ],
@@ -200,7 +200,7 @@ class _KanallarSekmesiState extends ConsumerState<KanallarSekmesi>
                       onChanged: _aramaDegisti,
                       decoration: const InputDecoration(
                         prefixIcon: Icon(LucideIcons.search, size: 18),
-                        hintText: 'Topluluk ara',
+                        hintText: 'Kanal ara',
                         isDense: true,
                         border: OutlineInputBorder(),
                       ),
@@ -211,7 +211,7 @@ class _KanallarSekmesiState extends ConsumerState<KanallarSekmesi>
                       padding: EdgeInsets.symmetric(vertical: 40),
                       child: Center(
                         child: Text(
-                          'Topluluk bulunamadı',
+                          'Kanal bulunamadı',
                           style: TextStyle(color: Colors.grey),
                         ),
                       ),
@@ -329,7 +329,7 @@ class KanallarSayfasi extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Topluluklar')),
+    appBar: AppBar(title: const Text('Kanallar')),
     // ⚠️ Ic Scaffold KALIR: FAB'i o taşıyor. Ic ice Scaffold burada zararsiz —
     //    dis olan yalnizca AppBar sagliyor.
     body: const KanallarSekmesi(),

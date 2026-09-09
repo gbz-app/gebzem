@@ -15,6 +15,7 @@ import '../medya/medya_servisi.dart';
 import '../medya/tam_ekran_gorsel.dart';
 import '../sosyal/medya_video.dart';
 import '../sosyal/gonderi_karti.dart' show gonderiZamani, sayiBicimle;
+import 'kanal_profil.dart';
 import 'kanal_servisi.dart';
 
 /// ⚠️⚠️ TURU 75 — KANAL EKRANI (gonderi akisi + yetkili icin paylasim kutusu).
@@ -115,8 +116,8 @@ class _KanalEkraniState extends ConsumerState<KanalEkrani> {
       setState(() {
         _yukleniyor = false;
         _hata = e.toString().contains('404')
-            ? 'Topluluk bulunamadı'
-            : 'Topluluk açılamadı';
+            ? 'Kanal bulunamadı'
+            : 'Kanal açılamadı';
       });
     }
   }
@@ -357,19 +358,35 @@ class _KanalEkraniState extends ConsumerState<KanalEkrani> {
     final k = _k;
     return Scaffold(
       appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              k?.ad.isNotEmpty == true ? k!.ad : widget.onIsim,
-              style: const TextStyle(fontSize: 16),
-            ),
-            if (k != null)
-              Text(
-                '${sayiBicimle(k.aboneSayisi)} abone',
-                style: const TextStyle(fontSize: 11),
+        // ⚠️⚠️ TURU 180z — BASLIK TIKLANABILIR (kullanici emri: *"kanalin
+        //	ismine tikladigimda acilan profil ayni kullanici profili gibi
+        //	olacak"*) -> `KanalProfilEkrani`.
+        // ⚠️ `HitTestBehavior.opaque`: `Column`un bos yanlari da dokunusu
+        //	almali, yoksa yalniz harflerin uzeri tiklanabilir olurdu.
+        title: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => KanalProfilEkrani(
+                kanalId: widget.kanalId,
+                onIsim: k?.ad ?? widget.onIsim,
               ),
-          ],
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                k?.ad.isNotEmpty == true ? k!.ad : widget.onIsim,
+                style: const TextStyle(fontSize: 16),
+              ),
+              if (k != null)
+                Text(
+                  '${sayiBicimle(k.aboneSayisi)} abone · bilgi için dokun',
+                  style: const TextStyle(fontSize: 11),
+                ),
+            ],
+          ),
         ),
         actions: [
           if (k != null && !k.yetkiliMiyim)
@@ -390,7 +407,7 @@ class _KanalEkraniState extends ConsumerState<KanalEkrani> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(_hata ?? 'Topluluk açılamadı'),
+                  Text(_hata ?? 'Kanal açılamadı'),
                   const SizedBox(height: 10),
                   OutlinedButton(
                     onPressed: _yukle,
@@ -824,7 +841,7 @@ class _KanalEkraniState extends ConsumerState<KanalEkrani> {
                   maxLines: 5,
                   maxLength: 4000,
                   decoration: const InputDecoration(
-                    hintText: 'Topluluğa gönderi yaz...',
+                    hintText: 'Kanala gönderi yaz...',
                     counterText: '',
                     isDense: true,
                     border: OutlineInputBorder(),

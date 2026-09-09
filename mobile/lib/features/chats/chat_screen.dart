@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/api.dart';
@@ -19,6 +20,7 @@ import 'anket.dart';
 import 'arama_kaydi.dart';
 import 'chats_provider.dart';
 import 'grup_bilgi.dart';
+import 'kisi_bilgi.dart';
 import 'iban_paneli.dart';
 import 'models.dart';
 import 'moderasyon_sheet.dart'; // turu 74: uzun basma menusu + engelle/sikayet
@@ -26,6 +28,7 @@ import 'user_search_screen.dart';
 import '../etkinlik/etkinlik_ekranlari.dart';
 import '../etkinlik/etkinlik_servisi.dart';
 import '../medya/atac_paneli.dart';
+import '../medya/medya_kapisi.dart';
 import '../medya/konum_servisi.dart';
 import '../sosyal/profil_sayfasi.dart';
 import '../medya/medya_gorsel.dart';
@@ -93,6 +96,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   ///    Balonlarda gonderen adi YALNIZ grupta cizilir.
   bool get _grupMu => widget.isGroup || widget.peerId == null;
   bool _yukleniyor = false;
+  /// TURU 180z — "+" seridi acik mi (giris cubugunun USTUNDE).
+  bool _atacAcik = false;
   double _ilerleme = 0;
 
   /// TURU 74: ses notu kaydedicisine erisim (kayit seridi + basili tut alani).
@@ -161,6 +166,105 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   ///     tekrar basıyor. Sunucu aynı referansla ikinci mesaj AÇMAZ.
   /// ⚠️ Hata YUTULMAZ: kullanıcıya söylenir. "Gönderdim sandım ama gitmemiş" bu
   ///     projede defalarca yaşandı.
+  /// ⚠️⚠️⚠️ TURU 180z — "+" ARTIK ALT SAYFA ACMIYOR.
+  ///
+  ///	Kullanici emri: *"artiya bastiginda hemen ustunde popup acilsin,
+  ///	INPUTUN USTUNDE; orada resim, gorsel, etkinlik vs hepsi olsun,
+  ///	SCROLL seklinde"*. Panel artik giris cubugunun HEMEN USTUNDE bir
+  ///	serit (`_AtacSerit`) ve YATAY kayiyor.
+  /// ⚠️ Eski `atacPaneliAc` sheet'i SILINMEDI ama BURADAN CAGRILMIYOR;
+  ///	eylemler ayni `_atacEylem` govdesinden gecer (tek kaynak).
+  void _atacDegistir() {
+    FocusScope.of(context).unfocus();
+    setState(() => _atacAcik = !_atacAcik);
+  }
+
+  /// ⚠️ Dosyasiz eylemler (konum · kisi · IBAN · etkinlik · anket) ve dosyali
+  ///	secimler AYNI yerden yurutulur.
+  Future<void> _atacEylem(String eylem) async {
+    setState(() => _atacAcik = false);
+    switch (eylem) {
+      case 'foto':
+        return _galeriden(video: false);
+      case 'video':
+        return _galeriden(video: true);
+      case 'kamera':
+        return _kameradan();
+      case 'konum':
+        return _konumGonder();
+      case 'kisi':
+        return _kisiGonder();
+      case 'iban':
+        return _ibanGonder();
+      case 'etkinlik':
+        return _etkinlikGonder();
+      case 'anket':
+        return _anketGonder();
+    }
+  }
+
+  /// ⚠️ SOLDAKI MOR DAIRE ve serit'teki "Fotoğraf"/"Video" AYNI yoldan gecer.
+  Future<void> _galeriden({required bool video}) async {
+    if (!MedyaKapisi.izinVer(ref)) {
+      rootMessengerKey.currentState?.showSnackBar(
+        SnackBar(
+          content: Text(
+            MedyaKapisi.engelSebebi(ref) ?? 'Şu anda medya seçilemez',
+          ),
+        ),
+      );
+      return;
+    }
+    if (video) {
+      // ⚠️ Sure + boyut kapisi `MedyaSecici.video` icinde (tek kaynak).
+      final dosya = await MedyaSecici.video(
+        sureTavani: const Duration(minutes: 5),
+        uyar: (m) => rootMessengerKey.currentState?.showSnackBar(
+          SnackBar(content: Text(m)),
+        ),
+        ref: ref,
+      );
+      if (dosya == null || !mounted) return;
+      return _medyaGonder(AtacSecimi([dosya], 'video'));
+    }
+    final secim = await MedyaSecici.coklu(10);
+    if (secim.isEmpty || !mounted) return;
+    return _medyaGonder(
+      AtacSecimi(secim.map((x) => File(x.path)).toList(), 'image'),
+    );
+  }
+
+  Future<void> _kameradan() async {
+    if (!MedyaKapisi.izinVer(ref)) {
+      rootMessengerKey.currentState?.showSnackBar(
+        SnackBar(
+          content: Text(
+            MedyaKapisi.engelSebebi(ref) ?? 'Görüşme sürerken kullanılamaz',
+          ),
+        ),
+      );
+      return;
+    }
+    XFile? x;
+    try {
+      MedyaKapisi.pickerAcik = true;
+      x = await ImagePicker().pickImage(
+        source: ImageSource.camera,
+        // ⚠️ Cekim aninda dusur: 4K fotografi bellege alip sonra sikistirmak
+        //    dusuk bellekli cihazlarda uygulamayi olduruyor.
+        maxWidth: 2400,
+        maxHeight: 2400,
+        imageQuality: 90,
+      );
+    } catch (_) {
+    } finally {
+      MedyaKapisi.pickerAcik = false;
+    }
+    if (x == null || !mounted) return;
+    return _medyaGonder(AtacSecimi([File(x.path)], 'image'));
+  }
+
+  // ignore: unused_element
   Future<void> _atacAc() async {
     final secim = await atacPaneliAc(context, ref);
     if (secim == null || !mounted) return;
@@ -187,6 +291,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         return;
     }
 
+    await _medyaGonder(secim);
+  }
+
+  /// ⚠️ TURU 180z — YUKLEME ZINCIRI TEK KAYNAK. Uc giris kullaniyor:
+  ///	soldaki mor daire · "+" seridi · eski atac sheet'i. Ayri kopyalar
+  ///	KACINILMAZ olarak drift ederdi (bu projede ALTI kez yasandi).
+  Future<void> _medyaGonder(AtacSecimi secim) async {
     if (secim.dosyalar.isEmpty) return;
 
     final altyazi = _input.text.trim();
@@ -600,6 +711,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         //    eklemedik — sag ustte zaten iki arama ikonu + menu var.
         title: GestureDetector(
           behavior: HitTestBehavior.opaque,
+          // ⚠️⚠️ TURU 180z — 1:1'DE DE BASLIK TIKLANABILIR (kullanici emri:
+          //	*"direk profile tikladigimiz yerde olsun"*). Eskiden YALNIZ
+          //	grupta tiklanabiliyordu; ⋮ kalkinca engelle/sikayet ULASILAMAZ
+          //	kalirdi.
           onTap: _grupMu
               ? () => Navigator.of(context).push(
                   MaterialPageRoute(
@@ -610,7 +725,20 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     ),
                   ),
                 )
-              : null,
+              : (widget.peerId == null
+                    ? null
+                    : () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => KisiBilgiEkrani(
+                            chatId: widget.chatId,
+                            peerId: widget.peerId!,
+                            baslik: widget.title,
+                            avatarMediaId: widget.avatarMediaId,
+                            sesliAra: () => _startCall(video: false),
+                            goruntuluAra: () => _startCall(video: true),
+                          ),
+                        ),
+                      )),
           child: Row(
             children: [
               Avatar(ad: widget.title, mediaId: widget.avatarMediaId, cap: 38),
@@ -679,10 +807,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           final soluk = Theme.of(context).disabledColor;
           final scheme = Theme.of(context).colorScheme;
           return [
+            // ⚠️⚠️ TURU 180z — IKI IKON **OPTIK OLARAK ESITLENDI** (kullanici:
+            //	*"video arama ikonu yaninda kucuk kaliyor, onu da buyut
+            //	esitle"*).
+            //	`size` ikonun CIZILEN murekkebini degil SINIR KUTUSUNU olcer;
+            //	Lucide 24'luk izgarada `phone` govdeyi kosegen doldurur,
+            //	`video` ise yatay bir dikdortgen ve ayni `size`da GORSEL
+            //	OLARAK KUCUK kalir (turu 139'da ayni sinif olculmustu).
+            // ⚠️ Yerlesim kutusu DEGISMEZ (`IconButton` 48 dp): satir kaymaz.
             IconButton(
               tooltip: 'Görüntülü ara',
               color: videoAktif ? scheme.primary : (mesgul ? soluk : null),
-              icon: const Icon(LucideIcons.video),
+              icon: const Icon(LucideIcons.video, size: 26),
               onPressed: widget.peerId == null
                   ? null
                   : () => _startCall(video: true),
@@ -690,63 +826,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             IconButton(
               tooltip: 'Sesli ara',
               color: sesAktif ? scheme.primary : (mesgul ? soluk : null),
-              icon: const Icon(LucideIcons.phone),
+              icon: const Icon(LucideIcons.phone, size: 22),
               onPressed: widget.peerId == null
                   ? null
                   : () => _startCall(video: false),
             ),
-            // ⚠️ TURU 74 — MODERASYON MENUSU. App Store Review Guideline 1.2 (UGC)
-            //    engelleme ve sikayeti kullanicinin ULASABILECEGI bir yerde sart kosuyor.
-            if (widget.peerId != null)
-              PopupMenuButton<String>(
-                icon: const Icon(LucideIcons.ellipsisVertical),
-                onSelected: (secim) async {
-                  if (secim == 'engelle') {
-                    final degisti = await engelleOnayiAc(
-                      context,
-                      ref,
-                      kullaniciId: widget.peerId!,
-                      ad: widget.title,
-                      suAnEngelli: _engelli,
-                    );
-                    if (degisti && mounted) {
-                      setState(() => _engelli = !_engelli);
-                    }
-                  } else if (secim == 'sikayet') {
-                    await sikayetSheetAc(
-                      context,
-                      ref,
-                      hedefTur: 'kullanici',
-                      hedefId: widget.peerId!,
-                    );
-                  }
-                },
-                itemBuilder: (_) => [
-                  PopupMenuItem(
-                    value: 'engelle',
-                    child: Row(
-                      children: [
-                        Icon(
-                          _engelli ? LucideIcons.userCheck : LucideIcons.ban,
-                          size: 18,
-                        ),
-                        const SizedBox(width: 10),
-                        Text(_engelli ? 'Engeli kaldır' : 'Engelle'),
-                      ],
-                    ),
-                  ),
-                  const PopupMenuItem(
-                    value: 'sikayet',
-                    child: Row(
-                      children: [
-                        Icon(LucideIcons.flag, size: 18),
-                        SizedBox(width: 10),
-                        Text('Şikâyet et'),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
+            // ⚠️⚠️⚠️ TURU 180z — **UC NOKTA (⋮) KALDIRILDI** (kullanici emri:
+            //	*"mesajdaki sagdaki 3 noktayi sil, direk profile tikladigimiz
+            //	yerde olsun"*). Engelle/Sikayet ULASILAMAZ KALMADI: ikisi de
+            //	basliga dokununca acilan `KisiBilgiEkrani`nda.
+            // ⚠️ App Store Review Guideline 1.2 (UGC) engelleme ve sikayeti
+            //	kullanicinin ULASABILECEGI bir yerde sart kosuyor — o sart
+            //	Kisi bilgisi ekraniyla KARSILANIYOR.
           ];
         }(),
       ),
@@ -823,6 +914,27 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               value: _ilerleme > 0 ? _ilerleme : null,
               minHeight: 3,
             ),
+          // ⚠️⚠️⚠️ TURU 180z — ATAC SERIDI **INPUTUN USTUNDE** (kullanici emri:
+          //	*"artiya bastiginda hemen ustunde popup acilsin, inputun
+          //	ustunde; resim, gorsel, etkinlik vs hepsi orada olsun, SCROLL
+          //	seklinde"*).
+          // ⚠️ `showModalBottomSheet` DEGIL: sheet ekranin DIBINDEN acilir ve
+          //	giris cubugunu ORTER; kullanici acikca "inputun ustunde" dedi.
+          // ⚠️ `AnimatedSize` + `ClipRect`: acilis/kapanis yerinden ziplamadan
+          //	olur. `ClipRect` ZORUNLU — `AnimatedSize` kucultme sirasinda
+          //	cocugu KIRPMAZ ve icerik giris cubugunun uzerine biner
+          //	(turu 180g dersi).
+          if (_medyaAcik)
+            ClipRect(
+              child: AnimatedSize(
+                duration: const Duration(milliseconds: 180),
+                curve: Curves.easeOutCubic,
+                alignment: Alignment.bottomCenter,
+                child: _atacAcik
+                    ? _AtacSerit(onSec: _atacEylem)
+                    : const SizedBox(width: double.infinity, height: 0),
+              ),
+            ),
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
@@ -844,21 +956,30 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       ),
                     )
                   else ...[
-                    // ⚠️ TURU 74 — ATAÇ. Medya sunucuda kapalıysa (R2 env yok) düğme
-                    //    HİÇ ÇİZİLMEZ: `GET /users/me` yanıtındaki `media_acik`.
-                    //    Görünen ama çalışmayan düğme, turu 66b dersinin tekrarı olurdu.
-                    // ⚠️⚠️ TURU 115b — GIRIS CUBUGU MODERNLESTIRILDI (kullanici
-                    //    emri: *"chat bolumunu daha profesyonel modern bir
-                    //    gorunume getir"*).
-                    //    ESKI: atac hapin DISINDA ayri bir `IconButton`, hap
-                    //    kendi basina, gonder bir `FloatingActionButton`. Uc ayri
-                    //    yukseklik ve uc ayri hizalama vardi.
-                    //    YENI: atac hapin ICINDE (WhatsApp/Telegram deseni),
-                    //    gonder TEK dolu daire.
-                    // ⚠️ `prefixIcon` KULLANILMADI: cok satirli alanda prefix
-                    //    DIKEY ORTALANIR, yani 5 satirlik mesajda atac ortada
-                    //    asili kalirdi. `Row` + `crossAxisAlignment.end` ile
-                    //    ikon DAIMA alt satirda durur.
+                    // ⚠️⚠️⚠️ TURU 180z — GIRIS CUBUGU YENIDEN KURULDU
+                    //	(kullanici emri: *"solda fotograf ikonu, arkada bizim
+                    //	MOR DAIRE olsun; alt input TAM GENISLIK; sagda ise
+                    //	mikrofon ve +"*).
+                    //	ESKI: atac (klips) hapin ICINDEYDI, sagda tek dugme.
+                    //	YENI: [mor daire fotograf] [tam genislik input]
+                    //	      [mikrofon/gonder] [+]
+                    // ⚠️ Medya sunucuda kapaliysa (R2 env yok) medya dugmeleri
+                    //	HIC CIZILMEZ (`media_acik`) — gorunen ama calismayan
+                    //	dugme turu 66b dersinin tekrari olurdu.
+                    if (_medyaAcik) ...[
+                      _YuvarlakDugme(
+                        ikon: LucideIcons.image,
+                        ipucu: 'Fotoğraf',
+                        // ⚠️ MARKA MORU (`morGradient`) — alt menudeki FAB ve
+                        //	hikaye paylas dairesiyle AYNI kaynak; sabit hex
+                        //	yazilsaydi biri degisince oteki geride kalirdi.
+                        gradient: morGradient,
+                        onTap: _yukleniyor
+                            ? null
+                            : () => _galeriden(video: false),
+                      ),
+                      const SizedBox(width: 6),
+                    ],
                     Expanded(
                       child: Container(
                         decoration: BoxDecoration(
@@ -867,58 +988,23 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                           ).colorScheme.onSurface.withValues(alpha: 0.06),
                           borderRadius: BorderRadius.circular(24),
                         ),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            // ⚠️ TURU 74 — ATAC. Medya sunucuda kapaliysa (R2 env
-                            //    yok) dugme HIC CIZILMEZ: `GET /users/me`
-                            //    yanitindaki `media_acik`. Gorunen ama
-                            //    calismayan dugme turu 66b dersinin tekrari olurdu.
-                            if (_medyaAcik)
-                              IconButton(
-                                tooltip: 'Ekle',
-                                // ⚠️ TURU 115c — visualDensity.compact hedefi
-                                //    **40x40 dp**ye dusuruyordu (olculdu).
-                                //    Klavye acikken ekranin EN ALTINDAKI
-                                //    dugme; Apple 44, Material 48 der.
-                                constraints: const BoxConstraints(
-                                  minWidth: 44,
-                                  minHeight: 44,
-                                ),
-                                padding: EdgeInsets.zero,
-                                icon: const Icon(
-                                  LucideIcons.paperclip,
-                                  size: 20,
-                                ),
-                                onPressed: _yukleniyor ? null : _atacAc,
-                              ),
-                            Expanded(
-                              child: TextField(
-                                controller: _input,
-                                onChanged: _onChanged,
-                                onSubmitted: (_) => _send(),
-                                textCapitalization:
-                                    TextCapitalization.sentences,
-                                minLines: 1,
-                                maxLines: 5,
-                                decoration: InputDecoration(
-                                  hintText: 'Mesaj yazın',
-                                  border: InputBorder.none,
-                                  isDense: true,
-                                  contentPadding: EdgeInsets.fromLTRB(
-                                    _medyaAcik ? 0 : 16,
-                                    12,
-                                    12,
-                                    12,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
+                        child: TextField(
+                          controller: _input,
+                          onChanged: _onChanged,
+                          onSubmitted: (_) => _send(),
+                          textCapitalization: TextCapitalization.sentences,
+                          minLines: 1,
+                          maxLines: 5,
+                          decoration: const InputDecoration(
+                            hintText: 'Mesaj yazın',
+                            border: InputBorder.none,
+                            isDense: true,
+                            contentPadding: EdgeInsets.fromLTRB(16, 12, 16, 12),
+                          ),
                         ),
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 6),
                     // ⚠️ TURU 74 — metin BOŞKEN mikrofon, DOLUYKEN gönder (WhatsApp).
                     //    Ses notu kaydı arama/oda/yayın sırasında ENGELLİ; kapı
                     //    `SesNotuKaydedici._basla` içinde. Ölçülmüş gerekçe:
@@ -952,6 +1038,24 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                           ),
                         ),
                       ),
+                    // ⚠️ TURU 180z — "+": panel INPUTUN USTUNDE acilir
+                    //	(`_AtacSerit`), alt sayfa DEGIL.
+                    if (_medyaAcik)
+                      IconButton(
+                        tooltip: 'Ekle',
+                        // ⚠️ Dokunma hedefi 44 dp: klavye acikken ekranin EN
+                        //	ALTINDAKI dugme (turu 115c olcumu).
+                        constraints: const BoxConstraints(
+                          minWidth: 44,
+                          minHeight: 44,
+                        ),
+                        padding: EdgeInsets.zero,
+                        icon: Icon(
+                          _atacAcik ? LucideIcons.x : LucideIcons.plus,
+                          size: 22,
+                        ),
+                        onPressed: _yukleniyor ? null : _atacDegistir,
+                      ),
                   ],
                 ],
               ),
@@ -974,25 +1078,27 @@ class _DateChip extends StatelessWidget {
 
   final DateTime date;
 
+  /// ⚠️⚠️ TURU 180z — KULLANICI EMRI: *"tarihler buton icinde degil, BUGÜN
+  ///	DÜN vs degil, TAM GUN ya da saat olsun"*.
+  ///	  · `Chip` (buton gorunumu) KALKTI -> duz, ortali, soluk metin.
+  ///	  · "Bugün"/"Dün" KALKTI -> **tam tarih** (9 Eylül 2026).
+  /// ⚠️ Gun adi da yazilir ("Salı"): tam tarihte hangi gun oldugunu okumak
+  ///	kullanicinin zaten yaptigi zihinsel isi ustlenir, "Bugün/Dün"un
+  ///	tasidigi bilgi de KAYBOLMAZ.
   @override
   Widget build(BuildContext context) {
     final local = date.toLocal();
-    final now = DateTime.now();
-    String label;
-    if (local.year == now.year &&
-        local.month == now.month &&
-        local.day == now.day) {
-      label = 'Bugün';
-    } else if (now.difference(local).inDays == 1) {
-      label = 'Dün';
-    } else {
-      label = DateFormat('d MMMM yyyy', 'tr').format(local);
-    }
+    final metin = DateFormat('d MMMM yyyy, EEEE', 'tr').format(local);
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Chip(
-        label: Text(label, style: const TextStyle(fontSize: 12)),
-        visualDensity: VisualDensity.compact,
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Text(
+        metin,
+        textAlign: TextAlign.center,
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w500,
+          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
+        ),
       ),
     );
   }
@@ -1337,29 +1443,53 @@ class _Bubble extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final time = DateFormat.Hm().format(message.createdAt.toLocal());
 
+    // ⚠️⚠️ TURU 180z — **RESIM/VIDEODA BALON ZEMINI YOK** (kullanici emri:
+    //	*"resim ve video arka plan rengi olmasin"*). Medya KENDI cercevesini
+    //	tasiyor; arkasindaki mor/gri hap gereksiz bir cerceve uretiyordu.
+    // ⚠️ YALNIZ altyazisiz medyada: altyazi varsa metnin okunabilmesi icin
+    //	zemin GEREKIR (siyah sayfa uzerinde ciplak metin kayardi).
+    // ⚠️ Saat + tik satiri KALIR (yalniz zemin kalkti) — gonderildi/okundu
+    //	bilgisi medyada da gorunmeli.
+    final altyaziBos =
+        message.content.trim().isEmpty ||
+        message.content.trim() == kTekKullanimlikIsaret;
+    final sadeMedya =
+        altyaziBos &&
+        (message.type == 'image' || message.type == 'video') &&
+        (message.mediaId ?? '').isNotEmpty;
+
     return Align(
       alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
         margin: const EdgeInsets.symmetric(vertical: 2),
-        padding: const EdgeInsets.fromLTRB(12, 8, 8, 6),
+        padding: sadeMedya
+            ? const EdgeInsets.only(bottom: 2)
+            : const EdgeInsets.fromLTRB(12, 8, 8, 6),
         constraints: BoxConstraints(
           maxWidth: MediaQuery.of(context).size.width * 0.78,
         ),
         decoration: BoxDecoration(
-          color: mine ? scheme.bubbleMine : scheme.bubbleOther,
+          color: sadeMedya
+              ? Colors.transparent
+              : (mine ? scheme.bubbleMine : scheme.bubbleOther),
           borderRadius: BorderRadius.only(
             topLeft: const Radius.circular(12),
             topRight: const Radius.circular(12),
             bottomLeft: Radius.circular(mine ? 12 : 2),
             bottomRight: Radius.circular(mine ? 2 : 12),
           ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.06),
-              blurRadius: 2,
-              offset: const Offset(0, 1),
-            ),
-          ],
+          // ⚠️ Zemin yokken GOLGE de olmaz: seffaf bir kutunun altinda
+          //	golge, medyanin cevresinde acikligi belli olmayan gri bir
+          //	hale birakirdi.
+          boxShadow: sadeMedya
+              ? null
+              : [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.06),
+                    blurRadius: 2,
+                    offset: const Offset(0, 1),
+                  ),
+                ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.end,
@@ -1855,6 +1985,139 @@ class _TekKullanimlikBalonState extends State<_TekKullanimlikBalon> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// ⚠️ TURU 180z — GIRIS CUBUGUNDAKI YUVARLAK DUGME (soldaki mor daire).
+///
+/// ⚠️ Renk `morGradient` TEK KAYNAGINDAN: alt menudeki FAB ve hikaye paylas
+///	dairesi de onu okuyor; sabit hex yazilsaydi biri degisince oteki
+///	geride kalirdi (turu 119b'de tam bu yasandi).
+/// ⚠️ Olcu 44 dp: klavye acikken ekranin EN ALTINDAKI dugme (turu 115c).
+class _YuvarlakDugme extends StatelessWidget {
+  const _YuvarlakDugme({
+    required this.ikon,
+    required this.ipucu,
+    required this.onTap,
+    this.gradient,
+  });
+
+  final IconData ikon;
+  final String ipucu;
+  final VoidCallback? onTap;
+  final Gradient? gradient;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: ipucu,
+      child: Opacity(
+        opacity: onTap == null ? 0.5 : 1,
+        child: DecoratedBox(
+          decoration: BoxDecoration(shape: BoxShape.circle, gradient: gradient),
+          child: Material(
+            color: Colors.transparent,
+            shape: const CircleBorder(),
+            child: InkWell(
+              customBorder: const CircleBorder(),
+              onTap: onTap,
+              child: SizedBox(
+                width: 44,
+                height: 44,
+                child: Icon(ikon, size: 21, color: Colors.white),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// ⚠️⚠️⚠️ TURU 180z — "+" SERIDI (giris cubugunun HEMEN USTUNDE).
+///
+/// Kullanici emri: *"orada resim, gorsel, etkinlik vs hepsi olsun, SCROLL
+/// seklinde"*. YATAY kaydirilir; oge sayisi arttikca ekran YUKSEKLIGI
+/// DEGISMEZ (alt sayfa tavani sorunu yapisal olarak biter — turu 180x'te
+/// atac paneli tam bu yuzden 199 px tasmisti).
+///
+/// ⚠️ **GIF YOK ve BILEREK YOK**: sunucu `image/gif`i beyaz listeden ACIKCA
+///	disliyor (`internal/media/sniff.go`: *"animasyonlu GIF kotu sikistirilir
+///	ve GIF bombasi bir bellek saldirisidir"*). Gorunen ama HER SEFERINDE
+///	hata veren bir dugme koymak turu 66b dersinin tekrari olurdu.
+///	⏳ Gerekli: sunucu beyaz listesi + bir GIF saglayicisi (Giphy/Tenor).
+class _AtacSerit extends StatelessWidget {
+  const _AtacSerit({required this.onSec});
+
+  final ValueChanged<String> onSec;
+
+  static const _ogeler = <({String anahtar, IconData ikon, String ad, Color renk})>[
+    (anahtar: 'foto', ikon: LucideIcons.image, ad: 'Fotoğraf', renk: Color(0xFF7C4DFF)),
+    (anahtar: 'video', ikon: LucideIcons.video, ad: 'Video', renk: Color(0xFFEC407A)),
+    (anahtar: 'kamera', ikon: LucideIcons.camera, ad: 'Kamera', renk: Color(0xFF00BFA5)),
+    (anahtar: 'konum', ikon: LucideIcons.mapPin, ad: 'Konum', renk: Color(0xFFEF5350)),
+    (anahtar: 'kisi', ikon: LucideIcons.userRound, ad: 'Kişi', renk: Color(0xFF42A5F5)),
+    (anahtar: 'iban', ikon: LucideIcons.creditCard, ad: 'IBAN', renk: Color(0xFF26A69A)),
+    (anahtar: 'etkinlik', ikon: LucideIcons.calendarPlus, ad: 'Etkinlik', renk: Color(0xFFFFA726)),
+    (anahtar: 'anket', ikon: LucideIcons.vote, ad: 'Anket', renk: Color(0xFF8B5CF6)),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    // ⚠️ Yukseklik YAZI OLCEGINDEN turetilir, sabit dp DEGIL: olcek 1.3'te
+    //	ad satiri sigmaz ve sari-siyah tasma seridi cikardi (turu 180w).
+    final olcek = MediaQuery.textScalerOf(context);
+    const kSatirKutu = 1.45; // Google Sans Flex, olculdu (turu 173)
+    final boy = 10 + 52 + 6 + olcek.scale(11) * kSatirKutu + 10 + 1;
+    return Container(
+      height: boy,
+      decoration: BoxDecoration(
+        border: Border(
+          top: BorderSide(color: scheme.onSurface.withValues(alpha: 0.08)),
+        ),
+      ),
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        itemCount: _ogeler.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 14),
+        itemBuilder: (c, i) {
+          final o = _ogeler[i];
+          return SizedBox(
+            width: 60,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => onSec(o.anahtar),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 52,
+                    height: 52,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: o.renk.withValues(alpha: 0.18),
+                    ),
+                    child: Icon(o.ikon, size: 23, color: o.renk),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    o.ad,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: scheme.onSurface.withValues(alpha: 0.75),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
       ),
     );
   }

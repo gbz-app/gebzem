@@ -216,7 +216,7 @@ class _YeniMesajEkraniState extends ConsumerState<YeniMesajEkrani> {
               _kisayol(
                 c,
                 LucideIcons.megaphone,
-                'Topluluk oluştur',
+                'Kanal oluştur',
                 () => _toplulukOlustur(c),
               ),
               const Divider(height: 1),
@@ -272,7 +272,7 @@ class _YeniMesajEkraniState extends ConsumerState<YeniMesajEkrani> {
                 const Padding(
                   padding: EdgeInsets.fromLTRB(16, 14, 16, 6),
                   child: Text(
-                    'Topluluklar',
+                    'Kanallar',
                     style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
                   ),
                 ),
@@ -304,7 +304,7 @@ class _YeniMesajEkraniState extends ConsumerState<YeniMesajEkrani> {
                   ),
                   child: Text(
                     aramaVar
-                        ? 'Eşleşen kişi ya da topluluk yok'
+                        ? 'Eşleşen kişi ya da kanal yok'
                         : 'Henüz görüştüğün kimse yok.\nYukarıdan isim ya da @kullanıcıadı ara.',
                     textAlign: TextAlign.center,
                     style: TextStyle(
@@ -395,7 +395,7 @@ class _YeniMesajEkraniState extends ConsumerState<YeniMesajEkrani> {
       subtitle: kullaniciAdi.isEmpty
           ? null
           : Text(
-              topluluk ? '@$kullaniciAdi · Topluluk' : '@$kullaniciAdi',
+              topluluk ? '@$kullaniciAdi · Kanal' : '@$kullaniciAdi',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
@@ -414,7 +414,7 @@ class _YeniMesajEkraniState extends ConsumerState<YeniMesajEkrani> {
     if (!c.mounted) return;
     await Navigator.of(c).push(
       MaterialPageRoute(
-        builder: (_) => KanalEkrani(kanalId: id, onIsim: 'Topluluk'),
+        builder: (_) => KanalEkrani(kanalId: id, onIsim: 'Kanal'),
       ),
     );
   }

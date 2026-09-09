@@ -109,7 +109,7 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
     _Filtre.istekler => 'İstekler',
     _Filtre.gruplar => 'Grup',
     _Filtre.arsiv => 'Arşivler',
-    _Filtre.topluluk => 'Topluluk',
+    _Filtre.topluluk => 'Kanal',
     _Filtre.arama => 'Arama',
   };
 
@@ -216,7 +216,7 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
       return _bosDurum(
         c,
         _arama.isNotEmpty
-            ? 'Eşleşen topluluk yok'
+            ? 'Eşleşen kanal yok'
             : 'Henüz topluluğun yok.\nYeni topluluk oluştur ya da keşfet.',
       );
     }
@@ -304,7 +304,7 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
                 //    yazmak, kutunun o listeyi suzmedigi izlenimi verirdi.
                 hintText: switch (_filtre) {
                   _Filtre.arama => 'Arama geçmişinde ara',
-                  _Filtre.topluluk => 'Topluluk ara',
+                  _Filtre.topluluk => 'Kanal ara',
                   _ => 'Sohbet ara',
                 },
                 prefixIcon: const Icon(LucideIcons.search, size: 20),
@@ -481,7 +481,7 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
                       if (sik.isNotEmpty)
                         _SikGorusulenSerit(kisiler: sik.take(12).toList()),
                       if (kanallar.isNotEmpty) ...[
-                        const _BolumBasligi('Topluluklar'),
+                        const _BolumBasligi('Kanallar'),
                         for (final k in kanallar) _ToplulukTile(kanal: k),
                         const _BolumBasligi('Sohbetler'),
                       ],
@@ -1357,7 +1357,7 @@ Future<void> yeniSohbetSecenegiAc(BuildContext context) async {
             _yeniMadde(
               c,
               LucideIcons.radio,
-              'Topluluk oluştur',
+              'Kanal oluştur',
               // ⚠️⚠️ TURU 114 (denetim) — **"ve yorumlar" KALDIRILDI.**
               //	`channel_posts` (022) yalniz `begeni_sayisi` ve
               //	`goruntulenme` tutuyor; YORUM TABLOSU YOK ve `internal/
@@ -1365,13 +1365,13 @@ Future<void> yeniSohbetSecenegiAc(BuildContext context) async {
               //	ozelligi vaat etmek, projedeki "ozellik var gorunup
               //	fiilen yok" sinifinin ta kendisi.
               'Sen yazarsın, üyeler okur',
-              'topluluk',
+              'kanal',
             ),
             _yeniMadde(
               c,
               LucideIcons.compass,
-              'Toplulukları keşfet',
-              'Var olan topluluklara katıl',
+              'Kanalları keşfet',
+              'Var olan kanallara katıl',
               'kesfet',
             ),
             const SizedBox(height: 10),
@@ -1386,7 +1386,7 @@ Future<void> yeniSohbetSecenegiAc(BuildContext context) async {
       return;
     }
     // ⚠️ TURU 114 — topluluk dallari: ikisi de MEVCUT kanal ekranlarini acar.
-    if (secim == 'topluluk') {
+    if (secim == 'kanal') {
       // ⚠️⚠️⚠️ TURU 114 (denetim) — **DONEN ID OKUNUR.**
       //
       //	Ilk yazimda `await push<String>(...)` yazilip donen id ATILIYORDU.
@@ -1406,7 +1406,7 @@ Future<void> yeniSohbetSecenegiAc(BuildContext context) async {
       if (id != null && context.mounted) {
         await Navigator.of(context).push<void>(
           MaterialPageRoute(
-            builder: (_) => KanalEkrani(kanalId: id, onIsim: 'Topluluk'),
+            builder: (_) => KanalEkrani(kanalId: id, onIsim: 'Kanal'),
           ),
         );
       }
