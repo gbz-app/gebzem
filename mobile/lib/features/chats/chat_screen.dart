@@ -654,8 +654,30 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     super.dispose();
   }
 
+  /// Baslikta gorunen ad — **TAKMA AD gercek adin ONUNDE** (turu 180ab).
+  ///
+  /// ⚠️ Takma ad CIHAZDA tutuluyor (`Tercihler.takmaAd`); karsi taraf
+  ///	HABERDAR OLMAZ ve bu, "Takma adlar" ekraninda ACIKCA yaziyor.
+  /// ⚠️ Grupta takma ad UYGULANMAZ: `peerId` yok, yani kime verilecegi
+  ///	belirsiz — grup adini kisisel bir takma adla degistirmek yanlis olur.
+  String get _gorunenAd {
+    final p = widget.peerId;
+    if (p == null || _grupMu) return widget.title;
+    final t = tercihler.takmaAd(p);
+    return t.isNotEmpty ? t : widget.title;
+  }
+
   void _onChanged(String _) {
+    // ⚠️⚠️⚠️ TURU 180ab — **YAZMA GOSTERGESI TERCIHI** (Gizlilik ve emniyet
+    //	ekrani). Kapaliyken olay HIC gonderilmez, yani karsi taraf
+    //	"yazıyor…" ibaresini GORMEZ.
+    // ⚠️ Bu ayar GERCEKTEN calisir — sunucuda sutun GEREKMEZ, cunku
+    //	gostergeyi ureten sey ISTEMCININ gonderdigi WS olayidir.
+    // ⚠️ Kapi kismalamanin (`throttle`) USTUNDE: altina konsaydi kapali
+    //	iken bile zamanlayici kurulur ve ayar acildiginda ilk 2 saniye
+    //	SESSIZ kalirdi.
     // her tusta degil, 2 sn'de bir "yaziyor" olayi gonder
+    if (!tercihler.yazmaGostergesi) return;
     if (_typingThrottle?.isActive ?? false) return;
     _typingThrottle = Timer(const Duration(seconds: 2), () {});
     ref.read(wsProvider).sendTyping(widget.chatId);
@@ -790,28 +812,36 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 )
               : (widget.peerId == null
                     ? null
-                    : () => Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => KisiBilgiEkrani(
-                            chatId: widget.chatId,
-                            peerId: widget.peerId!,
-                            baslik: widget.title,
-                            avatarMediaId: widget.avatarMediaId,
-                            sesliAra: () => _startCall(video: false),
-                            goruntuluAra: () => _startCall(video: true),
+                    // ⚠️⚠️ TURU 180ab — DONUSTE `setState` ZORUNLU: kisi
+                    //	bilgisi ekraninda secilen TEMA ve TAKMA AD cihazda
+                    //	yaziliyor; bu ekran yeniden CIZILMEZSE degisiklik
+                    //	ancak sohbet kapatilip acilinca gorunurdu (bu
+                    //	projede "ayar calisiyor ama gorunmuyor" sinifi).
+                    : () async {
+                        await Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => KisiBilgiEkrani(
+                              chatId: widget.chatId,
+                              peerId: widget.peerId!,
+                              baslik: widget.title,
+                              avatarMediaId: widget.avatarMediaId,
+                              sesliAra: () => _startCall(video: false),
+                              goruntuluAra: () => _startCall(video: true),
+                            ),
                           ),
-                        ),
-                      )),
+                        );
+                        if (mounted) setState(() {});
+                      }),
           child: Row(
             children: [
-              Avatar(ad: widget.title, mediaId: widget.avatarMediaId, cap: 38),
+              Avatar(ad: _gorunenAd, mediaId: widget.avatarMediaId, cap: 38),
               const SizedBox(width: 11),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      widget.title,
+                      _gorunenAd,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       // ⚠️ TURU 115b — ad KALIN: eskiden govde metniyle ayni
@@ -960,6 +990,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                 widget.chatId,
                                 msg.id,
                               ),
+                              // ⚠️⚠️ TURU 180ab — SOHBET TEMASI. Ekrandan
+                              //	donuste `setState` ile yeniden okunur
+                              //	(bkz. `_kisiBilgiAc`), yoksa secilen renk
+                              //	ancak sohbet yeniden acilinca gorunurdu.
+                              tema: tercihler.sohbetTemasi(widget.chatId),
                             ),
                           ),
                       ],
@@ -1504,6 +1539,7 @@ class _Bubble extends StatelessWidget {
     required this.mine,
     this.grup = false,
     this.yildizli = false,
+    this.tema = 'varsayilan',
   });
 
   final Message message;
@@ -1512,6 +1548,12 @@ class _Bubble extends StatelessWidget {
   /// ⚠️ TURU 180y — yildiz CIHAZDA tutuluyor; deger DISARIDAN gecirilir ki
   ///	balon `Tercihler`e bagimli olmasin (test edilebilir kalsin).
   final bool yildizli;
+
+  /// ⚠️⚠️ TURU 180ab — SOHBET TEMASI (balon rengi). Ayni gerekce: deger
+  ///	DISARIDAN gecirilir, balon `Tercihler`e BAGIMLI OLMAZ.
+  /// ⚠️ Renk cozumu `ChatColors.bubbleMineTema` TEK KAYNAGINDAN; buraya
+  ///	renk sabiti YAZILMAZ (palet drift eder — turu 78 dersi).
+  final String tema;
 
   /// ⚠️⚠️ TURU 76 — GRUPTA GONDEREN ADI/AVATARI ZORUNLU.
   ///    Mesaj balonlarinda gonderen bilgisi HIC YOKTU. Grup ozelligi eklendigi
@@ -1556,9 +1598,13 @@ class _Bubble extends StatelessWidget {
           maxWidth: MediaQuery.of(context).size.width * 0.78,
         ),
         decoration: BoxDecoration(
+          // ⚠️⚠️ TURU 180ab — KENDI balonumda SOHBET TEMASI (kullanici
+          //	"Tema" ekranindan secer). Karsi tarafin balonu DEGISMEZ:
+          //	Instagram'da da tema yalniz kullanicinin kendi tarafini
+          //	renklendirir ve iki balon ayirt edilebilir kalmali.
           color: sadeMedya
               ? Colors.transparent
-              : (mine ? scheme.bubbleMine : scheme.bubbleOther),
+              : (mine ? scheme.bubbleMineTema(tema) : scheme.bubbleOther),
           // ⚠️⚠️ TURU 180z — **TAM RADUS** (kullanici emri: *"sohbetler tam
           //	radus olacak"*). Eskiden bir kose 2 dp idi (WhatsApp'in
           //	"kuyruk" hissi); artik DORT KOSE de esit ve yuvarlak

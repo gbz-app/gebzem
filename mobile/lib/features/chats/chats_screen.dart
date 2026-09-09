@@ -7,6 +7,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import "../../core/yenile.dart";
 
 import '../../core/api.dart';
+import '../../core/tercihler.dart' show tercihler;
 import '../../core/theme.dart' show kAiZemin;
 import '../auth/auth_provider.dart';
 import '../medya/medya_gorsel.dart';
@@ -942,6 +943,20 @@ class _ChatTile extends ConsumerWidget {
 
   final Chat chat;
 
+  /// Listede gorunen ad — **TAKMA AD gercek adin ONUNDE** (turu 180ab).
+  ///
+  /// ⚠️⚠️ Sohbet ekraninin `_gorunenAd`iyla AYNI KURAL: iki yerde farkli
+  ///	davransaydi kullanici listede bir ad, sohbette baska bir ad gorurdu.
+  /// ⚠️ Grupta UYGULANMAZ (`peerId` null) — grup adi kisisel bir takma adla
+  ///	degistirilmez.
+  String get _gorunenAd {
+    final p = chat.peerId;
+    final gercek = chat.title.isNotEmpty ? chat.title : 'Sohbet';
+    if (p == null || chat.type == 'group') return gercek;
+    final t = tercihler.takmaAd(p);
+    return t.isNotEmpty ? t : gercek;
+  }
+
   String _timeLabel(DateTime? t) {
     if (t == null) return '';
     final local = t.toLocal();
@@ -1070,7 +1085,7 @@ class _ChatTile extends ConsumerWidget {
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       // ⚠️ TURU 76: bkz. yukaridaki serh. Grup sohbetinin kendi `avatar_media_id`i
       //    henuz yok -> `Avatar` harf yedegine duser (dogru davranis).
-      leading: Avatar(ad: chat.title, mediaId: chat.avatarMediaId, cap: 52),
+      leading: Avatar(ad: _gorunenAd, mediaId: chat.avatarMediaId, cap: 52),
       title: Row(
         children: [
           if (chat.pinned)
@@ -1080,7 +1095,7 @@ class _ChatTile extends ConsumerWidget {
             ),
           Expanded(
             child: Text(
-              chat.title.isNotEmpty ? chat.title : 'Sohbet',
+              _gorunenAd,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 fontSize: 16,

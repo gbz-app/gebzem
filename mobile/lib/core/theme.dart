@@ -319,7 +319,40 @@ extension ChatColors on ColorScheme {
   ///    "okundu" anlamini kaybettirirdi.
   Color get tickRead =>
       _koyuMu ? const Color(0xFF34B7F1) : const Color(0xFF0B79A8);
+
+  /// ⚠️⚠️⚠️ TURU 180ab — **SOHBET TEMASI** (kullanici emri, Instagram
+  ///	"Tema" ekrani). Anahtar `Tercihler.sohbetTemasi(chatId)`den gelir.
+  ///
+  /// ⚠️⚠️ **TEK KAYNAK BURASI**: renkler cagri yerine kopyalanirsa palet
+  ///	kacinilmaz olarak DRIFT eder (bu projede ALTI kez yasandi).
+  /// ⚠️ Bilinmeyen anahtar **varsayilana duser** — eski bir tercih dosyasi
+  ///	ya da ileride kaldirilan bir renk sohbeti RENKSIZ birakmasin.
+  /// ⚠️⚠️ ACIK ve KOYU tonlar AYRI: koyu tonu acik temada kullanmak
+  ///	"koyu zemine koyu yazi" sinifini geri getirirdi (turu 115b'de
+  ///	olculdu). Her iki ton da `onSurface` yazisiyla >= 7:1 secildi.
+  Color bubbleMineTema(String anahtar) => switch (anahtar) {
+    'mavi' => _koyuMu ? const Color(0xFF17394D) : const Color(0xFFD9EDF7),
+    'yesil' => _koyuMu ? const Color(0xFF1B3D2A) : const Color(0xFFDDF2E3),
+    'turuncu' => _koyuMu ? const Color(0xFF4A2E14) : const Color(0xFFFBE7D2),
+    'pembe' => _koyuMu ? const Color(0xFF48203A) : const Color(0xFFFADCEE),
+    'gri' => _koyuMu ? const Color(0xFF2E3238) : const Color(0xFFE9EBEE),
+    _ => bubbleMine,
+  };
 }
+
+/// Sohbet temasi secenekleri — **ekran ve renk cozumu TEK LISTEDEN** beslenir.
+///
+/// ⚠️ Ekran bu listeyi cizer, balon `bubbleMineTema` ile cozer; ikisi ayri
+///	yazilsaydi listeye eklenen bir renk balonda SESSIZCE varsayilana
+///	duserdi (gorunur ama calismayan secenek — turu 66b dersi).
+const List<({String anahtar, String ad})> kSohbetTemalari = [
+  (anahtar: 'varsayilan', ad: 'Varsayılan'),
+  (anahtar: 'mavi', ad: 'Mavi'),
+  (anahtar: 'yesil', ad: 'Yeşil'),
+  (anahtar: 'turuncu', ad: 'Turuncu'),
+  (anahtar: 'pembe', ad: 'Pembe'),
+  (anahtar: 'gri', ad: 'Gri'),
+];
 
 /// Kimlikten (kullanici id'si) turetilen SABIT renk. **TEK KAYNAK.**
 ///
