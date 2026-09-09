@@ -487,21 +487,15 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
                                                 .contains(_arama),
                                       )
                                       .toList());
-                      // SIK GORUSULEN kisiler (test turu 7): arama YOKKEN, arama input'unun altinda
-                      // en son gorusulen 1:1 kisiler yatay profil seridi (WhatsApp/Telegram deseni).
-                      // ⚠️ Serit YALNIZ "Tümü" filtresinde: okunmamis/gruplar/arsiv
-                      //    goruntusunde tum kisileri gostermek FILTREYI ANLAMSIZ kilar.
-                      final sik = (_arama.isEmpty && _filtre == _Filtre.hepsi)
-                          ? (list
-                                .where((c) => c.type == 'direct' && !c.archived)
-                                .toList()
-                              ..sort(
-                                (a, b) => (b.lastAt ?? DateTime(0)).compareTo(
-                                  a.lastAt ?? DateTime(0),
-                                ),
-                              ))
-                          : const <Chat>[];
-                      if (visible.isEmpty && sik.isEmpty && kanallar.isEmpty) {
+                      // ⚠️⚠️ TURU 180aa — **"Sık görüştüklerin" SERIDI KALDIRILDI**
+                      //	(kullanici emri: *"chatte sik gorustuklerini kaldir"*).
+                      //	Kisiye ulasmanin yollari KAYBOLMADI: sohbet satirinin
+                      //	kendisi, arama kutusu ve sag ustteki "+" (Yeni mesaj ->
+                      //	"Onerilen") ayni kisileri veriyor.
+                      // ⚠️ `_SikGorusulenSerit` govdesi SILINMEDI (`unused_element`
+                      //	serhiyle duruyor): bu dosyada uye silmek bes kez komsu
+                      //	uyeyi de goturdu; karar tek satirla geri alinabilsin.
+                      if (visible.isEmpty && kanallar.isEmpty) {
                         // ⚠️ TURU 180y — bos durumda DAIRE ICINDE "+" (kullanici
                         //	emri); sag ustteki "+" ile AYNI ekrani acar.
                         return _bosDurum(
@@ -538,10 +532,6 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
                           //	gelinmeden once de ortme olur.
                           padding: const EdgeInsets.only(bottom: 88),
                           children: [
-                            if (sik.isNotEmpty)
-                              _SikGorusulenSerit(
-                                kisiler: sik.take(12).toList(),
-                              ),
                             if (kanallar.isNotEmpty) ...[
                               const _BolumBasligi('Kanallar'),
                               for (final k in kanallar) _ToplulukTile(kanal: k),
@@ -709,6 +699,11 @@ class _ToplulukTile extends StatelessWidget {
 
 /// SIK GORUSULEN kisiler yatay seridi (arama input'unun altinda). En son gorusulen 1:1
 /// kisiler; avatar + isim; dokun -> sohbeti ac.
+///
+/// ⚠️⚠️ TURU 180aa — **CAGRI YERI KALDIRILDI** (kullanici emri). Govde
+///	BILEREK duruyor: bu dosyada uye silmek bes kez komsu uyeyi de goturdu
+///	ve karar tek satirla geri alinabilmeli.
+// ignore: unused_element
 class _SikGorusulenSerit extends StatelessWidget {
   const _SikGorusulenSerit({required this.kisiler});
   final List<Chat> kisiler;
