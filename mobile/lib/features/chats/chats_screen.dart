@@ -249,7 +249,13 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
     return YenileSarmali(
       onRefresh: _topluluklariYukle,
       child: ListView(
-        padding: const EdgeInsets.only(bottom: 24),
+        // ⚠️⚠️ TURU 180z — ALT DOLGU **88** (24 DEGIL): sag alttaki
+        //	GebzemAI dugmesi 56 dp + 16 dp kenar bosluguyla 72 dp yer
+        //	kapliyor ve 24 ile SON SOHBET SATIRINI ORTUYORDU (turu 140`ta
+        //	FAB, akistaki son gonderinin "Kaydet" dugmesini tam boyle
+        //	kapatmisti). Son ogeye SizedBox koymak YETMEZ: liste sonuna
+        //	gelinmeden once de ortme olur.
+        padding: const EdgeInsets.only(bottom: 88),
         children: [for (final k in liste) _ToplulukTile(kanal: k)],
       ),
     );
@@ -417,7 +423,13 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
                           ),
                           Expanded(
                             child: ListView(
-                              padding: const EdgeInsets.only(bottom: 24),
+                              // ⚠️⚠️ TURU 180z — ALT DOLGU **88** (24 DEGIL): sag alttaki
+                              //	GebzemAI dugmesi 56 dp + 16 dp kenar bosluguyla 72 dp yer
+                              //	kapliyor ve 24 ile SON SOHBET SATIRINI ORTUYORDU (turu 140`ta
+                              //	FAB, akistaki son gonderinin "Kaydet" dugmesini tam boyle
+                              //	kapatmisti). Son ogeye SizedBox koymak YETMEZ: liste sonuna
+                              //	gelinmeden once de ortme olur.
+                              padding: const EdgeInsets.only(bottom: 88),
                               children: [
                                 for (final c in ornek) _ChatTile(chat: c),
                               ],
@@ -518,7 +530,13 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
                           ]);
                         },
                         child: ListView(
-                          padding: const EdgeInsets.only(bottom: 24),
+                          // ⚠️⚠️ TURU 180z — ALT DOLGU **88** (24 DEGIL): sag alttaki
+                          //	GebzemAI dugmesi 56 dp + 16 dp kenar bosluguyla 72 dp yer
+                          //	kapliyor ve 24 ile SON SOHBET SATIRINI ORTUYORDU (turu 140`ta
+                          //	FAB, akistaki son gonderinin "Kaydet" dugmesini tam boyle
+                          //	kapatmisti). Son ogeye SizedBox koymak YETMEZ: liste sonuna
+                          //	gelinmeden once de ortme olur.
+                          padding: const EdgeInsets.only(bottom: 88),
                           children: [
                             if (sik.isNotEmpty)
                               _SikGorusulenSerit(
