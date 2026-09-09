@@ -31,7 +31,7 @@ class GebzemAppEkrani extends StatelessWidget {
   /// Tanitim balonlari. `baslik` bos ise duz paragraf balonu cizilir.
   static const _mesajlar = <({String baslik, String metin, IconData? ikon})>[
     (
-      baslik: 'Hoş geldin 👋',
+      baslik: 'Hoş geldin',
       metin:
           'Gebzem; sohbet, sesli/görüntülü arama, canlı yayın, sosyal akış ve '
           'şehir rehberini tek uygulamada toplar. Bu sohbette uygulamanın ne '
