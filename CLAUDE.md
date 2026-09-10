@@ -41,6 +41,100 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
       kaybettiriyorsun"*. **Üçüncüsü olmayacak.**
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
+- **KALDIGIMIZ YER (10 Eyl 03:30): TURU 180ae KODU BITTI, BUILD ALINIYOR.**
+  ✅ analyze **0/0** · test **104/104** · emulatorde ON madde gozle dogrulandi
+  (yazi olcegi **1.0 ve 1.3**'te logcat tasma **0**).
+  Arayuz turu: **BACKEND DEGISMEDI**, migration YOK, deploy YOK, DB TRUNCATE
+  EDILMEDI.
+
+- 🎚️ ⚠️⚠️ **TURU 180ae — RENK MERDIVENI DUZELTILDI** (kullanici IKI KEZ
+  soyledi: *"alt menu tam siyahin 1 tik altinda, alt menunun bir tik altinda
+  ICERIK, onun bir tik alti INPUTLAR"*).
+  Turu 180ad sayfa zeminini merdivenin **ALTINA** (en koyu) koymustu; dogrusu
+  alt menuden DAHA ACIK olmasi:
+  `kAltMenuZemin #0E0E10` < `kAiZemin #17171A` < `kYuzeyKoyu #1D1D21`
+  < `kInputZemin #202024`. `yazi_tipi_test.dart` sira testi guncellendi.
+  ⚠️ YAPMA: icerik zeminini alt menuden koyu yapma.
+
+- 👤 **TURU 180ae — PROFIL: OLCU + GIRIS DUZENI.**
+  · header **15 dp KISALDI**: `kapakYuksekligi` formulunden turu 180'in `+15`
+    payi KALKTI. · alt kavis **%50 azaldi** (`kKapakKavis` 22 -> **11**).
+  · sekme seridinin altindaki **tam genislikteki ayirici KALDIRILDI**
+    (kullanici: *"profildeki borderi da kaldir"*); secili sekmenin BEYAZ
+    cubugu DURUYOR — o gitseydi hangi sekmede oldugumuz anlasilmazdi.
+  · **"Profili düzenle" / "Kaydedilenler" dugmeleri KALKTI**; yerine sol
+    ustte **kalem** ikonu. Kaydedilenler girisi **Hesabım**a tasindi
+    (ULASILAMAZ KALMADI).
+  · hamburger KALKTI -> **istatistik** ikonu + yeni `istatistik_ekrani.dart`.
+    ⚠️⚠️ **`actions` SOLDAN SAGA cizilir**: blok ilk yazimda listenin SONUNA
+       konmus ve ikon dislinin **SAGINDA** cikmisti (emulatorde goruldu) —
+       emrin TERSI. Dislinin soluna almanin yolu bloku listenin BASINA
+       tasimaktir. ⚠️ YAPMA: bloku tekrar sona tasima.
+    ⚠️ Istatistik YALNIZ kendi profilimde; sayilar **GERCEK VERIDEN**
+       turetilir (profil sayaclari + gonderilerin begeni/yorum/goruntulenme
+       toplami). Profil ziyareti/erisim/grafik **YAZILMADI** — sunucuda
+       karsiligi YOK ve ekran bunu ACIKCA soyluyor (turu 135 dersi).
+  · **"…yonet" dugmesi** (`_kendiDugmelerim` -> `SizedBox.shrink`) profilden
+    CIKTI; katalog girisi **Hesabım > Ürün ve hizmetlerim**.
+
+- 📺 ⚠️⚠️ **TURU 180ae — "Mahalle" -> "Canlı Yayın" + ALT MENUDE "Odalar"**
+  (kullanici emri). IKI YUZEY BIRLIKTE degisti:
+  · anasayfa bolme secicisi: `_bolmeYazisi(kCanliBolme, 'Canlı Yayın')` ve
+    govde o bolmede **`LiveTab`** cizer (`YenileSarmali` ile SARILMAZ —
+    `LiveTab` kendi `Scaffold`u + kendi yenileme sarmalini tasiyor; ic ice
+    iki `RefreshIndicator` jesti IC listeye gider, DIS sarmal HIC tetiklenmez).
+  · alt menu 4. sekme: `radio`/"Canlı" -> **`micVocal`/"Odalar"** ve govde
+    **`RoomsTab`** (kendi FAB'i "Oda aç" — sekmeye IKINCI bir olusturma
+    dugmesi KONMADI).
+  ⚠️⚠️ **HICBIRI ULASILAMAZ KALMADI**: yayin IZLEME anasayfada, yayin
+     BASLATMA "Sohbet Odaları" sekmesinin sag ustundeki "+", oda ACMA
+     `RoomsTab` FAB'i.
+  ⚠️ `kCanliBolme` **TEK KAYNAK** (secici · `_yenile` kapisi · govde dali).
+  ⚠️ `_bolmeYuklendi` **`[false,false,true]`**: canli bolmesi bastan
+     "yuklendi" sayilir, yoksa her gecis ~3 sn'lik BOSA bir yukleme dongusu
+     baslatirdi. `_yenile` o bolmede **AG ISTEGI ATMAZ**.
+  ⚠️ `/mahalle` ucu ve `posts.enlem/boylam` DOKUNULMADI (veri SILINMEZ);
+     kapanan sey yalnizca istemcideki CAGRI YERI.
+  ⚠️ `_ikonBoy` haritasindaki `radio` girisi SILINDI (o ikon alt menuden
+     cikti); `micVocal` icin optik sapma YOK.
+  🛡️ `alt_menu_test.dart` yeni gerceklige uyarlandi (**15/15**): "Odalar"
+     semantik etiketi · `micVocal` VAR · `radio` YOK.
+
+- 🍽️ **TURU 180ae — YEMEK EKRANI: SLIDER · MUTFAK CIPLERI · KART.**
+  · **Slider gorseli KALKTI** (`ilkGorsel:` gecilmiyor). `kSliderIlkGorsel`
+    sabiti ve `assets/slider/slider1.jpg` **SILINMEDI** — varligi pubspec'ten
+    cikarmak onu kullanabilecek yollari kirik gorsele dusururdu (turu 180q).
+    ⚠️ DURUST NOT: slaytlarin ICI turu 95'te kullanici emriyle BOSALTILMISTI;
+       resim de kalkinca slider artik **BOS GRI** bir serit (donmeye devam
+       ediyor). Bu BEKLENEN.
+  · **Mutfak kartlari CIP oldu** (kullanici: *"filtredeki gibi buton yap,
+    %15 kadar daha buyuk"*). Olculer `_hizliCip`ten TURETILDI:
+    boy 32x1.15=**37** · yazi 13x1.15=**15** · dolgu 11x1.15=**13**
+    (`kAltCipBoy`/`kAltCipYazi`/`kAltCipDolgu`).
+    ⚠️⚠️ `TextPainter` iki-satir olcumu ARTIK GEREKMIYOR (tek satir cip) —
+       turu 135'te o olcum yazi tipini tasimadigi icin TAM BIR SATIR
+       sasirmisti. Yukseklik yine SABIT DEGIL, `textScaler`dan turer.
+    ⚠️ `kAltKutu`/`kAltHucre`/`kAltIcBosluk` SILINMEDI: ilan ve talep
+       ekranlari onlari HALA kullaniyor.
+  · **ISLETME KARTI PREPLY MANTIGINDA** (kullanici gorsel gonderdi, *"sadece
+    MANTIGINI al"*): **16:9 kapak KALKTI** -> solda **92 dp kare foto**
+    (`kKartFoto`) · ad + onay tiki · kategori/kampanya **etiketleri** ·
+    **IKI KUTU** (fiyat "en uygun" / ★ puan "N oy") · **adres** · ikonlu meta.
+    ⚠️ **ACIKLAMA UYDURULMADI**: `IsletmeOzet`te `aciklama` alani YOK;
+       referanstaki tanitim satirinin GERCEK karsiligi ADRES.
+    ⚠️ Kutu yalniz VERISI VARSA cizilir ("0 TL" / "★ 0" yanlis bilgidir).
+    ⚠️⚠️ **KALP SAG UCTA** — ilk yazimda kisa adlarda ada YAPISIYORDU
+       (emulatorde goruldu). Cozum `Spacer` DEGIL: ad+tik ikilisi **`Expanded`
+       bir `Row`a** alinir. `Spacer` bir `Expanded`dir ve ad da `Flexible`
+       oldugu icin ikisi kalan alani PAYLASIR -> uzun ad yerin YARISINDA
+       kirpilirdi. ⚠️ YAPMA: buraya `Spacer` koyma.
+    ⚠️ `vitrinSatiri(puanHaric: true)` — puan artik KUTUDA; varsayilan
+       `false`, yani izgara ve serit kartlari **BIREBIR AYNI** kaldi (ayri
+       bir "kutusuz vitrin" fonksiyonu YAZILMADI — drift eder).
+    ⚠️ `kampanyaRozetleri` bir `Positioned` dondurur (Stack'siz kullanilamaz);
+       yeni kart icin AYRI inline `_etiketSeridi` yazildi, eski fonksiyon
+       izgara/serit kartlari icin DURUYOR.
+
 - **KALDIGIMIZ YER (10 Eyl 01:50): TURU 180ad YAYINLANDI — SADECE iOS.**
   ios **34413274338** (**f8c6de2**), R2 ipa=**31956040** (md5 0e9cf2f5),
   index=7972 (a6a89661) surum.json=46 (e2c6fc9a), purge OK, **CDN BIREBIR**

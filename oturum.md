@@ -10981,3 +10981,60 @@ Adres: https://indir.gebzem.app/index.html?v=20260908-2243
    istek ancak GIZLI HESABA gonderilince olusur. Onayla/Sil dugmeleri
    yerinde ve calisiyor; tohumda gizli hesap YOK, o yuzden listede boyle bir
    satir gorunmez.
+
+---
+
+## Oturum: Turu 180ae (10 Eyl 2026) — profil olculeri · Mahalle→Canlı Yayın · yemek karti
+
+**Kullanicinin bu turdaki maddeleri (hepsi yapildi):**
+1. renk merdiveni: alt menu < icerik < inputlar
+2. alt menudeki mor daireyi kaldir
+3. profilde "Profili düzenle" + "Kaydedilenler" dugmelerini kaldir, sol uste
+   duzenleme ikonu koy
+4. header 15 px kisalt, sol/sag radusleri %50 azalt
+5. profildeki border'i kaldir
+6. carkin sagindaki hamburger'i kaldir, **disin SOLUNA** istatistik alani +
+   istatistik sayfasi
+7. isletme hesabindaki "…yonet" dugmelerini kaldir, ayarlardan yapilsin
+8. anasayfada "Mahalle" -> "Canlı Yayın"; alttaki canli yayin ikonu yerine
+   sohbet odasi ikonu, tiklayinca sohbet odalari gorunsun
+9. yemek: slider'daki resmi kaldir · mutfak kartlarini filtredeki gibi buton
+   yap ve %15 buyut · isletme kartini gonderilen gorselin (Preply) mantiğinda
+   yeniden kur
+
+### ⚠️⚠️ Emulatorde OLCULEN iki hata (ikisi de emrin TERSI cikmisti)
+1. **Kalp kartin sag ucunda DEGILDI**: ad + tik + kalp duz bir `Row`da
+   sirayla dizilince kisa adlarda kalp adin YANINA yapisiyordu (McDonald's
+   kartinda gorundu). Cozum `Spacer` **DEGIL** — `Spacer` bir `Expanded`dir
+   ve ad da `Flexible` oldugu icin ikisi kalan alani PAYLASIR, uzun bir ad
+   yerin YARISINDA kirpilirdi. Dogru cozum ad+tik ikilisini **`Expanded` bir
+   `Row`a** almak.
+2. **Istatistik ikonu dislinin SAGINDA cikti**: `AppBar.actions` SOLDAN SAGA
+   cizilir ve blok listenin SONUNA konmustu. Bloku listenin BASINA tasimak
+   gerekiyordu.
+
+### 📌 Kararlar ve gerekceleri
+- **`LiveTab` `YenileSarmali` ile SARILMAZ**: kendi `Scaffold`u + kendi
+  yenileme sarmali var; ic ice iki `RefreshIndicator`da jest IC listeye
+  gider ve DIS sarmal HIC tetiklenmez.
+- **`_bolmeYuklendi = [false,false,true]`**: canli bolmesi bastan "yuklendi"
+  sayilir; false birakilsaydi her gecis ~3 sn'lik BOSA bir yukleme dongusu
+  baslatirdi (`_yenile` orada ag istegi atmiyor).
+- **`TextPainter` iki-satir olcumu KALKTI** (mutfak cipleri tek satir).
+  Yukseklik yine SABIT DEGIL — `textScaler`dan turer.
+- **Isletme kartinda ACIKLAMA UYDURULMADI**: `IsletmeOzet`te `aciklama`
+  alani YOK; referanstaki tanitim satirinin gercek karsiligi ADRES.
+- **`vitrinSatiri(puanHaric:)`** eklendi (ayri fonksiyon YAZILMADI):
+  izgara ve serit kartlarinin davranisi BIREBIR ayni kaldi.
+
+### ⏳ Durust sinirlar
+- Yemek slider'i artik **BOS GRI** bir serit: slayt metinleri turu 95'te
+  kullanici emriyle kaldirilmisti, bu turda resim de kalkti. Donmeye devam
+  ediyor ama icinde CIZILEN hicbir sey yok.
+- Istatistik sayfasi profil ziyareti / erisim / grafik GOSTERMEZ — sunucuda
+  karsiligi YOK; toplamlar YUKLENEN gonderilerden turetilir ve ekran bunu
+  ACIKCA yaziyor.
+- `/mahalle` ucu sunucuda DURUYOR, yalnizca istemcideki cagri yeri kapandi.
+
+✅ analyze **0/0** · test **104/104** · yazi olcegi **1.0 ve 1.3**'te
+   logcat tasma **0** · emulatorde on madde gozle dogrulandi.
