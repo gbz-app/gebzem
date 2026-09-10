@@ -161,6 +161,18 @@ func (h *Handler) UrunGuncelle(w http.ResponseWriter, r *http.Request) {
 		//    mevcut degeri korur) ile "bosalt" AYRI seylerdir.
 		Tur        *string            `json:"tur"`
 		Ozellikler *map[string]string `json:"ozellikler"`
+		// ⚠️⚠️⚠️ TURU 181 — **URUN FOTOGRAFI ARTIK DUZENLENEBILIYOR.**
+		//
+		//	Bu alan turu 89'dan beri EKSIKTI: `UrunEkle` medya kabul
+		//	ediyor ama `UrunGuncelle` ETMIYORDU, yani mevcut bir urune
+		//	gorsel eklemenin ya da degistirmenin TEK yolu "urunu kaldir,
+		//	yeniden ekle"ydi (tools/oda_galeri.js bunu acikca yaziyor).
+		//	CLAUDE.md'de turu 180o'dan beri bekleyen is olarak kayitli.
+		//
+		// ⚠️ ISARETCI + `COALESCE`: gonderilmezse mevcut medya KORUNUR,
+		//	**BOS DIZI gonderilirse GERCEKTEN temizlenir** (kardes
+		//	`Ozellikler` ile ayni semantik).
+		MediaIDs *[]string `json:"media_ids"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		hata(w, 400, "geçersiz istek")
@@ -172,6 +184,28 @@ func (h *Handler) UrunGuncelle(w http.ResponseWriter, r *http.Request) {
 		default:
 			hata(w, 400, "geçersiz durum")
 			return
+		}
+	}
+	// ⚠️⚠️ MEDYA SAHIPLIGI + DURUMU **`UrunEkle` ILE BIREBIR AYNI KAPI**
+	//	(urun.go:115-124). Kapi olmadan biri BASKASININ medya id'sini
+	//	kendi urunune baglayabilir ve `media.erisebilir()`in urun dali
+	//	onu HERKESE acardi.
+	// ⚠️ `RowsAffected` karsilastirmasi ZORUNLU: yalniz hataya bakmak
+	//	"bes id gonderdim, ikisi benim" durumunu KACIRIR.
+	if req.MediaIDs != nil {
+		if len(*req.MediaIDs) > 6 {
+			kirp := (*req.MediaIDs)[:6]
+			req.MediaIDs = &kirp
+		}
+		if len(*req.MediaIDs) > 0 {
+			tag, err := h.db.Exec(r.Context(), `
+				SELECT 1 FROM media_assets
+				 WHERE id = ANY($1) AND owner_id=$2 AND status IN ('aktif','bagli')`,
+				*req.MediaIDs, me)
+			if err != nil || int(tag.RowsAffected()) != len(*req.MediaIDs) {
+				hata(w, 403, "geçersiz medya")
+				return
+			}
 		}
 	}
 	tag, err := h.db.Exec(r.Context(), `
@@ -186,10 +220,13 @@ func (h *Handler) UrunGuncelle(w http.ResponseWriter, r *http.Request) {
 		  --    -> COALESCE). Bos harita gonderilirse GERCEKTEN temizlenir.
 		  tur         = COALESCE($9, tur),
 		  ozellikler  = COALESCE($10, ozellikler),
+		  -- TURU 181: gonderilmezse mevcut medya KORUNUR, bos dizi TEMIZLER.
+		  media_ids   = COALESCE($11::uuid[], media_ids),
 		  updated_at  = now()
 		 WHERE id=$1 AND isletme_id=$2`,
 		id, me, req.Ad, req.Aciklama, req.Bolum, req.FiyatKurus,
-		req.Sira, req.Durum, turIsaretci(req.Tur), ozellikIsaretci(req.Ozellikler))
+		req.Sira, req.Durum, turIsaretci(req.Tur), ozellikIsaretci(req.Ozellikler),
+		req.MediaIDs)
 	if err != nil {
 		hata(w, 500, "güncellenemedi")
 		return
@@ -197,6 +234,15 @@ func (h *Handler) UrunGuncelle(w http.ResponseWriter, r *http.Request) {
 	if tag.RowsAffected() == 0 {
 		hata(w, 404, "ürün bulunamadı")
 		return
+	}
+	// ⚠️⚠️ MEDYAYI 'bagli' ISARETLE (gonderi/hikaye/urun-ekle ile AYNI
+	//	desen): aksi halde bosta-medya supurgesi (015) urun gorselini
+	//	"kimse kullanmiyor" sanip SILEBILIRDI.
+	// ⚠️ UPDATE'ten SONRA: urun yazilmadan medya 'bagli' olmamali.
+	if req.MediaIDs != nil && len(*req.MediaIDs) > 0 {
+		h.db.Exec(r.Context(),
+			`UPDATE media_assets SET status='bagli' WHERE id = ANY($1)`,
+			*req.MediaIDs)
 	}
 	yaz(w, 200, map[string]bool{"ok": true})
 }

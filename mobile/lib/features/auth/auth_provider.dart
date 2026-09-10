@@ -9,7 +9,6 @@ import '../../core/storage.dart';
 import '../../core/ws.dart';
 import '../calls/active_call_controller.dart';
 import '../calls/medya_beklet.dart'; // turu 73b: SesSahipligi.sifirla
-import '../isletme/urun_onbellek.dart'; // turu 180ag: menu seridi onbellegi
 import '../medya/kullanici_ozeti.dart'; // turu 76: kimlik->avatar onbellegi
 import '../medya/medya_gorsel.dart'; // turu 74b: adres onbellegi
 import '../calls/callkit_service.dart';
@@ -171,9 +170,10 @@ class AuthNotifier extends StateNotifier<String?> {
     // TURU 76: kimlik->avatar onbellegi (baska hesapla girilince eski
     //   avatarlar gorunmemeli).
     _ref.read(ozetDeposuProvider).temizle();
-    // TURU 180ag: isletme kartinin menu seridi onbellegi — baska hesapla
-    //   girilince onceki isletmenin menusu gorunmemeli.
-    _ref.read(urunDeposuProvider).temizle();
+    // ⚠️ TURU 181: menu seridi onbellegi (`UrunDeposu`) SILINDI — sunucu
+    //	ilk 5 urunu liste yanitinda donduruyor, yani temizlenecek bir
+    //	istemci onbellegi KALMADI. Buraya yeni bir temizlik satiri
+    //	eklerken: onbellek oturuma bagliysa BURASI zorunlu.
     // ONCE oturumu kapat: state='' -> router ANINDA /login'e gider. Boylece
     // butona basinca cikis HEMEN gerceklesir; temizlik adimlarindan biri hata
     // verse bile kullanici disari cikmis olur (eskiden ws.close throw ederse

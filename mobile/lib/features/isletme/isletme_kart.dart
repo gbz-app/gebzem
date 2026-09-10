@@ -447,20 +447,18 @@ class _IsletmeKartiState extends ConsumerState<IsletmeKarti> {
             //	menuler gelsin menu ekle · sol sag scroll · menu icinde resim
             //	menu ismi ve fiyat"*).
             //
-            // ⚠️⚠️ **KAPI `urunSayisi > 0`**: liste ucu urun ADI/GORSELI
-            //	dondurmuyor, yani serit isletme basina AYRI bir istek
-            //	(`/users/{id}/urunler`) demek — turu 17'de kapatilan N+1.
-            //	Bu tek kapi, urunu OLMAYAN isletmeler icin istegi tamamen
-            //	kaldirir; kalani `UrunDeposu` (tembel + semafor 4 + tek ucus
-            //	+ onbellek) sinirlar. Ayrintili gerekce
-            //	`isletme_menu_seridi.dart` basinda.
-            // ⚠️ YAPMA: bu kapiyi kaldirma — 60 kayitlik listede kosulsuz
-            //	cagri 60 es zamanli istek demektir.
-            if (o.urunSayisi > 0)
+            // ⚠️⚠️ TURU 181 — VERI **LISTE YANITINDAN** geliyor (`o.urunler`),
+            //	ayri bir istekten DEGIL. Turu 180ag'de serit isletme basina
+            //	`/users/{id}/urunler` cagiriyordu (turu 17'de kapatilan N+1)
+            //	ve bedeli tembel yukleme + semafor + onbellekle
+            //	sinirlanmisti; sunucu artik ilk 5 urunu liste yanitinda
+            //	donduruyor, o katman TAMAMEN kalkti.
+            // ⚠️ YAPMA: seride tekrar bir ag istegi ekleme.
+            if (o.urunler.isNotEmpty)
               IsletmeMenuSeridi(
                 isletmeId: o.id,
                 isletmeAd: o.ad,
-                urunSayisi: o.urunSayisi,
+                urunler: o.urunler,
               ),
             ],
           ),

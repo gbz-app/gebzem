@@ -430,6 +430,54 @@ class Isletme {
 }
 
 /// Rehber listesindeki tek satir.
+/// ⚠️⚠️ TURU 181 — LISTE UCUNUN DONDURDUGU **URUN ONIZLEMESI**.
+///
+/// Tam `Urun` modeli DEGIL: liste yaniti yalnizca kartin menu seridini
+/// cizmek icin gereken UC alani tasir (ad · fiyat · kapak gorseli). Tam
+/// model (`urun_servisi.dart`) bolum, ozellikler, tum galeri gibi alanlari
+/// da tasiyor ve liste yanitini gereksiz sisirirdi.
+///
+/// ⚠️ Fiyat KURUS cinsinden gelir; bicimleme `kurusMetni` TEK KAYNAGINDAN
+///	yapilir (turu 77b: elle `kurus ~/ 100` yazilmis ve 12,50 TL "12 ₺"
+///	olarak KIRPILMISTI).
+class UrunOnizleme {
+  const UrunOnizleme({
+    required this.id,
+    required this.ad,
+    required this.fiyatKurus,
+    required this.mediaId,
+  });
+
+  final String id;
+  final String ad;
+  final int fiyatKurus;
+
+  /// Kapak gorseli (`media_ids[1]`). Urunun gorseli yoksa `null`.
+  final String? mediaId;
+
+  /// ⚠️ Sunucu `'[]'::json` varsayilaniyla DAIMA bir dizi doner; yine de
+  ///	tip kontrolu yapilir — eski bir sunucu surumu alani HIC
+  ///	gondermeyebilir ve o durumda kart menu seridini CIZMEZ (cokmez).
+  static List<UrunOnizleme> liste(dynamic ham) {
+    if (ham is! List) return const [];
+    return ham
+        .whereType<Map>()
+        .map(
+          (e) => UrunOnizleme(
+            id: (e['id'] ?? '').toString(),
+            ad: (e['ad'] ?? '').toString(),
+            fiyatKurus: (e['fiyat_kurus'] as num?)?.toInt() ?? 0,
+            // ⚠️ Bos dize `null`a cevrilir: `MedyaGorsel`e bos kimlik
+            //	gitmesi gereksiz bir istek ve kirik gorsel demekti.
+            mediaId: ((e['media_id'] ?? '').toString().isEmpty)
+                ? null
+                : e['media_id'].toString(),
+          ),
+        )
+        .toList();
+  }
+}
+
 class IsletmeOzet {
   IsletmeOzet({
     required this.id,
@@ -447,6 +495,7 @@ class IsletmeOzet {
     this.calisma = const [],
     this.minFiyatKurus,
     this.urunSayisi = 0,
+    this.urunler = const [],
     this.minTutarKurus,
     this.teslimatDkMin,
     this.teslimatDkMax,
@@ -498,6 +547,24 @@ class IsletmeOzet {
   final List<dynamic> calisma;
   final int? minFiyatKurus;
   final int urunSayisi;
+
+  /// ⚠️⚠️⚠️ TURU 181 — **ILK 5 URUN ONIZLEMESI (SUNUCUDAN).**
+  ///
+  ///	Turu 180ag'de kartin altina menu seridi kondu; liste ucu urun ADI ve
+  ///	GORSELI dondurmedigi icin istemci kart basina AYRI bir
+  ///	`/users/{id}/urunler` istegi atmak ZORUNDAYDI — turu 17'de kapatilan
+  ///	N+1 sinifi. Bedeli tembel yukleme + semafor(4) + onbellekle
+  ///	sinirlanmisti ama SINIF DURUYORDU.
+  ///
+  ///	Turu 181'de sunucu bunu **TEK SORGUDA** donduruyor
+  ///	(`isletmeSutunlari` icinde `json_agg` alt sorgusu) ve istemcideki
+  ///	getirme katmani (`urun_onbellek.dart`) TAMAMEN kalkti.
+  ///
+  /// ⚠️ YALNIZ `durum='yayinda'` kalemler, `sira`ya gore, EN FAZLA 5.
+  /// ⚠️ `urunSayisi` ile TUTARSIZ OLABILIR ve bu DOGRU: sayac "katalogda
+  ///	kac kalem var" (tukendi DAHIL), onizleme "su an satista neler var"
+  ///	sorusuna cevap verir.
+  final List<UrunOnizleme> urunler;
 
   /// ⚠️⚠️ TURU 94 — VITRIN ALANLARI (migration 046).
   ///
@@ -558,6 +625,7 @@ class IsletmeOzet {
     calisma: (m['calisma'] as List?) ?? const [],
     minFiyatKurus: (m['min_fiyat_kurus'] as num?)?.toInt(),
     urunSayisi: (m['urun_sayisi'] as num?)?.toInt() ?? 0,
+    urunler: UrunOnizleme.liste(m['urunler']),
     minTutarKurus: (m['min_tutar_kurus'] as num?)?.toInt(),
     teslimatDkMin: (m['teslimat_dk_min'] as num?)?.toInt(),
     teslimatDkMax: (m['teslimat_dk_max'] as num?)?.toInt(),
