@@ -41,11 +41,22 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
       kaybettiriyorsun"*. **Üçüncüsü olmayacak.**
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
-- **KALDIGIMIZ YER (10 Eyl 03:30): TURU 180ae KODU BITTI, BUILD ALINIYOR.**
+- **KALDIGIMIZ YER (10 Eyl 03:43): TURU 180ae YAYINLANDI — SADECE iOS.**
+  ios **34421735350** (**f5abdbe**), R2 ipa=**31969897** (md5 eaa69567),
+  index=7972 (9410fcf1) surum.json=46 (2f1502be), purge OK, **CDN BIREBIR**
+  (ucu de), `get-task-allow: false`, ad hoc profil, `MinimumOSVersion` +
+  `MapsApiKey` + `NSLocationWhenInUse` VAR.
+  IPAda dizeler VAR: `İstatistik` · `Sohbet Odaları` · `Odalar` · `en uygun` ·
+  `Görüntülenme` · `En çok beğenilenler` · `Canlı Yayın`.
+  Kontrol dizesi `Yakınımda` VAR.
+  ⚠️ **ADRES:** https://indir.gebzem.app/index.html?v=20260910-0343
+  Arayuz turu: **BACKEND DEGISMEDI**, migration YOK, deploy YOK. health ok.
+  ⚠️⚠️ **DB TRUNCATE EDILMEDI** (sema DEGISMEDI): turu 180z'nin ZENGIN tohumu
+     (profil fotograflari · anket · belge · kisi · kanal begenileri) duruyor
+     ve emulatorde o veriyle dogrulandi. TRUNCATE edilseydi `tohum.js` +
+     `tohum_sosyal.js` + zenginlestirme adimlarinin HEPSI yeniden kosmaliydi.
   ✅ analyze **0/0** · test **104/104** · emulatorde ON madde gozle dogrulandi
   (yazi olcegi **1.0 ve 1.3**'te logcat tasma **0**).
-  Arayuz turu: **BACKEND DEGISMEDI**, migration YOK, deploy YOK, DB TRUNCATE
-  EDILMEDI.
 
 - 🎚️ ⚠️⚠️ **TURU 180ae — RENK MERDIVENI DUZELTILDI** (kullanici IKI KEZ
   soyledi: *"alt menu tam siyahin 1 tik altinda, alt menunun bir tik altinda

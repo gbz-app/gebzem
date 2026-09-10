@@ -11038,3 +11038,17 @@ Adres: https://indir.gebzem.app/index.html?v=20260908-2243
 
 ✅ analyze **0/0** · test **104/104** · yazi olcegi **1.0 ve 1.3**'te
    logcat tasma **0** · emulatorde on madde gozle dogrulandi.
+
+### ✅ Yayin (10 Eyl 03:43) — turu 180ae
+ios **34421735350** (`f5abdbe`), R2 ipa=**31969897** (md5 eaa69567),
+index=7972 (9410fcf1) surum.json=46 (2f1502be), purge OK, **CDN ucu de
+BIREBIR**, `get-task-allow: false`, ad hoc profil, MinimumOSVersion +
+MapsApiKey + NSLocationWhenInUse VAR.
+IPAda VAR: `İstatistik` · `Sohbet Odaları` · `Odalar` · `en uygun` ·
+`Görüntülenme` · `En çok beğenilenler` · `Canlı Yayın`.
+Kontrol dizesi `Yakınımda` VAR.
+Adres: https://indir.gebzem.app/index.html?v=20260910-0343
+
+⚠️ **BACKEND DEGISMEDI** (deploy YOK) · health ok.
+⚠️⚠️ **DB TRUNCATE EDILMEDI** — sema degismedi ve turu 180z'nin zengin tohumu
+   (profil fotograflari, anket, belge, kisi, kanal begenileri) duruyor.
