@@ -38,13 +38,20 @@ type isletmeIstek struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
 
-	Kategori string   `json:"kategori"`
-	Aciklama string   `json:"aciklama"`
-	Adres    string   `json:"adres"`
-	Il       string   `json:"il"`
-	Ilce     string   `json:"ilce"`
-	Telefon  string   `json:"telefon"`
-	Web      string   `json:"web"`
+	// ⚠️⚠️⚠️ HEPSI ISARETCI — "alan GONDERILMEDI" ile "alan BOSALTILDI"
+	//	ayni sey DEGILDIR. Duz `string` ile ikisi de "" olarak gelir ve
+	//	kismi bir PATCH gonderilmeyen alanlari SILER.
+	//	Turu 181'de uctan uca testi bunu SAHADA olctu: yalniz telefon
+	//	gonderilen bir istek aciklama/adres/il/ilce/web'i SIFIRLIYORDU.
+	// ⚠️ YAPMA: duz `string`e dondurme (JSON'da alanin YOKLUGU bilgisi
+	//	yalnizca isaretciyle tasinabilir).
+	Kategori *string  `json:"kategori"`
+	Aciklama *string  `json:"aciklama"`
+	Adres    *string  `json:"adres"`
+	Il       *string  `json:"il"`
+	Ilce     *string  `json:"ilce"`
+	Telefon  *string  `json:"telefon"`
+	Web      *string  `json:"web"`
 	Enlem    *float64 `json:"enlem"`
 	Boylam   *float64 `json:"boylam"`
 }

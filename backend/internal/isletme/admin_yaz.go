@@ -29,20 +29,48 @@ import (
 //	semantigiyle tasiyor cunku duzenleme formu onlari kismi gonderiyor.
 //	Admin paneli TEMEL kunye bilgilerini yonetir; vitrin alanlarina
 //	DOKUNMAZ ve boylece isletmenin kendi girdigi degerleri EZMEZ.
+// ⚠️⚠️⚠️ **TUM ALANLAR ISARETCI**: "gonderilmedi" ile "sifirla" AYRI
+//
+//	seylerdir (turu 78/85b koordinat dersi).
+//
+// ⚠️⚠️ ILK YAZIMDA YALNIZ KOORDINATLAR ISARETCIYDI ve **ASIMETRININ KENDISI
+//
+//	HATAYDI** — bu projede tekrarlayan sinif. Sonuc GERCEK BIR VERI
+//	KAYBIYDI ve turu 181'de uctan uca testi tarafindan SAHADA olculdu:
+//	yonetici yalnizca telefonu duzeltmek icin `PATCH {telefon:"..."}`
+//	gonderdiginde, govdede olmayan yedi alan Go'da BOS DIZEYE cozuluyor
+//	ve `EXCLUDED` ile YAZILIYORDU -> aciklama · adres · il · ilce · web
+//	**SILINIYORDU**. Ustelik bu dosyanin KENDI serhi ayni tuzagi
+//	koordinatlar icin ACIKCA anlatiyordu.
+//
+// ⚠️ YAPMA: bu alanlari duz `string`e dondurme; yeni alan eklerken de
+//
+//	ISARETCI yaz.
 type AdminBilgi struct {
-	Kategori string
-	Aciklama string
-	Adres    string
-	Il       string
-	Ilce     string
-	Telefon  string
-	Web      string
+	Kategori *string
+	Aciklama *string
+	Adres    *string
+	Il       *string
+	Ilce     *string
+	Telefon  *string
+	Web      *string
 
-	// ⚠️ ISARETCI: "gonderilmedi" ile "sifirla" AYRI seylerdir (turu 78/85b
-	//	koordinat dersi). Admin yalniz telefonu duzeltirken koordinat
-	//	SIFIRLANMAMALI.
 	Enlem  *float64
 	Boylam *float64
+}
+
+// kirp — isaretci bir metin alanini kirpar; `nil` ise `nil` KALIR.
+//
+// ⚠️ `nil` DONMESI SART: SQL tarafinda `COALESCE($n, mevcut)` yalnizca
+//
+//	gercek bir NULL gorurse eski degeri korur. Burada bos dizeye
+//	cevirmek, korumanin TAMAMINI etkisiz kilardi.
+func kirp(s *string, tavan int) *string {
+	if s == nil {
+		return nil
+	}
+	k := kisalt(strings.TrimSpace(*s), tavan)
+	return &k
 }
 
 // AdminKaydet — bir kullaniciyi ISLETME yapar ve kunye bilgilerini yazar.
@@ -57,17 +85,25 @@ type AdminBilgi struct {
 //
 //	NULL'a cevrilir ve `23502` verir (turu 75b `posts.media_ids` dersi).
 func (h *Handler) AdminKaydet(ctx context.Context, userID string, b AdminBilgi) error {
-	if _, ok := Kategoriler[b.Kategori]; !ok {
-		b.Kategori = "diger"
+	// ⚠️⚠️ Kategori GONDERILDIYSE beyaz listeden gecer; GONDERILMEDIYSE
+	//	`nil` KALIR ve SQL mevcut degeri korur. Eskiden gonderilmeyen
+	//	kategori sessizce `diger`e duruyor ve bir "Kuafor" kaydi telefon
+	//	duzeltmesinde **DIGER** oluyordu.
+	// ⚠️ INSERT dalinda `nil` -> `COALESCE(...,'diger')` (NOT NULL sutun).
+	if b.Kategori != nil {
+		if _, ok := Kategoriler[*b.Kategori]; !ok {
+			d := "diger"
+			b.Kategori = &d
+		}
 	}
 	// ⚠️ Tavanlar `Kaydet` ile BIREBIR ayni: ayrisirlarsa panelden girilen
 	//	bir aciklama uygulamadan girilenden farkli kirpilirdi.
-	b.Aciklama = kisalt(strings.TrimSpace(b.Aciklama), 500)
-	b.Adres = kisalt(strings.TrimSpace(b.Adres), 300)
-	b.Il = kisalt(strings.TrimSpace(b.Il), 60)
-	b.Ilce = kisalt(strings.TrimSpace(b.Ilce), 60)
-	b.Telefon = kisalt(strings.TrimSpace(b.Telefon), 30)
-	b.Web = kisalt(strings.TrimSpace(b.Web), 200)
+	b.Aciklama = kirp(b.Aciklama, 500)
+	b.Adres = kirp(b.Adres, 300)
+	b.Il = kirp(b.Il, 60)
+	b.Ilce = kirp(b.Ilce, 60)
+	b.Telefon = kirp(b.Telefon, 30)
+	b.Web = kirp(b.Web, 200)
 	// ⚠️ Bozuk koordinat MEVCUDU KORUR (nil), SIFIRLAMAZ — `Kaydet` ile ayni
 	//	karar. Sifirlamak, gecerli bir koordinati tek bozuk istekle yok
 	//	etmek demekti.
@@ -92,21 +128,26 @@ func (h *Handler) AdminKaydet(ctx context.Context, userID string, b AdminBilgi) 
 		INSERT INTO isletmeler
 		  (user_id, kategori, aciklama, adres, il, ilce, telefon, web,
 		   enlem, boylam)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,
+		VALUES ($1,
+		        COALESCE($2::text, 'diger'),
+		        COALESCE($3::text, ''), COALESCE($4::text, ''),
+		        COALESCE($5::text, ''), COALESCE($6::text, ''),
+		        COALESCE($7::text, ''), COALESCE($8::text, ''),
 		        COALESCE($9,  0::double precision),
 		        COALESCE($10, 0::double precision))
 		ON CONFLICT (user_id) DO UPDATE SET
-		  kategori = EXCLUDED.kategori,
-		  aciklama = EXCLUDED.aciklama,
-		  adres    = EXCLUDED.adres,
-		  il       = EXCLUDED.il,
-		  ilce     = EXCLUDED.ilce,
-		  telefon  = EXCLUDED.telefon,
-		  web      = EXCLUDED.web,
 		  -- HAM PARAMETRE, EXCLUDED DEGIL: EXCLUDED degeri VALUES'taki
 		  -- COALESCE'in SONUCUDUR ve "gonderilmedi" bilgisi orada ZATEN
-		  -- KAYBOLUR (turu 80b/85b'de IKI KEZ sahaya cikti).
+		  -- KAYBOLUR (turu 80b/85b'de IKI KEZ, turu 181'de UCUNCU KEZ
+		  -- sahaya cikti — o sefer YEDI METIN ALANI birden siliniyordu).
 		  -- (Serhte BACKTICK YOK: Go ham dizesini KAPATIR — turu 180 tuzagi.)
+		  kategori = COALESCE($2::text, isletmeler.kategori),
+		  aciklama = COALESCE($3::text, isletmeler.aciklama),
+		  adres    = COALESCE($4::text, isletmeler.adres),
+		  il       = COALESCE($5::text, isletmeler.il),
+		  ilce     = COALESCE($6::text, isletmeler.ilce),
+		  telefon  = COALESCE($7::text, isletmeler.telefon),
+		  web      = COALESCE($8::text, isletmeler.web),
 		  enlem  = COALESCE($9::double precision,  isletmeler.enlem),
 		  boylam = COALESCE($10::double precision, isletmeler.boylam),
 		  updated_at = now()`,

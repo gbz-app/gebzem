@@ -16,9 +16,13 @@ const JPEG = Buffer.from(
   'AAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AKp//2Q==',
   'base64');
 
-async function j(yol, { yontem = 'GET', govde, token } = {}) {
+async function j(yol, { yontem = 'GET', govde, token, basliklar } = {}) {
   const h = { 'Content-Type': 'application/json' };
   if (token) h.Authorization = 'Bearer ' + token;
+  // ⚠️ TURU 181: admin OTURUM JETONU `X-Admin-Jeton` BASLIGIYLA gider,
+  //	`?key=` ile DEGIL (anahtar tarayici gecmisine/loga dusmesin).
+  //	Bu yuzden yardimciya serbest baslik gecisi gerekti.
+  if (basliklar) Object.assign(h, basliklar);
   const r = await fetch(API + yol, {
     method: yontem, headers: h,
     body: govde === undefined ? undefined : JSON.stringify(govde),
@@ -3404,6 +3408,305 @@ const kontrol = (ad, gecti, ek = '') => {
     kontrol('TURU 152: (0,0) koordinat REDDEDILIR (Gine Korfezi tuzagi)',
       sifir.kod === 400, 'HTTP ' + sifir.kod);
   }
+
+  // ═══════════════════ ADMIN PANELI (turu 181) ═══════════════════
+  //
+  // ⚠️⚠️⚠️ NEDEN VAR: turu 181'de `internal/admin` (37 uc) yazildi ve
+  //	kullanicinin emri *"adminden firma ekleme silme vs HER SEYI adminle
+  //	bagla"* idi. Bu projede "uc yazildi, CAGIRAN yol yazilmadi" sinifi
+  //	**DOKUZ KEZ** sahaya cikti; admin uclari da e2e kapsamina alinmazsa
+  //	ayni riski tasir.
+  //
+  // ⚠️ Anahtarsiz kapilar HER ZAMAN sinanir (fail-closed KANITI). Yazma
+  //	kontrolleri yalnizca `ADMIN_KEY` verilmisse kosar — anahtarsiz bir
+  //	kurulumda e2e HAKSIZ YERE kirmizi dusmesin (turu 152 deseni).
+  {
+    const AK = process.env.ADMIN_KEY || '';
+    const AU = process.env.ADMIN_USER || '';
+    const AP = process.env.ADMIN_PASS || '';
+
+    // ── FAIL-CLOSED (anahtar GEREKTIRMEZ) ──
+    // ⚠️⚠️ Bu kontroller EN KRITIGI: turu 181'de `calls.AdminLogin`da
+    //	**KODA GOMULU** bir sifre bulundu ve depo PUBLIC, env degiskeni
+    //	ise sunucuda YOKTU. Yetki artik fail-closed.
+    const anahtarsiz = await j('/admin/isletmeler');
+    kontrol('ADMIN: anahtarsiz istek REDDEDILIR (fail-closed)',
+      anahtarsiz.kod === 401, 'HTTP ' + anahtarsiz.kod);
+
+    const yanlis = await j('/admin/isletmeler?key=kesinlikle-yanlis-anahtar');
+    kontrol('ADMIN: YANLIS anahtar REDDEDILIR',
+      yanlis.kod === 401, 'HTTP ' + yanlis.kod);
+
+    const jetonsuz = await j('/admin/istatistik', {
+      basliklar: { 'X-Admin-Jeton': 'uydurma-jeton' },
+    });
+    kontrol('ADMIN: uydurma OTURUM JETONU REDDEDILIR',
+      jetonsuz.kod === 401, 'HTTP ' + jetonsuz.kod);
+
+    if (!AK) {
+      console.log('  (ADMIN_KEY yok -> admin YAZMA kontrolleri ATLANDI)');
+    } else {
+      const ak = (yol) =>
+        yol + (yol.includes('?') ? '&' : '?') + 'key=' + encodeURIComponent(AK);
+      const a = (yol, o = {}) => j(ak(yol), o);
+
+      // ── OTURUM: kullanici/sifre -> kisa omurlu jeton ──
+      // ⚠️ Panel ARTIK ?key= KULLANMAZ (anahtar tarayici gecmisine ve
+      //	sunucu erisim loguna duserdi). Jeton yolunun GERCEKTEN calistigi
+      //	burada kanitlanir; yalniz ?key= sinansaydi panelin kendi giris
+      //	yolu e2e'de HIC olculmezdi.
+      if (AU && AP) {
+        const kotuGiris = await j('/admin/giris', {
+          yontem: 'POST', govde: { user: AU, pass: AP + 'X' },
+        });
+        kontrol('ADMIN: YANLIS sifre ile giris REDDEDILIR',
+          kotuGiris.kod === 401, 'HTTP ' + kotuGiris.kod);
+
+        const giris = await j('/admin/giris', {
+          yontem: 'POST', govde: { user: AU, pass: AP },
+        });
+        const jeton = giris.d && giris.d.jeton;
+        kontrol('ADMIN: giris JETON donduruyor',
+          giris.kod === 200 && typeof jeton === 'string' && jeton.length > 20,
+          'HTTP ' + giris.kod);
+
+        if (jeton) {
+          const jl = await j('/admin/istatistik', {
+            basliklar: { 'X-Admin-Jeton': jeton },
+          });
+          kontrol('ADMIN: OTURUM JETONU ile istek GECIYOR (?key= gerekmiyor)',
+            jl.kod === 200, 'HTTP ' + jl.kod);
+
+          // ⚠️ Cikis jetonu SUNUCUDA gecersiz kilmali: yalniz istemci
+          //	localStorage'ini temizlemek jetonu 12 saat CANLI birakirdi.
+          await j('/admin/cikis', {
+            yontem: 'POST', basliklar: { 'X-Admin-Jeton': jeton },
+          });
+          const sonra = await j('/admin/istatistik', {
+            basliklar: { 'X-Admin-Jeton': jeton },
+          });
+          kontrol('ADMIN: CIKIS sonrasi jeton SUNUCUDA gecersiz',
+            sonra.kod === 401, 'HTTP ' + sonra.kod);
+        }
+      } else {
+        console.log('  (ADMIN_USER/ADMIN_PASS yok -> oturum kontrolleri ATLANDI)');
+      }
+
+      // ── OKUMA UCLARI ──
+      const ist = await a('/admin/istatistik');
+      kontrol('ADMIN: istatistik sayaclari geliyor',
+        ist.kod === 200 && jsonMu(ist) && typeof ist.d === 'object' &&
+        Object.keys(ist.d || {}).length >= 10,
+        'HTTP ' + ist.kod + ' alan=' + Object.keys(ist.d || {}).length);
+
+      const kat = await a('/admin/kategoriler');
+      const katListe = Array.isArray(kat.d) ? kat.d : (kat.d && kat.d.kategoriler) || [];
+      kontrol('ADMIN: kategori katalogu SUNUCUDAN geliyor',
+        kat.kod === 200 && katListe.length > 5,
+        'HTTP ' + kat.kod + ' adet=' + katListe.length);
+
+      // ── FIRMA EKLE (kullanicinin MANSET emri) ──
+      // ⚠️⚠️ YENI HESAP dali sinanir, "mevcut kullaniciyi isletme yap"
+      //	dali DEGIL: yeni hesapta verified=true yazilmazsa hesap HAYALET
+      //	olur (giris 403) — turu 85b'de tam bu yasandi ve kayit akisi
+      //	SESSIZCE olu dogmustu.
+      const fTel = '+90555' + rastgele() + String(rastgele()).slice(0, 1);
+      const fKadi = 'e2efirma' + rastgele();
+      const fSifre = 'Firma12345!';
+      const olustur = await a('/admin/isletmeler', {
+        yontem: 'POST',
+        govde: {
+          phone: fTel, name: 'E2E Test Firma', username: fKadi, password: fSifre,
+          kategori: 'yemek', aciklama: 'e2e ile acildi',
+          adres: 'Test Mah. 1. Sk', il: 'Kocaeli', ilce: 'Gebze',
+          telefon: '02620000000',
+        },
+      });
+      const fID = olustur.d && (olustur.d.user_id || olustur.d.id);
+      kontrol('ADMIN: FIRMA EKLENDI (yeni hesap)',
+        (olustur.kod === 200 || olustur.kod === 201) && !!fID,
+        'HTTP ' + olustur.kod + ' ' + JSON.stringify(olustur.d).slice(0, 120));
+
+      if (fID) {
+        // ⚠️⚠️ ASIL KANIT: hesap GERCEKTEN kullanilabilir mi? Sunucuda satir
+        //	olusup verified yazilmazsa liste yesil gorunur ama isletme
+        //	sahibi uygulamaya GIREMEZ.
+        const fGiris = await j('/auth/login', {
+          yontem: 'POST', govde: { phone: fTel, password: fSifre },
+        });
+        kontrol('ADMIN: eklenen firma GIRIS YAPABILIYOR (verified yazildi)',
+          fGiris.kod === 200 && !!(fGiris.d && fGiris.d.token), 'HTTP ' + fGiris.kod);
+
+        const fTok = fGiris.d && fGiris.d.token;
+        if (fTok) {
+          const fMe = await j('/users/me', { token: fTok });
+          kontrol('ADMIN: eklenen hesap ISLETME turunde',
+            !!(fMe.d && fMe.d.hesap_turu === 'isletme'),
+            'hesap_turu=' + (fMe.d && fMe.d.hesap_turu));
+        }
+
+        // ── FIRMA GUNCELLE ──
+        const yeniAciklama = 'e2e guncellendi ' + rastgele();
+        const gun = await a('/admin/isletmeler/' + fID, {
+          yontem: 'PATCH',
+          govde: { aciklama: yeniAciklama, il: 'Kocaeli', ilce: 'Darıca' },
+        });
+        kontrol('ADMIN: firma GUNCELLENDI', gun.kod === 200, 'HTTP ' + gun.kod);
+
+        // ⚠️ Dogrulama ADMIN UCUNDAN DEGIL **HERKESE ACIK** uctan yapilir:
+        //	admin yaniti kendi yazdigini tekrar ederse hata gorunmez.
+        const pd = await j('/users/' + fID + '/isletme', { token: A.token });
+        kontrol('ADMIN: guncelleme HERKESE ACIK ucta gorunuyor',
+          pd.kod === 200 && !!pd.d && pd.d.aciklama === yeniAciklama &&
+          pd.d.ilce === 'Darıca',
+          'aciklama=' + String(pd.d && pd.d.aciklama).slice(0, 30));
+
+        // ⚠️⚠️ KISMI PATCH mevcut alanlari KORUMALI: turu 78/85b'de
+        //	EXCLUDED ile yazan bir UPSERT, gonderilmeyen alanlari
+        //	SIFIRLIYORDU (adres + 7 gunluk calisma saati BOSALIYORDU).
+        const kismi = await a('/admin/isletmeler/' + fID, {
+          yontem: 'PATCH', govde: { telefon: '02621111111' },
+        });
+        const pd2 = await j('/users/' + fID + '/isletme', { token: A.token });
+        kontrol('ADMIN: KISMI guncelleme diger alanlari KORUYOR',
+          kismi.kod === 200 && !!pd2.d && pd2.d.aciklama === yeniAciklama &&
+          pd2.d.telefon === '02621111111',
+          'aciklama korundu=' + !!(pd2.d && pd2.d.aciklama === yeniAciklama));
+
+        // ── ONAY ROZETI ──
+        const onay = await a('/admin/isletmeler/' + fID + '/onay', {
+          yontem: 'POST', govde: { onayli: true },
+        });
+        const prof = await j('/users/' + fID + '/profile', { token: A.token });
+        kontrol('ADMIN: ONAY rozeti profilde gorunuyor',
+          onay.kod === 200 && !!prof.d && prof.d.onayli === true,
+          'HTTP ' + onay.kod + ' onayli=' + (prof.d && prof.d.onayli));
+
+        // ── FIRMA KAPAT (kisisel hesaba dondurur) ──
+        // ⚠️⚠️ **VERI SILINMEZ** (8 Agu kullanici karari): isletmeler
+        //	satiri DURUR, yalnizca hesap_turu kisisele doner. Bu yuzden
+        //	kontrol "satir yok mu" degil "artik ISLETME mi" diye sorar.
+        const kapat = await a('/admin/isletmeler/' + fID, { yontem: 'DELETE' });
+        const fMe2 = fTok ? await j('/users/me', { token: fTok }) : null;
+        kontrol('ADMIN: firma KAPATILDI (hesap kisisele dondu, VERI SILINMEDI)',
+          kapat.kod === 200 && !!fMe2 && !!fMe2.d && fMe2.d.hesap_turu !== 'isletme',
+          'HTTP ' + kapat.kod + ' hesap_turu=' + (fMe2 && fMe2.d && fMe2.d.hesap_turu));
+
+        // ── JETON (DELTA, mutlak DEGIL) ──
+        // ⚠️ Uc bir DELTA uygular: mutlak yazsaydi iki admin ayni anda
+        //	bakiyeyi ezerdi. Yeni bakiye yanitta doner.
+        const j1 = await a('/admin/kullanicilar/' + fID + '/jeton', {
+          yontem: 'POST', govde: { miktar: 50 },
+        });
+        const j2 = await a('/admin/kullanicilar/' + fID + '/jeton', {
+          yontem: 'POST', govde: { miktar: -50 },
+        });
+        kontrol('ADMIN: jeton DELTA olarak uygulaniyor (+50 sonra -50)',
+          j1.kod === 200 && j2.kod === 200 && typeof (j1.d && j1.d.bakiye) === 'number' &&
+          j2.d.bakiye === j1.d.bakiye - 50,
+          '+50 -> ' + (j1.d && j1.d.bakiye) + '   -50 -> ' + (j2.d && j2.d.bakiye));
+
+        const sifirJeton = await a('/admin/kullanicilar/' + fID + '/jeton', {
+          yontem: 'POST', govde: { miktar: 0 },
+        });
+        kontrol('ADMIN: sifir jeton REDDEDILIR', sifirJeton.kod === 400,
+          'HTTP ' + sifirJeton.kod);
+      }
+
+      // ── KULLANICI ASKIYA ALMA (uctan uca: yazma + IKI okuma kapisi) ──
+      // ⚠️⚠️ ASIL RISK: askiya alma YALNIZ users satirina yazilirsa
+      //	kullanicinin ELINDEKI JWT calismaya DEVAM eder (auth middleware
+      //	kullaniciyi ONBELLEKLIYOR). Bu kontrol o onbellegin
+      //	GECERSIZLESTIGINI kanitlar.
+      const bOnce = await j('/users/me', { token: B.token });
+      kontrol('ASKI: once B normal calisiyor', bOnce.kod === 200, 'HTTP ' + bOnce.kod);
+
+      const aski = await a('/admin/kullanicilar/' + B.id + '/aski', {
+        yontem: 'POST', govde: { askida: true, sebep: 'e2e dogrulama' },
+      });
+      kontrol('ASKI: askiya alma yazildi', aski.kod === 200, 'HTTP ' + aski.kod);
+
+      const bSonra = await j('/users/me', { token: B.token });
+      // ⚠️ 401 DEGIL 403 olmasi ONEMLI: 401 istemcide oturumu SILER ve
+      //	kullanici "sifremi mi unuttum" sanir; 403 SEBEBI tasiyabilir.
+      kontrol('ASKI: ESKI JWT **ANINDA** gecersiz (403, 401 DEGIL)',
+        bSonra.kod === 403,
+        'HTTP ' + bSonra.kod + ' ' + JSON.stringify(bSonra.d).slice(0, 90));
+
+      kontrol('ASKI: yanit SEBEBI tasiyor',
+        JSON.stringify(bSonra.d || '').includes('e2e dogrulama'),
+        String(JSON.stringify(bSonra.d)).slice(0, 90));
+
+      const bGiris = await j('/auth/login', {
+        yontem: 'POST', govde: { phone: B.tel, password: 'Test12345!' },
+      });
+      kontrol('ASKI: yeniden GIRIS de engelleniyor',
+        bGiris.kod >= 400, 'HTTP ' + bGiris.kod);
+
+      const kaldir = await a('/admin/kullanicilar/' + B.id + '/aski', {
+        yontem: 'POST', govde: { askida: false },
+      });
+      const bGeri = await j('/users/me', { token: B.token });
+      kontrol('ASKI: KALDIRILINCA eski JWT tekrar calisiyor',
+        kaldir.kod === 200 && bGeri.kod === 200,
+        'HTTP ' + kaldir.kod + '/' + bGeri.kod);
+
+      // ── ICERIK MODERASYONU (yazma yolu) ──
+      // ⚠️⚠️ Turu 181'de once YALNIZ listeleme sinanmisti; yazma yolu
+      //	information_schema'dan OLCULEREK duzeltildi (sutun adi metin,
+      //	posts.id UUID). Yazma yolu artik BURADA kilitleniyor.
+      const mg = await j('/posts', {
+        yontem: 'POST', token: A.token,
+        govde: { tur: 'yazi', metin: 'E2E moderasyon testi ' + rastgele() },
+      });
+      const mgID = mg.d && (mg.d.id || (mg.d.post && mg.d.post.id));
+      kontrol('MODERASYON: test gonderisi olusturuldu',
+        (mg.kod === 200 || mg.kod === 201) && !!mgID, 'HTTP ' + mg.kod);
+
+      if (mgID) {
+        const gorOnce = await j('/posts/' + mgID, { token: B.token });
+        kontrol('MODERASYON: karantina ONCESI B goruyor',
+          gorOnce.kod === 200, 'HTTP ' + gorOnce.kod);
+
+        const kar = await a('/admin/icerik/gonderi/' + mgID + '/durum', {
+          yontem: 'POST', govde: { durum: 'karantina', sebep: 'e2e' },
+        });
+        kontrol('MODERASYON: KARANTINAYA alindi',
+          kar.kod === 200, 'HTTP ' + kar.kod + ' ' + JSON.stringify(kar.d).slice(0, 90));
+
+        const gorSonra = await j('/posts/' + mgID, { token: B.token });
+        kontrol('MODERASYON: karantinali icerik B icin GORUNMEZ',
+          gorSonra.kod !== 200, 'HTTP ' + gorSonra.kod);
+
+        const geri = await a('/admin/icerik/gonderi/' + mgID + '/durum', {
+          yontem: 'POST', govde: { durum: 'yayinda' },
+        });
+        const gorGeri = await j('/posts/' + mgID, { token: B.token });
+        kontrol('MODERASYON: GERI ALINABILIYOR (yayinda)',
+          geri.kod === 200 && gorGeri.kod === 200,
+          'HTTP ' + geri.kod + '/' + gorGeri.kod);
+
+        const bilinmeyen = await a('/admin/icerik/uydurma-tur/' + mgID + '/durum', {
+          yontem: 'POST', govde: { durum: 'karantina' },
+        });
+        kontrol('MODERASYON: BILINMEYEN icerik turu REDDEDILIR (tablo beyaz listesi)',
+          bilinmeyen.kod === 400 || bilinmeyen.kod === 404,
+          'HTTP ' + bilinmeyen.kod);
+      }
+
+      // ── ISLEM GUNLUGU ──
+      // ⚠️ Admin eylemleri IZ BIRAKMALI: kim, neyi, ne zaman. Iz yoksa
+      //	yanlis bir moderasyon karari geri alinamaz hale gelir.
+      const gnl = await a('/admin/gunluk?limit=50');
+      const gnlMetin = JSON.stringify(gnl.d || '');
+      const gnlListe = Array.isArray(gnl.d) ? gnl.d : (gnl.d && gnl.d.kayitlar) || [];
+      kontrol('GUNLUK: admin eylemleri KAYIT ALTINDA',
+        gnl.kod === 200 && gnlMetin.includes('isletme') &&
+        gnlMetin.includes('kullanici'),
+        'HTTP ' + gnl.kod + ' kayit=' + gnlListe.length);
+    }
+  }
+
 
   // ---------- OZET
   const kalan = sonuclar.filter((s) => !s.gecti);
