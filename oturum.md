@@ -11052,3 +11052,253 @@ Adres: https://indir.gebzem.app/index.html?v=20260910-0343
 ⚠️ **BACKEND DEGISMEDI** (deploy YOK) · health ok.
 ⚠️⚠️ **DB TRUNCATE EDILMEDI** — sema degismedi ve turu 180z'nin zengin tohumu
    (profil fotograflari, anket, belge, kisi, kanal begenileri) duruyor.
+
+---
+
+# Oturum — TURU 181 (10 Eyl 2026) — BACKEND + YONETIM PANELI
+
+⚠️ **BUILD ALINMADI.** Bu bir ARAYUZ turu DEGIL: kullanici arayuz fazini
+kapatip *"bunlari simdi guzelce backend vs hepsini yap, daha sonra adminden
+firma ekleme silme vs her seyi adminle bagla, step step derinlemesine yap,
+durma bitirene kadar"* dedi. CLAUDE.md kural 9 (ARAYUZ BITMEDEN BACKEND'E
+GIRME) bu turda kullanicinin kendi emriyle KALKTI.
+
+⚠️ **DEPLOY EDILDI** (migration 052 canlida) · **DB TRUNCATE + tohum yapildi**.
+
+## 0) Ozet tablo
+
+| | |
+|---|---|
+| Yeni backend paketi | `internal/admin` (8 dosya + gomulu panel) |
+| Yeni uc | **37** |
+| Migration | **052** (additive — TRUNCATE gerekmedi) |
+| Uctan uca | **301 -> 436** kontrol, **436/436 GECTI** |
+| Yeni muhafiz | 3 (`media/kume_test.go`) + 3 (`admin/panel_test.go`) + 1 (`database/migrate_test.go`) |
+| CI | **YENI** `.github/workflows/backend.yml` (build·vet·test·migration) |
+| Kapatilan guvenlik/gizlilik acigi | **3** |
+| Bulunan sessiz veri kaybi | **2** |
+
+## 1) 🔴 `medyayiKopar` AYLARDIR BOZUKTU (en agir bulgu)
+
+**Kanit CANLI SUNUCUDA alindi** (tahmin degil):
+
+    ERROR: operator does not exist: uuid = text
+
+Uc kopya da (chat · kanal · social) **HER CAGRIDA** patliyordu ve hatalar
+`catch`/`_ =` ile yutuluyordu. Sonuc: **hicbir medya HIC KOPARILMADI** —
+silinen her gonderi/mesaj/hikaye R2'de KALICI cop birakti.
+
+Kok neden Postgres tip cikarsamasi: ayni `$1` hem `uuid` hem `text` sutunla
+karsilastirilinca **TUM SORGU** dusuyor.
+
+**FIX:** tek kaynak `internal/media/kopar.go`
+- **11 tablo** sayiliyor; onceki uc kopya **4 tabloyu HICBIRINDE** saymiyordu
+  (`users.kapak_media_id` · `chats.avatar_media_id` · `isletme_urunleri` ·
+  `isletmeler.kapak_medyalari`).
+- ACIK cast (`$1::uuid`, `$1::text`) — canli `PREPARE` ile dogrulandi.
+- **FAIL-CLOSED**: sayim patlarsa "kullanimda" kabul edilir. Over-count
+  DEPOLAMA, under-count **VERI KAYBI** demektir.
+- `durum='yayinda'` suzgeci **BILEREK YOK** (ayni gerekce).
+
+🛡️ `kume_test.go` — 3 muhafiz, ucu de **BOZULARAK KANITLANDI**:
+`erisebilir()` ile `kullanimSayimi` tablo kumeleri hizali mi · her `$1` cast'li
+mi · uc eski kopya kendi sayimini geri EKLEMIS mi.
+
+⚠️ YAPMA: ikinci bir `medyayiKopar` yazma. Yeni medya sutunu acarken UCUNU
+BIRLIKTE guncelle: `erisebilir()` dali · `kullanimSayimi` · e2e kontrolu.
+
+## 2) 🔒 Kapatilan uc acik
+
+| # | Acik | Etkisi |
+|---|---|---|
+| 1 | `kapak_medyalari`da **sahiplik kapisi YOKTU** | Medya id'sini bilen herkes onu kendi kapak slider'ina baglayip **HERKESE ACABILIYORDU** (gizli hesap medyasi dahil) |
+| 2 | `calls.AdminLogin`da **koda gomulu sifre** | Depo **PUBLIC**; env sunucuda YOKTU, yani gecerli olan sifre kodda yazandi |
+| 3 | **Aski FIILEN calismiyordu** | Sutun vardi; yazan yol + `Login` kapisi + middleware kapisi + **onbellek gecersizlestirme** YOKTU |
+
+(3) icin: `auth.Gecersizlestir(userID)` cagrilmazsa aski **5 dakika** boyunca
+tamamen etkisiz kalirdi (middleware kullaniciyi onbellekliyor).
+Canli olculdu: aski yazildiktan sonra eski JWT **ANINDA 403**.
+
+⚠️ **403, 401 DEGIL**: 401 istemcide oturumu SILER ve kullanici "sifremi mi
+unuttum" sanir; 403 SEBEBI tasiyabilir ve ekranda gosterilir.
+
+## 3) 🖥️ Yonetim paneli (`internal/admin`)
+
+**ADRES: https://api.gebzem.app/admin/izle**
+Kimlik: `.env.infra` -> `ADMIN_USER` / `ADMIN_PASS`.
+
+Sekmeler: Genel Bakis · Firmalar · Urunler · Kullanicilar · Sikayetler ·
+Icerik · Yayinlar · Islem Gunlugu.
+
+**Kararlar:**
+- ⚠️⚠️ **`?key=` TARAYICIDA KULLANILMIYOR.** Panel `POST /admin/giris` ile
+  12 saatlik jeton alir, `X-Admin-Jeton` **BASLIGIYLA** gonderir. Anahtar
+  boylece tarayici gecmisine, yer imlerine ve sunucu erisim loguna DUSMEZ.
+  `?key=` betikler icin DURUYOR.
+- ⚠️⚠️ **FAIL-CLOSED**: `ADMIN_USER`/`ADMIN_PASS`/`ADMIN_KEY` ucu de zorunlu.
+  Biri yoksa TUM uclar 401. Karsilastirma `subtle.ConstantTimeCompare`.
+- Kaba kuvvet: 5 dk'da 6 deneme -> 15 dk ceza (IP `X-Forwarded-For` en soldan).
+- ⚠️ **Admin KENDI SQL'INI YAZMAZ**: isletme yazma yolu `isletme.AdminKaydet`e
+  devredilir. Iki yazici olsaydi kategori beyaz listesi, alan tavanlari ve
+  NOT NULL COALESCE kapilari KACINILMAZ olarak ayrisirdi (bu projede ALTI kez).
+- **Denetim izi**: her yazma `admin_log`a oncesi/sonrasi ile yazilir (5651).
+- Panel varliklari `//go:embed` — ayri bir statik sunucu/derleme adimi YOK.
+- `panel.js` her DB degerini `esc()`ten gecirir; 🛡️ `panel_test.go` bunu
+  zorlar (3 muhafiz, bozularak kanitlandi).
+
+## 4) 🔴 KISMI PATCH firma bilgilerini SILIYORDU
+
+`AdminBilgi`de yalniz `Enlem`/`Boylam` isaretciydi. Yedi metin alani duz
+`string`ti ve `ON CONFLICT ... EXCLUDED` ile yaziliyordu:
+
+    PATCH /admin/isletmeler/{id}  {"telefon":"0262..."}
+      -> aciklama = ''   adres = ''   il = ''   ilce = ''   web = ''
+      -> kategori = 'diger'
+
+Yani **yalnizca telefonu duzelten bir yonetici firmanin kunyesini SILIYORDU.**
+
+⚠️⚠️ Dosyanin **KENDI SERHI** ayni tuzagi koordinatlar icin ACIKCA
+anlatiyordu. **ASIMETRININ KENDISI HATAYDI** — bu projede tekrarlayan sinif
+(turu 85c `_requestAll`, turu 92b `mesgulMu`, turu 96i `Content-Type`).
+
+**FIX:** tum alanlar `*string`; UPDATE dalinda EXCLUDED yerine **HAM
+PARAMETRE** + `COALESCE($n::text, isletmeler.x)`; INSERT dalinda NOT NULL
+sutunlar icin `COALESCE(...,'')` / kategori icin `COALESCE(...,'diger')`.
+
+⚠️⚠️ **Statik denetim BULAMADI. Yeni e2e blogu SAHADA olctu** — bu, e2e
+genislemesinin bu turda kendini odedigi yerdir.
+
+## 5) 🛡️ Uctan uca 301 -> 436
+
+Admin uclarinin e2e kapsami **SIFIRDI**. Bu projede "uc yazildi, CAGIRAN yol
+yazilmadi" sinifi **DOKUZ** kez sahaya cikti.
+
+Yeni kontroller (ozet):
+- **fail-closed**: anahtarsiz · yanlis anahtar · uydurma jeton -> 401
+- **oturum**: yanlis sifre 401 · jeton doner · baslikla gecer ·
+  **cikis sonrasi jeton SUNUCUDA gecersiz**
+- **firma ekle** -> hesap **GERCEKTEN GIRIS YAPABILIYOR** (`verified` yazildi
+  mi; turu 85b'de hayalet hesap uretmisti)
+- **firma guncelle** -> dogrulama **admin ucundan DEGIL, HERKESE ACIK uctan**
+  (admin yaniti kendi yazdigini tekrar ederse hata gorunmez)
+- **kismi guncelleme digerlerini KORUYOR**  <- (4)'teki hatayi BU BULDU
+- onay rozeti · firma kapat (**veri SILINMEZ**, hesap kisisele doner)
+- jeton **DELTA** (+50/-50) · sifir jeton 400
+- **aski**: eski JWT ANINDA 403 + SEBEP tasiyor + giris de engelli +
+  kaldirinca eski JWT tekrar calisiyor
+- **moderasyon yazma yolu**: karantina -> B icin 404 -> geri al -> 200;
+  bilinmeyen icerik turu 400 (tablo beyaz listesi)
+- **islem gunlugu** kayit altinda
+
+⚠️ `j()` yardimcisina `basliklar` eklendi (jeton `X-Admin-Jeton` ile gider).
+
+## 6) 🛡️ Backend artik CI'da kosuyor
+
+Depoda **19 test dosyasi** vardi ve **HICBIRI CI'da kosmuyordu**. Tek yol
+yerelde elle `go test` idi; Windows Application Control ikilileri sik sik
+engelledigi icin adim ATLANIYORDU. Yani muhafizlarin degeri
+"hatirlarsam kosarim"a bagliydi.
+
+`.github/workflows/backend.yml`: `backend/**` push'unda build + vet + test,
+**postgres:17 servis konteyneriyle**.
+
+**YENI `internal/database/migrate_test.go`:** CLAUDE.md'de DUZYAZI olan
+*"deploy oncesi atilabilir DB'de migration dogrula"* kurali artik ZORLANIYOR.
+- ⚠️ **Ayri bir `psql` betigi YAZILMADI**: o, migration kosucusunun IKINCI
+  KOPYASI olurdu. Test **URETIMDEKI `Migrate()`i** cagirir.
+- Temiz semada uygular · **ikinci kosunun no-op** oldugunu dogrular ·
+  **dosya sayisi = uygulanan sayisi** esitligini kontrol eder (turu 89'da
+  CRLF yuzunden bir migration SESSIZCE uygulanmamisti).
+
+⚠️⚠️ **"Muhafiz gercekten kostu mu" kapisi**: test env degiskeni yoksa SKIP
+eder ve `go test` skip'i **PASS** gosterir.
+✅ **BOZARAK KANITLANDI** (yerelde, degisken yokken):
+
+    --- SKIP: TestMigrationlarTemizSemadaUygulanir
+    PASS
+    ok  .../internal/database  0.334s     <- go test YESIL
+    -> HATA: migration muhafizi KOSMADI   <- ek adim KIRMIZI (cikis 1)
+
+🔴 **CLAUDE.md'DEKI `GOTMPDIR` TALIMATI OLCULDU VE TERSI CIKTI:**
+GOTMPDIR **OLMADAN** 9/9 paket geciyor (cikis 0); **ILE** paketler
+engelleniyor. Talimat duzeltildi.
+
+## 7) 🍔 Menu seridi: N+1 kokten kalkti
+
+Sunucu artik liste yanitinda **ilk 5 urunu** donduruyor
+(`isletmeSutunlari` icindeki `json_agg` alt sorgusu — id · ad · fiyat_kurus ·
+media_id, `sira`/`created_at` sirasinda, `LIMIT 5`).
+
+| | Once | Simdi |
+|---|---|---|
+| Istek | isletme basina **1 ek istek** | **0** |
+| Istemci katmani | semafor(4) + tek-ucus + onbellek (`urun_onbellek.dart`) | **SILINDI** |
+| Ilk kare | yer tutucu -> ziplama | **dolu** |
+| `logout` temizligi | gerekiyordu | gerekmiyor |
+
+⚠️ YAPMA: `isletme_menu_seridi.dart` icine tekrar ag istegi koyma; ek alan
+gerekiyorsa SUNUCUDAKI `json_build_object` listesine ekle.
+
+## 8) 🔴 Metin tohum ureteci patlatiyordu (45/45 urun)
+
+`tools/urun_gorsel.js` gercek kosuda **45 urunun 45'inde** patladi:
+
+    undefined is not iterable (cannot read property Symbol(Symbol.iterator))
+
+**Kok neden:** `kapakUret` govdesinde `tohum % PALET.length` var. Urun ADI
+(metin) gecilince NaN -> `PALET[NaN]` **undefined** -> destructure patlar.
+
+⚠️⚠️ Uyari `tohum_sosyal.js` icinde **YAZILIYDI** ama **koruma CAGRI
+YERINDEYDI**; yeni cagiran o serhi hic gormeden ayni hataya dustu.
+**FIX: `tohumSayi()` (FNV-1a) URETECIN ICINDE** — koruma artik TEK KAYNAK.
+
+**IKINCI KUSUR (ayni yerde olculdu): desen PALETLE KORELELIYDI.**
+Serit `tohum % 3`ten, palet `tohum % 6`dan geliyordu ve `n % 6` matematiksel
+olarak `n % 3`u BELIRLER -> ayni palete dusen her ad **BIREBIR AYNI BAYT**.
+Olculdu: **18 ad -> yalniz 6 gorsel**. Menu seridi ayni isletmenin urunlerini
+YAN YANA cizdigi icin bu "hepsi ayni resim" demekti.
+
+FIX: `varyant = floor(tohum / 256)` ile serit · yon · isik kosesi
+decorrelate edildi -> **6 x 3 x 2 x 2 = 72** kombinasyon; 18 ad -> **15 tekil**.
+
+✅ **MEVCUT TOHUMLAR BIREBIR KORUNDU** (regresyon kapisi kosuldu): varyant
+`tohum < 256` iken **0**'dir; 0..255 icin kapak+avatar (**512 gorsel**) ve
+`tohum.js` olcusunde (1200x675) 0..19 -> **HEPSI md5 BIREBIR AYNI**.
+
+⚠️ YAPMA: seriti tekrar dogrudan `tohum % 3`e baglama (korelasyon geri gelir).
+
+## 9) Canli dogrulamalar
+
+- **436/436 uctan uca** (admin bloklari dahil, `ADMIN_KEY`/`USER`/`PASS` ile)
+- **karantina yazma yolu**: gonderi olustur -> B goruyor -> karantina ->
+  B **404** + akista YOK -> `admin_log` kaydi VAR -> geri al -> B goruyor
+- **urun gorselleri**: 45/45 yuklendi; liste ucu 4 kategoride de 5/5 medyali
+  onizleme donduruyor; imzali adres **200** + gercek 800x600 PNG baytlari
+- **backend CI**: 3/3 kosu YESIL
+- `go build` + `go vet` + `go test ./...` temiz · `flutter analyze` **0/0**
+- health ok: `medya: aktif (R2)` · `ai: aktif` · `arama (LiveKit): aktif`
+
+## 10) ⚠️ Sunucu deposu ISKALAMIS BIR AMEND YUZUNDEN AYRISMISTI
+
+`git pull` **"divergent branches"** ile durdu. Sebep: onceki turda commit
+mesajindaki BACKTICK'ler yuzunden `--amend -F -` + `--force-with-lease`
+yapilmisti; sunucu amend ONCESI commit'i cekmisti.
+
+⚠️ **ONCE OLCULDU, SONRA RESET EDILDI**: iki commit'in **AGAC HASH'I BIREBIR
+AYNI** cikti (yalniz mesaj farkliydi) ve `backend/.env`in gitignore'da oldugu
+dogrulandi. Ancak ondan sonra `git reset --hard origin/main`.
+
+⚠️ **DERS: sunucuda `reset --hard` atmadan once (a) agac farkini OLC,
+(b) `.env`in izlenmedigini DOGRULA.**
+
+## 11) ⏳ Durust sinirlar / bekleyen
+
+- **Build ALINMADI** — bu tur backend turuydu; kullanici isterse alinacak.
+- Panelde **grafik/zaman serisi YOK** (sayaclar anlik). Zaman serisi ayri bir
+  tablo ve toplama isi ister; uydurma bir grafik cizilmedi.
+- **Odeme/fatura YOK** — jeton dugmesi elle DELTA uygular, satin alma yoktur.
+- Kapak gorselleri **FOTOGRAF DEGIL**, desenli kartlardir (turu 141 karari:
+  yanlis gorsel, gorselsizden KOTUDUR). 72 kombinasyon oldugu icin bes urunluk
+  bir seritte **nadiren** iki kart ayni desene dusebilir.
+- `tools/urun_gorsel.js` **idempotent**: gorseli olan urune dokunmaz. Ureteci
+  degistirirsen mevcut gorseller YENILENMEZ (once `media_ids` bosaltilmali).

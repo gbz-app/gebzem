@@ -41,6 +41,128 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
       kaybettiriyorsun"*. **Üçüncüsü olmayacak.**
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
+- **KALDIGIMIZ YER (10 Eyl 12:45): TURU 181 — BACKEND + YONETIM PANELI BITTI.**
+  **BUILD ALINMADI** (kullanici emri arayuz degil BACKEND turuydu).
+  Sunucu **c916f2e / f82bc21** ile senkron, migration **052** canlida,
+  health ok (`medya: aktif (R2)` · `ai: aktif` · `arama: aktif`).
+  ✅ **CANLIDA 436/436 UCTAN UCA** (301 -> 436; admin bloklari dahil) ·
+  `go build`+`vet`+`test` temiz · **backend CI YESIL** · `flutter analyze` 0/0.
+  🌱 DB TRUNCATE + `tohum.js` + `urun_gorsel.js` (45/45) + `oda_galeri.js`.
+  ⏳ **KULLANICI TEST EDECEK** — build istenirse alinacak.
+
+- 🖥️ **TURU 181 — YONETIM PANELI** (`internal/admin`, 37 uc + gomulu panel).
+  Kullanici emri: *"adminden firma ekleme silme vs HER SEYI adminle bagla"*.
+  **ADRES: https://api.gebzem.app/admin/izle** · kimlik `.env.infra` icindeki
+  `ADMIN_USER` / `ADMIN_PASS`.
+  ⚠️⚠️ **`?key=` ARTIK TARAYICIDA KULLANILMIYOR**: panel `POST /admin/giris`
+     ile **12 saatlik oturum jetonu** alir ve `X-Admin-Jeton` BASLIGIYLA
+     gonderir (anahtar tarayici gecmisine ve sunucu erisim loguna dusmesin).
+     `?key=` yalniz betikler icin DURUYOR. Kaba kuvvet kapisi: 5 dk'da 6
+     deneme -> 15 dk ceza.
+  ⚠️⚠️ **FAIL-CLOSED**: `ADMIN_USER`/`ADMIN_PASS`/`ADMIN_KEY` UCU DE zorunlu;
+     biri yoksa uclar 401. Turu 181'de `calls.AdminLogin` icinde **KODA GOMULU**
+     bir sifir bulundu (`Gebzem2026!`) ve depo PUBLIC, env ise sunucuda YOKTU.
+     ⚠️ YAPMA: yetkiye "env bossa varsayilan" yedegi koyma.
+  ⚠️ Admin **KENDI SQL'INI YAZMAZ**: isletme yazma yolu `isletme.AdminKaydet`e
+     DEVREDILIR (tek kaynak). ⚠️ YAPMA: `internal/admin` icine
+     `INSERT/UPDATE isletmeler` yazma.
+
+- 🔴🔴🔴 **TURU 181 — KISMI PATCH FIRMA BILGILERINI SILIYORDU (veri kaybi).**
+  `AdminBilgi`de yalniz `Enlem`/`Boylam` isaretciydi; **yedi metin alani duz
+  `string`ti** ve `ON CONFLICT ... EXCLUDED` ile yaziliyordu. Yani
+  `PATCH {telefon:"..."}` gonderen bir yonetici **aciklama · adres · il · ilce ·
+  web** alanlarini SILIYOR, kategoriyi de sessizce `diger`e dusuruyordu.
+  ⚠️⚠️ Dosyanin KENDI serhi ayni tuzagi koordinatlar icin ACIKCA anlatiyordu —
+     **ASIMETRININ KENDISI HATAYDI** (bu projede tekrarlayan sinif).
+  FIX: TUM alanlar `*string`; UPDATE dalinda **HAM PARAMETRE** +
+  `COALESCE($n::text, isletmeler.x)`; INSERT dalinda NOT NULL sutunlar icin
+  `COALESCE(...,'')`, kategori icin `COALESCE(...,'diger')`.
+  ⚠️ **Statik denetim GORMEDI — yeni e2e blogu SAHADA olctu.**
+  ⚠️ YAPMA: bu alanlari duz `string`e dondurme; yeni alan eklerken ISARETCI yaz.
+
+- 🛡️ **TURU 181 — UCTAN UCA 301 -> 436** (`tools/uctan_uca.js`).
+  Admin uclarinin (37 uc) e2e kapsami **SIFIRDI**; bu projede "uc yazildi,
+  cagiran yol yazilmadi" sinifi DOKUZ kez sahaya cikti.
+  Yeni kontroller: fail-closed (anahtarsiz · yanlis anahtar · uydurma jeton) ·
+  oturum (yanlis sifre 401 · jeton doner · basliktan gecer · **CIKIS sonrasi
+  jeton SUNUCUDA gecersiz**) · firma EKLE -> **hesap GERCEKTEN GIRIS
+  YAPABILIYOR** (`verified` yazildi mi — turu 85b'de hayalet hesap uretmisti) ·
+  firma GUNCELLE (dogrulama **HERKESE ACIK** uctan) · **KISMI guncelleme
+  digerlerini KORUYOR** (bu kontrol yukaridaki veri kaybini BULDU) · ONAY
+  rozeti · firma KAPAT (veri SILINMEZ) · jeton DELTA · ASKI (eski JWT
+  **ANINDA 403** + SEBEP + giris engelli + kaldirinca geri gelir) ·
+  MODERASYON yazma yolu (karantina -> 404 -> geri al) · ISLEM GUNLUGU.
+  ⚠️ `j()` yardimcisina `basliklar` eklendi (admin jetonu icin).
+
+- 🛡️ **TURU 181 — BACKEND ARTIK CI'DA KOSUYOR** (`.github/workflows/backend.yml`).
+  Depoda **19 test dosyasi** vardi ve HICBIRI CI'da kosmuyordu; tek yol yerelde
+  elle `go test` idi ve Windows Application Control onu sik sik engelledigi icin
+  adim ATLANIYORDU. Artik `backend/**` push'unda build+vet+test.
+  ⚠️⚠️ **YENI: `internal/database/migrate_test.go`** — CLAUDE.md'de DUZYAZI olan
+     *"deploy oncesi atilabilir DB'de migration dogrula"* kurali artik
+     ZORLANIYOR (postgres:17 servis konteyneri). **Ayri bir `psql` betigi
+     YAZILMADI**: kosucunun ikinci kopyasi drift ederdi — test URETIMDEKI
+     `Migrate()`i cagirir, TEMIZ semada uygular, **IKINCI kosunun no-op**
+     oldugunu ve **dosya sayisi = uygulanan sayisi** esitligini dogrular.
+  ⚠️⚠️ CI'da AYRICA "muhafiz GERCEKTEN kostu mu" kapisi var: test env
+     degiskeni yoksa **SKIP** eder ve `go test` skip'i **PASS** gosterir.
+     ✅ BOZARAK KANITLANDI: degisken yokken `go test` YESIL, ek adim KIRMIZI.
+     ⚠️ YAPMA: o adimi kaldirma; `-v` bayragini dusurme.
+
+- 🍔 **TURU 181 — MENU SERIDI: N+1 KOKTEN KALKTI + GORSELLER GELDI.**
+  Sunucu artik liste yanitinda **ilk 5 urunu** donduruyor
+  (`isletmeSutunlari` icindeki `json_agg` alt sorgusu: id · ad · fiyat_kurus ·
+  media_id). Sonuc: istemcideki istek katmani TAMAMEN kalkti
+  (`urun_onbellek.dart` **SILINDI**), serit ILK KAREDE dolu ciziliyor.
+  ⚠️ YAPMA: `isletme_menu_seridi.dart` icine tekrar ag istegi koyma; ek alan
+     gerekiyorsa SUNUCUDAKI `json_build_object` listesine ekle.
+  ⚠️ Yeni araç **`tools/urun_gorsel.js`** surum rutinine EKLENDI (6. adim).
+
+- 🔴 **TURU 181 — METIN TOHUM URETECI PATLATIYORDU (45/45 urun).**
+  `kapakUret` govdesinde `tohum % PALET.length` var; urun ADI (metin)
+  gecilince NaN -> `PALET[NaN]` undefined -> destructure PATLIYOR
+  ("undefined is not iterable"). Uyari `tohum_sosyal.js` icinde YAZILIYDI ama
+  **koruma CAGRI YERINDEYDI**; yeni cagiran o serhi gormeden ayni hataya dustu.
+  FIX: **`tohumSayi()` (FNV-1a) URETECIN ICINDE** — koruma artik TEK KAYNAK,
+  metin gecirmek YAPISAL OLARAK guvenli.
+  ⚠️⚠️ IKINCI KUSUR (ayni yerde olculdu): desen PALETLE **KORELELIYDI** —
+     serit `tohum % 3`ten, palet `tohum % 6`dan geliyordu ve `n%6` matematiksel
+     olarak `n%3`u BELIRLER, yani ayni palete dusen her ad **BIREBIR AYNI
+     BAYT**. 18 ad -> yalniz 6 gorsel. Menu seridi ayni isletmenin urunlerini
+     YAN YANA cizdigi icin bu "hepsi ayni resim" demekti.
+     FIX: `varyant = tohum/256` ile serit·yon·isik kosesi decorrelate edildi
+     -> **6x3x2x2 = 72** kombinasyon; 18 ad -> **15 tekil**.
+  ✅ **MEVCUT TOHUMLAR BIREBIR KORUNDU**: varyant `tohum < 256` iken 0'dir;
+     0..255 icin kapak+avatar (512 gorsel) ve `tohum.js` olcusunde (1200x675)
+     0..19 -> HEPSI md5 BIREBIR AYNI.
+  ⚠️ YAPMA: seriti tekrar dogrudan `tohum % 3`e baglama.
+
+- 📌 **TURU 181 — MIGRATION 052** (`admin_isletme.sql`, ADDITIVE):
+  `isletmeler.aciklama` · `admin_log` (denetim izi) · `reports.cozen/cozuldu_at/
+  admin_notu` · `users.suspend_sebep` + askı indeksi. **DB TRUNCATE gerekmedi.**
+  Sonraki migration **053**'ten.
+
+- 🔴🔴 **TURU 181 — `medyayiKopar` AYLARDIR SESSIZCE BOZUKTU (canli kanit).**
+  UC KOPYASI da (chat/kanal/social) her cagrida
+  `ERROR: operator does not exist: uuid = text` ile patliyor, hatalar
+  YUTULUYORDU -> **hicbir medya HIC KOPARILMADI** = kalici R2 sizintisi.
+  FIX: tek kaynak **`internal/media/kopar.go`** (11 tablo; oncekiler 4 tabloyu
+  HICBIRINDE saymiyordu) + ACIK cast'lar + **FAIL-CLOSED** (`KullanimVar`
+  hatasi = "kullanimda say").
+  🛡️ 3 muhafiz (`kume_test.go`), ucu de **BOZULARAK KANITLANDI**.
+  ⚠️ YAPMA: kopya bir `medyayiKopar` yazma; `= ANY()`yi `@> ARRAY[$1::uuid]`
+     yerine kullanma (GIN indeksi kullanilmaz).
+
+- 🔒 **TURU 181 — KAPATILAN UC ACIK:**
+  · **GIZLILIK**: `kapak_medyalari`da SAHIPLIK KAPISI YOKTU — medya id'sini
+    bilen herkes onu kendi kapak slider'ina baglayip HERKESE ACABILIYORDU.
+  · **GUVENLIK**: `calls.AdminLogin`da KODA GOMULU sifre (depo PUBLIC).
+  · **ASKI FIILEN CALISMIYORDU**: sutun vardi, yazan yol + iki okuma kapisi
+    (`Login` + middleware) + **onbellek gecersizlestirme** YOKTU. Artik eski
+    JWT **ANINDA 403** (401 DEGIL: 401 istemcide oturumu SILER ve kullanici
+    "sifremi mi unuttum" saniirdi) ve yanit SEBEBI tasir.
+    ⚠️ `auth.Gecersizlestir(userID)` cagrilmazsa aski 5 dk boyunca ETKISIZ.
+
 - **KALDIGIMIZ YER (10 Eyl 03:43): TURU 180ae YAYINLANDI — SADECE iOS.**
   ios **34421735350** (**f5abdbe**), R2 ipa=**31969897** (md5 eaa69567),
   index=7972 (9410fcf1) surum.json=46 (2f1502be), purge OK, **CDN BIREBIR**
@@ -7662,6 +7784,16 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
   **HICBIR ORTAMDA** kosmamisti. COZUM: `GOTMPDIR="$(pwd)/.gotmp" go test ./...`
   (proje dizinindeki ikili engellenmiyor). `.gotmp/` gitignore'da.
   ⚠️ YAPMA: bir daha "test kosturulamiyor" diye gecme.
+  🔴🔴 **[TURU 181 DUZELTMESI — YUKARIDAKI GOTMPDIR TALIMATI ARTIK TERSTIR.]**
+     OLCULDU (10 Eyl): **GOTMPDIR OLMADAN 9/9 paket geciyor, cikis kodu 0;
+     GOTMPDIR ILE paketler Application Control tarafindan ENGELLENIYOR.**
+     Yani bayrak bugun SORUNU COZMUYOR, URETIYOR.
+     ✅ **DUZ `cd backend && go test ./...` KULLAN.** Rastgele bir engelleme
+        olursa TEKRAR DENE (genelde ikincisi gecer).
+     ✅ **ASIL COZUM ARTIK CI:** `.github/workflows/backend.yml` her
+        `backend/**` push'unda build+vet+test kosuyor (postgres:17 servis
+        konteyneriyle) — testlerin degeri artik "hatirlarsam kosarim"a
+        BAGLI DEGIL.
   SONUC: **171 rota cakismasiz** + turu 77'nin 33 yeni yolu dogru cozuluyor;
   `sutun_test.go` (7 sorgu SELECT-vs-Scan) da gecti.
 - 📌 **MIGRATION NUMARALARI (guncel):** 027 = hikaye editoru (`stories.katmanlar`
@@ -9897,7 +10029,22 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
 ## TELEMETRİ & İZLEME (12 Tem 2026 — hepsi canlı)
 - **Sentry:** https://gebzem.sentry.io — gebzem-mobile + gebzem-backend projeleri; hatalar dosya+satır ile otomatik düşer. OTURUM BAŞINDA KONTROL ET. sentry_flutter ^9.6 (8.x KULLANMA — Kotlin/Swift derleme hatası)
 - **Paneller (Caddy basic auth: gebzem/cKIZMzFJCyNERn):** nabiz.gebzem.app (Netdata), log.gebzem.app (Dozzle) · bekci.gebzem.app (Uptime Kuma: gebzem/Gebzem2026!, 4 monitor)
-- **Admin panel:** https://api.gebzem.app/admin/izle (giriş: **admin / Gebzem2026!** — env ADMIN_USER/ADMIN_PASS override; login gövdesi `{"user","pass"}` alanları!). **ADMIN_KEY artık güçlü** (19 Tem, sunucu .env + .env.infra'da; eski `gbz-izle-2026` GEÇERSİZ) — kullanıcılar, aramalar + **canlı Ses Teşhis sekmesi** (audio-stat renk kodlu, 2sn yenilenir: 🟢SES-VAR 🔴iOS-CIKIS-YOK 🟠SES-GELMIYOR 🟣TRACK-YOK 🟡SES-DUSUK). Veri: bellek ring buffer (son 120) + docker log. GEÇİCİ teşhis — üretim öncesi kaldır.
+- **YÖNETİM PANELİ (turu 181, ASIL PANEL):** **https://api.gebzem.app/admin/izle**
+  — giriş `.env.infra` içindeki **ADMIN_USER / ADMIN_PASS** (sunucu `.env`inde de
+  aynısı; **üçü de zorunlu, yoksa tüm uçlar 401 = fail-closed**).
+  Sekmeler: Genel Bakış · **Firmalar (ekle/düzenle/onayla/kapat)** · Ürünler ·
+  Kullanıcılar (**askıya al** · jeton) · Şikâyetler · İçerik (**karantina**) ·
+  Yayınlar · **İşlem Günlüğü**.
+  ⚠️⚠️ Panel `?key=` KULLANMAZ: `POST /admin/giris` ile 12 saatlik jeton alır ve
+  **`X-Admin-Jeton` başlığıyla** gönderir (anahtar tarayıcı geçmişine/loga
+  düşmesin). `?key=` yalnız betikler için DURUYOR.
+  ⚠️ Kaba kuvvet: 5 dk'da 6 deneme → 15 dk ceza. Her yazma `admin_log`a
+  öncesi/sonrası ile yazılır (5651).
+- **Eski teşhis paneli (aynı adresin altındaki eski uçlar):** `/admin/stats`,
+  `/admin/users`, `/admin/calls`, **canlı Ses Teşhis** (`/admin/audio`,
+  audio-stat renk kodlu, 2sn yenilenir: 🟢SES-VAR 🔴iOS-CIKIS-YOK 🟠SES-GELMIYOR
+  🟣TRACK-YOK 🟡SES-DUSUK). Veri: bellek ring buffer (son 120) + docker log.
+  ⚠️ `/admin/login` gövdesi `{"user","pass"}`. GEÇİCİ teşhis — üretim öncesi kaldır.
 - **Nöbetçi:** sunucuda dakikalık cron (backend/watchdog.sh) — API 2 kez sağlıksızsa otomatik restart, disk ≥%90 docker prune. Log: /var/log/gebzem-watchdog.log
 - **API HTTPS:** https://api.gebzem.app (Cloudflare flexible SSL → Caddy:80 → api:8080). Caddyfile değişince `docker compose -f monitoring-compose.yml restart caddy` ŞART
 - **Cloudflare Global API Key** .env.infra'da (CF_GLOBAL_KEY; legacy header: X-Auth-Email + X-Auth-Key — Bearer ÇALIŞMAZ). DNS tam kontrolde
@@ -9922,7 +10069,10 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
 
 ## RUTİN: HER YENİ SÜRÜMDE
 1. Build (GitHub Actions) → artifact indir → içerik doğrula
-2. **`node tools/uctan_uca.js`** canlı sunucuda (301 kontrol) — deploy SONRASI ZORUNLU
+2. **`node tools/uctan_uca.js`** canlı sunucuda (**436 kontrol**) — deploy SONRASI ZORUNLU
+   ⚠️ Admin blokları için env ver: `ADMIN_KEY` · `ADMIN_USER` · `ADMIN_PASS`
+   (hepsi `.env.infra`'da). Verilmezse admin YAZMA kontrolleri **SESSİZCE ATLANIR**
+   ve 436 yerine daha az kontrol koşar — çıktıdaki toplamı OKU.
 3. R2'ye yükle (**`node tools/indir/r2yukle.js`**) → **Cloudflare purge** → CDN MD5 = yerel MD5
 4. **Veritabanını temizle:** `TRUNCATE users CASCADE; TRUNCATE otp_codes;`
 5. ⚠️⚠️ **`node tools/tohum.js`** — TRUNCATE'ten HEMEN SONRA (turu 90 kullanıcı emri:
@@ -9931,9 +10081,23 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    ve **hesap tablosunu basar**. Betik idempotent (409'da login'e düşer).
    ⚠️ **Bu adım atlanırsa kullanıcı BOŞ bir uygulamaya girer** — test edecek hiçbir
    işletme/randevu/ilan olmaz. Betik hiçbir yerden otomatik çağrılmıyor.
-6. **Çıktıdaki telefon/şifre tablosunu KULLANICIYA VER** (kullanıcı emri: *"her seferinde
+6. ⚠️⚠️ **`ADMIN_KEY=... node tools/urun_gorsel.js`** — turu 181'de EKLENDİ.
+   `tohum.js` ürünlerin `media_ids` alanını **BOŞ bırakır**; işletme kartının
+   altındaki MENÜ ŞERİDİ (turu 180ag) o alanı okur ve şerit **BOŞ GRİ KUTULARLA**
+   dolar. Betik 45 ürünün hepsine desenli bir kapak üretip bağlar, **idempotent**
+   (görseli olan ürüne dokunmaz) ve işletmeleri `/admin/isletmeler` ucundan
+   KEŞFEDER (elle telefon listesi tutulmaz).
+7. **`node tools/oda_galeri.js`** — otele 4 fotoğraflı bir oda ekler; ürün
+   galerisini (PageView + "k/N" sayacı) gösterecek TEK kayıt budur.
+8. **Çıktıdaki telefon/şifre tablosunu KULLANICIYA VER** (kullanıcı emri: *"her seferinde
    telefon ve şifrelerini TABLO ŞEKLİNDE verirsin"*).
-7. Ancak sonra "hazır" de
+9. Ancak sonra "hazır" de
+
+⚠️ **BACKEND ARTIK CI'DA SINANIYOR** (turu 181): `backend/**` altındaki her push
+   `.github/workflows/backend.yml` ile `go build` + `go vet` + `go test ./...`
+   koşar (**postgres:17 servis konteyneri** + `migrate_test.go` migration
+   doğrulaması). Deploy öncesi ELLE atılabilir DB kurma adımı artık GEREKMİYOR —
+   ama CI'nın YEŞİL olduğunu DOĞRULA (`gh run list --workflow backend.yml`).
 
 ## ARAMA SİSTEMİ (LiveKit — kendi sunucumuzda)
 - LiveKit v1.13.3: `backend/livekit-compose.yml` + `livekit.yaml` (host network, TURN açık)
