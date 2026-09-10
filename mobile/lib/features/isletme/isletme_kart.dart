@@ -289,30 +289,48 @@ class _IsletmeKartiState extends ConsumerState<IsletmeKarti> {
                     children: [
                       Row(
                         children: [
-                          Flexible(
-                            child: Text(
-                              o.ad,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w700,
-                              ),
+                          // ⚠️⚠️⚠️ KALP **SAG UCTA** (kullanici emri: *"sağ
+                          //	üstte kalp"*) — EMULATORDE OLCULDU ve ilk
+                          //	yazimda TUTMAMISTI: ad + tik + kalp duz bir
+                          //	`Row`da sirayla dizilince kisa adlarda kalp
+                          //	ADIN HEMEN YANINDA kaliyordu (McDonald's
+                          //	kartinda gorundu).
+                          //
+                          // ⚠️⚠️ COZUM `Spacer` DEGIL: `Spacer` bir
+                          //	`Expanded`dir ve ad da `Flexible` oldugu icin
+                          //	ikisi kalan alani PAYLASIR — uzun bir ad,
+                          //	yerin YARISINDA kirpilirdi (yaninda bos alan
+                          //	dururken).
+                          // ⚠️ Dogru cozum: **ad + tik ikilisini `Expanded`
+                          //	bir `Row`a almak.** Ikili tum kalan alani alir,
+                          //	kalp SAG UCA itilir; ad uzun oldugunda `Flexible`
+                          //	+ ellipsis kirpar ve tik ADIN YANINDA kalir.
+                          Expanded(
+                            child: Row(
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    o.ad,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                                if (o.dogrulandi)
+                                  const Padding(
+                                    padding: EdgeInsets.only(left: 5),
+                                    child: Icon(
+                                      LucideIcons.badgeCheck,
+                                      size: 16,
+                                      color: kOnayliRengi,
+                                    ),
+                                  ),
+                              ],
                             ),
                           ),
-                          if (o.dogrulandi)
-                            const Padding(
-                              padding: EdgeInsets.only(left: 5),
-                              child: Icon(
-                                LucideIcons.badgeCheck,
-                                size: 16,
-                                color: kOnayliRengi,
-                              ),
-                            ),
-                          // ⚠️ `Spacer` DEGIL: ad `Flexible` oldugu icin uzun
-                          //    adlarda alanin tamamini yer ve `Spacer` 0
-                          //    genislige duserek kalbi ADA YAPISTIRIRDI.
-                          //    Sabit bosluk GARANTIDIR.
                           const SizedBox(width: 8),
                           IsletmeKapakKalbi(dolu: _favori, onTap: _cevir),
                         ],

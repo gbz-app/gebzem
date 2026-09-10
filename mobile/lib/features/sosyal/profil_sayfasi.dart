@@ -761,6 +761,37 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
                 ),
               ),
         actions: [
+          // ⚠️⚠️⚠️ TURU 180ae — **HAMBURGER KALDIRILDI, YERINE ISTATISTIK**
+          //	(kullanici emri: *"en sagdaki carkin sagindaki hamburger
+          //	iconu kaldir gereksiz, **disin SOLUNA** istatistik alani ekle
+          //	ve istatistik sayfasini olustur"*).
+          //
+          // ⚠️⚠️ **SIRA: `actions` SOLDAN SAGA cizilir.** Ilk yazimda bu
+          //	blok listenin SONUNA konmustu ve istatistik ekranda disin
+          //	**SAGINDA** cikti (emulatorde goruldu) — yani emrin TERSI.
+          //	Dislinin soluna almanin yolu bloku listenin BASINA tasimaktir.
+          // ⚠️ YAPMA: bu bloku tekrar `actions`in sonuna tasima.
+          //
+          // ⚠️⚠️ **HAMBURGERIN ICI OLU KALMADI**: `_menu` sheet'i
+          //	paylas/kopyala/engelle/sikayet tasiyordu ve o eylemlerin
+          //	BASKA girisi VAR — kendi profilimde "Hesabım" (disli),
+          //	baskasinin profilinde `_dugmeler` satirindaki eylemler.
+          //	`_menu` govdesi SILINMEDI (asagida `unused_element` serhi).
+          // ⚠️ Istatistik YALNIZ KENDI profilimde: baskasinin kac gonderi
+          //	begendigi GIZLIDIR ve uc zaten `/users/me/...` (turu 180g
+          //	"Beğeniler" karariyla ayni).
+          if (_benimMi)
+            IconButton(
+              tooltip: 'İstatistik',
+              icon: const _BlurDaire(
+                child: Icon(LucideIcons.chartNoAxesColumn, size: 22),
+              ),
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => IstatistikEkrani(profil: _p),
+                ),
+              ),
+            ),
           // ⚠️⚠️ HESABIM GIRISI — eski profil sekmesindeki 15 satirin (isletme
           //    hesabi · randevular · basvurular · bildirim · engellenenler ·
           //    ayarlar · cikis) BASKA girisi YOK. ⚠️ YAPMA: bunu kaldirma.
@@ -798,31 +829,6 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
                 context,
                 ad: _p?.ad ?? '',
                 isletme: _isletme!,
-              ),
-            ),
-          // ⚠️⚠️⚠️ TURU 180ae — **HAMBURGER KALDIRILDI, YERINE ISTATISTIK**
-          //	(kullanici emri: *"en sagdaki carkin sagindaki hamburger
-          //	iconu kaldir gereksiz, disin soluna istatistik alani ekle ve
-          //	istatistik sayfasini olustur"*).
-          //
-          // ⚠️⚠️ **HAMBURGERIN ICI OLU KALMADI**: `_menu` sheet'i
-          //	paylas/kopyala/engelle/sikayet tasiyordu ve o eylemlerin
-          //	BASKA girisi VAR — kendi profilimde "Hesabım" (dişli),
-          //	baskasinin profilinde `_dugmeler` satirindaki eylemler.
-          //	`_menu` govdesi SILINMEDI (asagida `unused_element` serhi).
-          // ⚠️ Istatistik YALNIZ KENDI profilimde: baskasinin kac kisiyle
-          //	yazistigi ya da kac gonderi begendigi GIZLIDIR ve uc zaten
-          //	`/users/me/...` (turu 180g "Beğeniler" karariyla ayni).
-          if (_benimMi)
-            IconButton(
-              tooltip: 'İstatistik',
-              icon: const _BlurDaire(
-                child: Icon(LucideIcons.chartNoAxesColumn, size: 22),
-              ),
-              onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => IstatistikEkrani(profil: _p),
-                ),
               ),
             ),
         ],
