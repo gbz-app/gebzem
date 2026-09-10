@@ -63,10 +63,41 @@ function hsl(h, s, l) {
   ];
 }
 
+/// ⚠️⚠️⚠️ TOHUM **NORMALIZE EDILIR** — METIN tohum NaN uretiyordu.
+///
+///	Asagidaki iki uretecin govdesinde `tohum % PALET.length` var.
+///	Cagiran bir METIN gecirirse (`kapakUret(urun.ad, ...)`) bu ifade
+///	**NaN** olur, `PALET[NaN]` **undefined** doner ve destructure
+///	(`const [h0, doygun] = ...`) PATLAR:
+///	  "undefined is not iterable (cannot read property Symbol(Symbol.iterator))"
+///	Turu 181de `tools/urun_gorsel.js` tam bunu yasadi — **45 urunun 45i**.
+///
+/// ⚠️⚠️ Uyari `tohum_sosyal.js` icinde YAZILIYDI ama KORUMA CAGRI
+///	YERINDEYDI; yeni bir cagiran o serhi HIC gormeden ayni hataya
+///	dustu. Koruma artik **TEK KAYNAKTA** (burada) — metin gecirmek
+///	YAPISAL OLARAK guvenli.
+///
+/// ⚠️ Deterministik olmak ZORUNDA (FNV-1a): ayni ad DAIMA ayni gorseli
+///	verir, yani "gorsel degisti mi" sorusu bir HATA sinyali olarak kalir.
+/// ⚠️ SAYILAR DEGISMEZ: mevcut cagiranlar (tohum.js · tohum_sosyal.js)
+///	tamsayi geciriyor ve BIREBIR ayni gorseli almaya devam eder.
+/// ⚠️ Negatif/ondalikli sayi da guvenli (`abs` + `trunc`): negatif indeks
+///	yine `undefined` dondururdu.
+function tohumSayi(t) {
+  if (typeof t === 'number' && Number.isFinite(t)) return Math.abs(Math.trunc(t));
+  const s = String(t == null ? '' : t);
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h;
+}
 /// `tohum` sayisina gore DETERMINISTIK bir kapak uretir.
 /// ⚠️ Deterministik olmasi SART: ayni isletme her tohumlamada AYNI kapagi
 ///    alir, yani "gorsel degisti mi" sorusu bir HATA sinyali olur.
 function kapakUret(tohum, genislik = 1200, yukseklik = 675) {
+  tohum = tohumSayi(tohum); // ⚠️ metin tohum NaN uretirdi — bkz. tohumSayi
   // ⚠️ PALET SECILI: rastgele hue "haki yesil" gibi itici tonlar uretiyordu
   //    (ilk denemede tam bu oldu). Sabit bir listeden secmek, HER kapagin
   //    sunulabilir olmasini GARANTI eder.
@@ -90,8 +121,30 @@ function kapakUret(tohum, genislik = 1200, yukseklik = 675) {
   //    Uc katman eklendi — capraz gradyan + CAPRAZ SERITLER + yumusak isik
   //    lekesi. Ucu de 16:9 kirpmada ayakta kalir (kose bagimli desen,
   //    kirpilinca anlamsizlasirdi).
-  const serit = 46 + (tohum % 3) * 14; // serit araligi kapaktan kapaga degisir
-  const ix = genislik * 0.72;
+  // ⚠️⚠️⚠️ VARYANT: DESENI PALETTEN **BAGIMSIZ** DEGISTIRIR.
+  //
+  //	ESKI HALI KORELELIYDI: desen `tohum % 3`ten, palet `tohum % 6`dan
+  //	geliyordu. `n % 6` matematiksel olarak `n % 3`u BELIRLER — yani
+  //	ayni palete dusen iki tohum **BIREBIR AYNI BAYTI** uretiyordu.
+  //	OLCULDU: sekiz urun adindan yalniz **4 farkli gorsel** cikti
+  //	(5 ad ayni md5). Sirali tamsayilarda (tohum.js 0..13) gorunmuyordu
+  //	cunku ardisik sayilar paletleri dolasiyor; ama MENU SERIDINDE ayni
+  //	isletmenin 5 urunu YAN YANA durur ve ayni resmin tekrari
+  //	**bos gri kutudan pek de iyi degildir**.
+  //
+  // ⚠️⚠️ MEVCUT TOHUMLAR **BIREBIR KORUNUR**: varyant tohumun 256'dan
+  //	BUYUK kismindan turer, yani `tohum < 256` iken **0**'dir ve ucu de
+  //	eski degerlerine coker (serit `46 + (tohum%3)*14`, yon 0, isik sag).
+  //	`tohum.js` 0..13, `tohum_sosyal.js` kucuk tamsayi kullaniyor ->
+  //	onlarin kapaklari DEGISMEDI (bayt bayt dogrulandi).
+  //	Metin tohumlar 32 bitlik FNV-1a uretir -> varyant dolu gelir.
+  // ⚠️ Cesitlilik: 6 palet x 3 serit x 2 yon x 2 isik kosesi = **72**.
+  // ⚠️ YAPMA: seriti tekrar dogrudan `tohum % 3`e baglama (korelasyon geri gelir).
+  const varyant = Math.floor(tohum / 256);
+  const serit = 46 + (((tohum % 3) + varyant) % 3) * 14;
+  const yon = (varyant >>> 2) & 1; // 0: sol-ust -> sag-alt · 1: sag-ust -> sol-alt
+  const isikSol = (varyant >>> 5) & 1; // isik lekesi hangi ust kosede
+  const ix = genislik * (isikSol ? 0.28 : 0.72);
   const iy = yukseklik * 0.18;
   const iR = Math.min(genislik, yukseklik) * 0.85;
 
@@ -103,7 +156,10 @@ function kapakUret(tohum, genislik = 1200, yukseklik = 675) {
       let k = (x / genislik) * 0.62 + (y / yukseklik) * 0.38;
 
       // 2) capraz seritler (ince, koyu/acik dalgalanma)
-      const s = ((x + y) % serit) / serit;
+      // ⚠️ `x - y + yukseklik` DAIMA >= 0 (y <= yukseklik): negatif mod
+      //	JS'te negatif doner ve serit deseni koseye dogru BOZULURDU.
+      const capraz = yon ? x - y + yukseklik : x + y;
+      const s = (capraz % serit) / serit;
       k += (s < 0.5 ? 0.045 : -0.045) * (0.6 + 0.4 * Math.sin(s * Math.PI));
 
       k = Math.min(1, Math.max(0, k));
@@ -162,6 +218,7 @@ function kapakUret(tohum, genislik = 1200, yukseklik = 675) {
 /// ⚠️ KARE uretilir: avatar daire icine kirpiliyor; dikdortgen bir kaynak
 ///	`cover` ile yanlardan KIRPILIRDI.
 function avatarUret(tohum, kenar = 512) {
+  tohum = tohumSayi(tohum); // ⚠️ metin tohum NaN uretirdi — bkz. tohumSayi
   // ⚠️ Palet kapakla AYNI kaynaktan DEGIL: avatarlar yan yana cizilir
   //	(sohbet listesi) ve birbirinden AYIRT EDILEBILMELI. Doygunluk daha
   //	yuksek, aciklik daha dar bir aralikta.
@@ -233,7 +290,7 @@ function avatarUret(tohum, kenar = 512) {
   ]);
 }
 
-module.exports = { kapakUret, avatarUret };
+module.exports = { kapakUret, avatarUret, tohumSayi };
 
 // Dogrudan calistirilirsa ornek uretir (elle goz kontrolu icin).
 if (require.main === module) {

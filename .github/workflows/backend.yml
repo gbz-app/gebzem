@@ -1,0 +1,78 @@
+name: Backend (build · vet · test · migration)
+
+# ⚠️⚠️⚠️ TURU 181 — BU DOSYAYA KADAR **BACKEND TESTLERI CI'DA HIC KOSMADI.**
+#
+#	Depoda 19 test dosyasi var (`sutun_test.go` ailesi, `rota_test.go`,
+#	`utf8_test.go`, `kume_test.go` ...) ve her biri GERCEK bir sevk
+#	engelini yakalamak icin yazildi. Ama tek kosma yolu YERELDE elle
+#	`go test ./...` idi ve Windows Application Control bu ikilileri
+#	rastgele engelledigi icin ADIM SIK SIK ATLANIYORDU.
+#	Yani muhafizlarin degeri "hatirlarsam kosarim"a bagliydi.
+#
+# ⚠️ Depo PUBLIC -> Actions dakikasi SINIRSIZ; `push` tetigi bedava.
+# ⚠️ `paths` suzgeci: arayuz turlarinda (mobile/**) bosuna kosmasin.
+#	⚠️ YAPMA: suzgece `tools/**` ekleme — `uctan_uca.js` CANLI sunucuya
+#	   baglanir, CI'da kosarsa gercek veri uretir.
+
+on:
+  push:
+    branches: [main]
+    paths: ["backend/**", ".github/workflows/backend.yml"]
+  pull_request:
+    paths: ["backend/**", ".github/workflows/backend.yml"]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    # ⚠️⚠️ GERCEK POSTGRES SART: bu projede migration hatalarinin HEPSI
+    #	yalniz gercek sunucuda cikti (CHECK constraint · tip cikarsama ·
+    #	CRLF yuzunden uygulanmayan dosya). `go build`+`go vet` UCUNU DE
+    #	temiz gecirdi.
+    # ⚠️ Surum canlidakiyle AYNI (postgres:17); `gen_random_uuid()` 13+ ile
+    #	cekirdekte, ek uzanti GEREKMEZ.
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: gebzem
+          POSTGRES_DB: gebzem_ci
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+        ports:
+          - 5432:5432
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          # ⚠️ Surum `go.mod`dan OKUNUR, elle yazilmaz: ikisi ayrisirsa CI
+          #	yerelde derlenen bir seyi derleyemez ve sebep gorunmez.
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+
+      - name: go build
+        working-directory: backend
+        run: go build ./...
+
+      - name: go vet
+        working-directory: backend
+        run: go vet ./...
+
+      # ⚠️⚠️ `GOTMPDIR` **VERILMEZ**. CLAUDE.md'de yazili "GOTMPDIR ile kos"
+      #	talimati WINDOWS'a ozgu bir gecici cozumdu ve turu 181'de
+      #	OLCULDU: **tersi dogru** (GOTMPDIR ile paketler engelleniyor,
+      #	onsuz 9/9 geciyor). Linux'ta konunun karsiligi YOK.
+      - name: go test (muhafizlar + migration)
+        working-directory: backend
+        env:
+          # ⚠️ Bu degisken `migrate_test.go`daki muhafizi ACAR. Yoksa test
+          #	SKIP eder — yani migration dogrulamasi SESSIZCE atlanir.
+          #	⚠️ YAPMA: bu satiri silme.
+          GEBZEM_TEST_DB: postgres://postgres:gebzem@localhost:5432/gebzem_ci?sslmode=disable
+        run: go test ./... -count=1

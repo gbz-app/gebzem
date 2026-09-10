@@ -101,30 +101,51 @@ async function medyaYukle(token, bayt, ad) {
 (async () => {
   console.log('API: ' + API + (KURU ? '   [KURU CALISMA — hicbir sey yazilmaz]' : ''));
 
-  // Tohum hesaplarini `tohum.js`in bastigi tablodan degil, SUNUCUDAN al:
-  // hangi isletmelerin urunu oldugunu ancak sunucu bilir.
-  // ⚠️ Admin ucu KULLANILMAZ: bu betik urunlere kullanicinin KENDI
-  //	hesabiyla yaziyor (medya sahipligi kapisi o hesabi bekliyor).
-  const telefonlar = (process.env.TOHUM_TELEFONLAR || '').split(',')
+  // ⚠️⚠️ ISLETME LISTESI **ADMIN UCUNDAN** kesfedilir (turu 181).
+  //
+  //	Elle telefon listesi istemek, `tohum.js` her kosuldugunda listenin
+  //	geride kalmasi demekti. Admin ucu (`/admin/isletmeler`) telefonu
+  //	DA donduruyor.
+  //
+  // ⚠️ Yazma ISLETMENIN KENDI HESABIYLA yapilir, admin ucuyla DEGIL:
+  //	medya sahipligi kapisi (`media_assets.owner_id`) o hesabi bekliyor;
+  //	admin adina yuklenen bir medya urune baglanamazdi.
+  const anahtar = process.env.ADMIN_KEY || '';
+  let telefonlar = (process.env.TOHUM_TELEFONLAR || '').split(',')
     .map((s) => s.trim()).filter(Boolean);
 
   if (!telefonlar.length) {
-    console.log(
-      'TOHUM_TELEFONLAR bos.\n' +
-      'Kullanim: TOHUM_TELEFONLAR="+905551010001,+905551010002" node tools/urun_gorsel.js\n' +
-      'Telefonlar `node tools/tohum.js` ciktisindaki tabloda.');
-    process.exit(1);
+    if (!anahtar) {
+      console.log(
+        'ADMIN_KEY ya da TOHUM_TELEFONLAR gerekli.\n' +
+        '  ADMIN_KEY=... node tools/urun_gorsel.js        (otomatik kesif)\n' +
+        '  TOHUM_TELEFONLAR="+905...,+905..." node tools/urun_gorsel.js');
+      process.exit(1);
+    }
+    const l = await jsonIstek('/admin/isletmeler?limit=200&key=' +
+      encodeURIComponent(anahtar));
+    if (l.kod !== 200) {
+      console.log('admin isletme listesi ' + l.kod + ': ' + l.ham.slice(0, 160));
+      process.exit(1);
+    }
+    telefonlar = (l.d || []).filter((f) => f.urun_sayisi > 0).map((f) => f.phone);
+    console.log('kesfedilen (urunu olan) isletme: ' + telefonlar.length);
   }
 
-  let toplamUrun = 0, yuklenen = 0, atlanan = 0, hata = 0;
+  let toplamUrun = 0, yuklenen = 0, atlanan = 0, hata = 0, atlananHesap = 0;
 
   for (const tel of telefonlar) {
     const giris = await jsonIstek('/auth/login', {
       yontem: 'POST', govde: { phone: tel, password: SIFRE },
     });
     if (giris.kod !== 200) {
-      console.log('  ATLA ' + tel + ' -> giris ' + giris.kod);
-      hata++;
+      // ⚠️ Giris yapilamayan hesap bir HATA DEGIL, ATLAMADIR: listede
+      //	tohumla acilmamis GERCEK kullanici hesaplari da olabilir
+      //	(olculdu: canlida bir tanesi var). Hata sayilsaydi betik
+      //	her kosuda cikis kodu 1 dondurur ve "bozuk" gorunurdu.
+      console.log('  ATLA ' + tel + ' -> giris ' + giris.kod +
+                  ' (tohum hesabi degil)');
+      atlananHesap++;
       continue;
     }
     const token = giris.d.token;
@@ -133,7 +154,7 @@ async function medyaYukle(token, bayt, ad) {
     const liste = await jsonIstek('/users/' + benID + '/urunler', { token });
     if (liste.kod !== 200) {
       console.log('  ATLA ' + tel + ' -> urun listesi ' + liste.kod);
-      hata++;
+      atlananHesap++;
       continue;
     }
     const urunler = (liste.d && liste.d.urunler) || [];
@@ -156,6 +177,17 @@ async function medyaYukle(token, bayt, ad) {
       try {
         // ⚠️ Tohum urun ADI: ayni ad DAIMA ayni deseni uretir (deterministik),
         //	yani betik iki kez kossa bile gorsel "degismis" gorunmez.
+        // ⚠️⚠️ **METIN TOHUM ILK YAZIMDA PATLIYORDU** (turu 181, 45/45 urun):
+        //	`kapakUret` govdesinde `tohum % PALET.length` var; metin
+        //	gecince NaN olup `PALET[NaN]` **undefined** donuyor ve
+        //	destructure "undefined is not iterable" ile patliyordu.
+        //	Koruma artik CAGRI YERINDE DEGIL **URETECIN ICINDE**
+        //	(`tohumSayi`, FNV-1a) — bkz. `tools/kapak_uret.js`.
+        // ⚠️ Ayni turda uretecin **desen korelasyonu** da kirildi: palet ve
+        //	serit ikisi de tohumdan tureyip `n%6 -> n%3` bagintisi yuzunden
+        //	ayni palete dusen HER ad BIREBIR ayni bayti veriyordu (olculdu:
+        //	18 ad -> 6 gorsel). Menu seridi ayni isletmenin urunlerini YAN
+        //	YANA cizdigi icin bu "hepsi ayni resim" demekti. Simdi 18 -> 15.
         // ⚠️ 4:3 — menu seridi `kMenuGorselBoy = kMenuOgeEn * 3 / 4` ile
         //	AYNI orani cizer; farkli oran `BoxFit.cover` ile KIRPILIRDI.
         const png = kapakUret(u.ad, 800, 600);
@@ -175,6 +207,7 @@ async function medyaYukle(token, bayt, ad) {
 
   console.log('\n════════════════════════════════');
   console.log('urun: ' + toplamUrun + '   yuklenen: ' + yuklenen +
-              '   atlanan(zaten var/kaldirilmis): ' + atlanan + '   hata: ' + hata);
+              '   atlanan(zaten var/kaldirilmis): ' + atlanan +
+              '   atlanan hesap: ' + atlananHesap + '   hata: ' + hata);
   process.exit(hata ? 1 : 0);
 })();
