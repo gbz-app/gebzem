@@ -143,16 +143,19 @@ const double kAltIcBosluk = (kAltHucre - kAltKutu) / 2; // = 6
 ///	olsun"*).
 ///
 /// Olculer `_hizliCip`ten TURETILIR — elle "yaklasik" sayi YAZILMAZ:
-///	  boy   32 x 1.15 = 36.8 -> **37**
-///	  yazi  13 x 1.15 = 14.95 -> **15**
-///	  dolgu 11 x 1.15 = 12.65 -> **13**
+///	  boy   32 x 1.15 x 1.10 = 40.5 -> **41**
+///	  yazi  13 x 1.15 x 1.10 = 16.4 -> **16**
+///	  dolgu 11 x 1.15 x 1.10 = 13.9 -> **14**
+/// ⚠️ IKINCI carpan (1.10) turu 180af kullanici emri: *"bu doner kebap
+///	butonlarini %10 daha buyut"*. Carpan ZINCIRI korunur ki bir sonraki
+///	istekte "neyin uzerine ne kadar" sorusu cevapsiz kalmasin.
 /// ⚠️ `kAltKutu`/`kAltHucre` **DOKUNULMADI**: onlari ilan ve talep ekranlari
 ///	da okuyor; kullanici yalnizca YEMEK ekranini degistirmek istedi.
 /// ⚠️ `kAltCipBoy` bir TABANDIR (alt sinir), sabit yukseklik DEGIL: gercek
 ///	boy yazi olceginden turetilir (bkz. `_altKategoriSeridi`).
-const double kAltCipBoy = 37;
-const double kAltCipYazi = 15;
-const double kAltCipDolgu = 13;
+const double kAltCipBoy = 41;
+const double kAltCipYazi = 16;
+const double kAltCipDolgu = 14;
 
 /// ⚠️⚠️⚠️ TURU 96 — **BOLUMLERIN IC PAYI ARALIKTAN DUSULUR.**
 ///
@@ -1040,13 +1043,25 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
                     //	('Restoranlar (N)') AYNEN DURUYOR - ekranin
                     //	varlik sebebi odur.
 
-                    // ── HIZLI SUZGECLER ──
-                    SliverToBoxAdapter(child: _filtreSatiri()),
-                    // ⚠️ Cip seridinin ALTINDA da 4px pay var.
-                    const SliverToBoxAdapter(
-                        child: SizedBox(height: kBosluk - kCipPay)),
+                    // ── HIZLI SUZGEC SERIDI — **KALDIRILDI (turu 180af)** ──
+                    // Kullanici emri: *"filtrelemede sagdaki hizli
+                    // filtrelemeleri kaldir, filtreleme gorunumun hemen
+                    // solunda olsun"*.
+                    //
+                    // ⚠️⚠️ Serit ekranin ustunde TAM BIR SATIR (40 dp + 16 dp
+                    //	bosluk) yer kapliyordu ve tasidigi alti cipin BESI
+                    //	(Siralama · Min. tutar · Puan · Teslimat · Onayli)
+                    //	yalnizca AYNI paneli aciyordu — filtre cipinin
+                    //	kopyasiydilar. Tek gercek kapi (`_filtreCipi`) artik
+                    //	liste basliginda, gorunum seciciyle YAN YANA.
+                    // ⚠️ HICBIR SUZGEC ULASILAMAZ KALMADI: hepsi ayni
+                    //	panelin bolumleri (`isletmeFiltreAc`) ve "Onaylı"
+                    //	da o panelde duruyor.
+                    // ⚠️ `_filtreSatiri`/`_bolumCipi`/`_hizliCip` govdeleri
+                    //	`ignore: unused_element` ile DURUYOR — bu dosyada uye
+                    //	silmek BES kez komsu uyeyi de goturdu.
 
-                    // ── "İşletmeler (N)" + GORUNUM + HARITA ──
+                    // ── "2 Restoran" + FILTRE + GORUNUM ──
                     if (l != null && l.isNotEmpty) ...[
                       SliverToBoxAdapter(child: _listeBasligi(l.length)),
                       // ⚠️⚠️ TURU 96k — 16 -> **`kBaslikBosluk` (8)**.
@@ -2159,6 +2174,10 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
   }
 
 
+  /// ⚠️ TURU 180af — CAGRI YERI KAPATILDI (hizli suzgec seridi kalkti).
+  ///	Govde DURUYOR: geri istenirse tek satirla sliver'a eklenir ve
+  ///	`_bolumCipi`/`_hizliCip` da onunla birlikte canlanir.
+  // ignore: unused_element
   Widget _filtreSatiri() {
     return Padding(
       // ⚠️ TURU 93b — `12` idi -> `kYanBosluk` (dosya basindaki "elle yatay
@@ -2684,11 +2703,28 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
             left: kYanBosluk - kBaslikOptik, right: kYanBosluk),
         child: Row(
           children: [
+            // ⚠️⚠️ TURU 180af — **"2 Restoran"** (kullanici emri:
+            //	*"restoranların 2 Restoran olarak olsun"*).
+            //	Onceki hal "Restoranlar (2)" idi; sayi ARTIK ONDE ve ad
+            //	TEKIL — parantez kalktigi icin baslik da kisaldi.
             Text(
-              '${_listeAdi()} ($adet)',
+              '$adet ${_listeAdiTekil()}',
               style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
             ),
             const Spacer(),
+            // ⚠️⚠️ FILTRE **GORUNUM SECICININ HEMEN SOLUNDA** (kullanici
+            //	emri). Ustteki hizli suzgec seridi kalkinca ekranda tek
+            //	kapi kaldi ve o da listenin BASLIGINDA — yani suzgecin
+            //	etkiledigi seyin tam ustunde.
+            // ⚠️ Ayni `Transform` ile kaydirilir: iki eleman AYNI optik
+            //	hatta durmali (biri kayip oteki durursa satir egri gorunur).
+            // ⚠️ Araya `SizedBox` KONMAZ: `_filtreCipi` kendi sag payini
+            //	(8) TASIYOR — ikisi birden 16 dp yapar ve cerceveler
+            //	kopuk gorunurdu.
+            Transform.translate(
+              offset: const Offset(0, -kSegYukari),
+              child: _filtreCipi(),
+            ),
             // ⚠️⚠️ TURU 96j — "BIR TIK USTTE" (kullanici emri). `Transform`
             //	KULLANILDI, dolgu DEGIL: dolgu satirin yuksekligini degistirir
             //	ve altindaki kart listesi asagi kayardi. `Transform.translate`
@@ -2715,6 +2751,10 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
   ///    (turu 77 kurali).
   /// ⚠️ Bilinmeyen kategori "İşletmeler"e duser: eksik bir anahtar yuzunden
   ///    baslik BOS kalmaz.
+  /// ⚠️ TURU 180af — baslik artik "2 Restoran" (tekil) yaziyor; bu COGUL
+  ///	harita hicbir yerden cagrilmiyor ama SILINMEDI: bu dosyada uye
+  ///	silmek BES kez komsu uyeyi de goturdu (turu 127/138/140/141/143).
+  // ignore: unused_element
   String _listeAdi() {
     const adlar = {
       'yemek': 'Restoranlar',
@@ -2732,6 +2772,33 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
       'hizmet': 'Hizmetler',
     };
     return adlar[_kategori] ?? 'İşletmeler';
+  }
+
+  /// TEKIL kategori adi — baslik "**2 Restoran**" bicimindedir.
+  ///
+  /// ⚠️ Sayi ONDE oldugu icin ad TEKIL olmak ZORUNDA: "2 Restoranlar"
+  ///	Turkce'de yanlistir (sayidan sonra cogul eki KULLANILMAZ).
+  /// ⚠️ Cogul harita (`_listeAdi`) SILINMEDI — geri donus tek satir.
+  /// ⚠️ Bilinmeyen kategori "İşletme"ye duser; baslik BOS kalmaz.
+  /// ⏳ **BACKEND TURU**: bu harita `altkategori.go`ya tasinmali (turu 77
+  ///	kurali) — yeni kategori istemci guncellemesi gerektirmesin.
+  String _listeAdiTekil() {
+    const adlar = {
+      'yemek': 'Restoran',
+      'kafe': 'Kafe',
+      'doktor': 'Doktor',
+      'diyetisyen': 'Diyetisyen',
+      'kuafor': 'Kuaför',
+      'guzellik': 'Güzellik Merkezi',
+      'otel': 'Otel',
+      'eczane': 'Eczane',
+      'emlak': 'Emlak Ofisi',
+      'giyim': 'Mağaza',
+      'teknoloji': 'Teknoloji Mağazası',
+      'eglence': 'Eğlence Mekânı',
+      'hizmet': 'Hizmet',
+    };
+    return adlar[_kategori] ?? 'İşletme';
   }
 
   /// ⚠️⚠️⚠️ TURU 96d — GORUNUM SECICI **TEK KUTU** (kullanici emri:

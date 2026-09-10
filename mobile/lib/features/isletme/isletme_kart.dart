@@ -37,6 +37,18 @@ const double kYanBosluk = 16;
 /// ⚠️ Bu sabit artik YALNIZ kartlar arasindaki dikey bosluk.
 const double kKartAralik = 30;
 
+/// ZEMINLI kart icin ic dolgu + kartlar arasi bosluk.
+///
+/// ⚠️⚠️ `kKartAralik` (30) BURADA KULLANILMAZ: o deger zemini OLMAYAN
+///	kartlar icin secilmisti — ayrimi BOSLUK yapiyordu. Kart artik kendi
+///	zeminini tasiyor, yani ayrim GORSEL; 30 dp birakilsaydi kartlar
+///	birbirinden kopuk, sayfa dagilmis gorunurdu.
+/// ⚠️ `kKartAralik` DEGISTIRILMEDI — `ilan_ekranlari.dart` onu HALA
+///	kullaniyor ve orada zemin YOK (turu 96k dersi: bir sabiti degistirirken
+///	TUM cagri yerlerini greple).
+const double kKartIcDolgu = 12;
+const double kZeminliKartAralik = 14;
+
 /// ⚠️⚠️ KAPAGA BINEN OGELERIN (kampanya rozeti · kalp) KENARDAN BOSLUGU
 ///    (kullanici emri: 25 -> **15px**, dort yandan).
 /// ⚠️ TEK KAYNAK: rozet SOL-ALT, kalp SAG-UST — ikisi de bu sabiti kullanir.
@@ -71,6 +83,21 @@ const double kKartFoto = 92;
 Color kYuzeyGri(BuildContext c) => Theme.of(c).brightness == Brightness.dark
     ? const Color(0xFF2A2A2E)
     : const Color(0xFFE7E7EA);
+
+/// KART ZEMINI (kullanici emri: *"kartlarin arka planini koymamissin"*).
+///
+/// ⚠️⚠️ RENK MERDIVENININ "kart" BASAMAGI: sayfa `kAiZemin` (#17171A) ise
+///	kart ONUN BIR TIK USTU (#1D1D21) olmak ZORUNDA — ayni ton verilseydi
+///	kart zemininden AYIRT EDILEMEZ ve "arka plan yok" gorunumu (tam da
+///	sikayet edilen sey) geri gelirdi.
+/// ⚠️ Fotograf yer tutucusu (`kYuzeyGri` = #2A2A2E) kartin BIR TIK USTUNDE
+///	kalir; ic ice merdiven boylece bozulmaz.
+/// ⚠️ Bu bir FONKSIYON, sabit DEGIL: `Theme.of(c)` cagirir ve widget
+///	`build`inde cagrildigi icin `koyuSayfa`nin temasini DOGRU cozer
+///	(State metodundan cagrilirsa turu 180w tuzagina duser — YAPMA).
+Color kKartZemin(BuildContext c) => Theme.of(c).brightness == Brightness.dark
+    ? const Color(0xFF1D1D21)
+    : const Color(0xFFF4F4F6);
 
 /// ⚠️⚠️⚠️ TURU 96 — **KOSE YARICAPI: TEK MANTIK.**
 ///
@@ -244,22 +271,35 @@ class _IsletmeKartiState extends ConsumerState<IsletmeKarti> {
       //    TAHMIN EDILMEZ (turu 89 karari).
       if (isletmeKategorileri[o.kategori] != null)
         isletmeKategorileri[o.kategori]!,
-      // ⚠️ En fazla IKI kampanya: uc rozet dar telefonda ucuncu satira sarip
-      //    karti sismis gosteriyordu. `kampanyaRozetleri` de AYNI tavani
-      //    kullaniyor — iki yuzey ayni kurali izler.
-      ...o.kampanyalar.take(2),
+      // ⚠️⚠️ KAMPANYA ETIKETLERI **KALDIRILDI** (kullanici emri: *"buradaki
+      //	yemek 300 TL indirim vs bunlar olmasin"*).
+      //
+      //	`o.kampanyalar` MODELDE ve sunucuda AYNEN DURUYOR; kaldirilan
+      //	yalniz BU KARTTAKI cizim. Izgara/serit kartlari `kampanyaRozetleri`
+      //	ile onlari HALA cizer — veri OLU KALMADI.
+      // ⚠️ YAPMA: `...o.kampanyalar.take(2)` satirini buraya geri koyma.
     ];
     return Padding(
-      padding: const EdgeInsets.only(bottom: kKartAralik),
+      padding: const EdgeInsets.only(bottom: kZeminliKartAralik),
       child: GestureDetector(
         // ⚠️ **DALGA YOK** (kullanici emri: "tikladiginda titreme olmasin").
         behavior: HitTestBehavior.opaque,
         onTap: () => Navigator.of(
           context,
         ).push(MaterialPageRoute(builder: (_) => ProfilSayfasi(userId: o.id))),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+        // ⚠️⚠️ KART ZEMINI (kullanici emri). Zemin OLMADAN kart sayfayla ayni
+        //	renkteydi ve "kart" degil "liste satiri" gibi duruyordu.
+        // ⚠️ Yaricap `kYaricap` TEK KAYNAGINDAN (hap kurali) — elle sayi
+        //	yazilsaydi ekrandaki ALTINCI farkli yaricap olurdu (turu 96).
+        child: Container(
+          padding: const EdgeInsets.all(kKartIcDolgu),
+          decoration: BoxDecoration(
+            color: kKartZemin(context),
+            borderRadius: BorderRadius.circular(kYaricap(kKartFoto)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -346,12 +386,21 @@ class _IsletmeKartiState extends ConsumerState<IsletmeKarti> {
                 ),
               ],
             ),
-            // ⚠️ ADRES — referanstaki "tanitim" satirinin GERCEK karsiligi.
-            //    Bos ise satir HIC cizilmez (bkz. yukaridaki serh).
-            if (o.adres.trim().isNotEmpty) ...[
+            // ⚠️⚠️⚠️ ACIKLAMA — **ADRESIN YERINE** (kullanici emri: *"isletme
+            //	aciklama olsun, acik adres yazma"*).
+            //
+            //	Onceden burada `o.adres` yaziyordu ("İbrahim Ağa Cd. No:35")
+            //	ve kullanici bunu ACIKCA istemedi.
+            // ⚠️⚠️ **UYDURMA CUMLE YAZILMADI**: `aciklama` sunucudan gelir ve
+            //	BUGUN BOS gelir (`isletmeler` tablosunda sutun YOK) — o
+            //	durumda satir HIC CIZILMEZ. Adresi "aciklama" diye gostermek
+            //	ya da sabit bir tanitim metni basmak turu 135'te reddedilen
+            //	uydurma-veri sinifinin ta kendisi olurdu.
+            // ⚠️ YAPMA: bos gelince `o.adres`e geri dusme.
+            if (o.aciklama.trim().isNotEmpty) ...[
               const SizedBox(height: 10),
               Text(
-                o.adres.trim(),
+                o.aciklama.trim(),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(fontSize: 13, height: 1.3, color: soluk),
@@ -364,7 +413,8 @@ class _IsletmeKartiState extends ConsumerState<IsletmeKarti> {
             //    IKI KEZ gorunurdu.
             const SizedBox(height: 9),
             vitrinSatiri(context, o, kompakt: false, puanHaric: true),
-          ],
+            ],
+          ),
         ),
       ),
     );

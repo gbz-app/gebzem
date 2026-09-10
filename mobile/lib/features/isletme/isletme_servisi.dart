@@ -442,6 +442,7 @@ class IsletmeOzet {
     required this.ilce,
     required this.adres,
     required this.dogrulandi,
+    this.aciklama = '',
     this.kapakMediaId,
     this.calisma = const [],
     this.minFiyatKurus,
@@ -465,6 +466,19 @@ class IsletmeOzet {
   final String ilce;
   final String adres;
   final bool dogrulandi;
+
+  /// Kisa tanitim metni — kartta ADRESIN YERINE cizilir (kullanici emri:
+  /// *"isletme aciklama olsun, acik adres yazma"*).
+  ///
+  /// ⚠️⚠️ **SUNUCUDA HENUZ KARSILIGI YOK** (`isletmeler` tablosunda
+  ///	`aciklama` sutunu bulunmuyor — turu 93b'de olculdu). Alan burada
+  ///	ACIK duruyor ki sunucu gondermeye basladigi GUN arayuz kendiliginde
+  ///	cizsin; bugun BOS gelir ve kart o satiri HIC CIZMEZ.
+  /// ⚠️ YAPMA: bos gelince adresi ya da uydurma bir cumleyi buraya yazma
+  ///	(turu 135 "uydurma veri" yasagi).
+  /// ⏳ BACKEND TURU: migration + `PUT /users/me/isletme` alani + duzenleme
+  ///	formu + liste/detay SELECT'leri.
+  final String aciklama;
 
   /// ⚠️ TURU 93 — KART KAPAGI. Yemeksepeti tarzi kartta BUYUK gorsel
   ///    gerekiyor; avatar 46px icin uygun ama 150px yuksekliginde kart
@@ -539,6 +553,7 @@ class IsletmeOzet {
     ilce: (m['ilce'] ?? '').toString(),
     adres: (m['adres'] ?? '').toString(),
     dogrulandi: m['dogrulandi'] == true,
+    aciklama: (m['aciklama'] ?? '').toString(),
     kapakMediaId: m['kapak_media_id'] as String?,
     calisma: (m['calisma'] as List?) ?? const [],
     minFiyatKurus: (m['min_fiyat_kurus'] as num?)?.toInt(),
