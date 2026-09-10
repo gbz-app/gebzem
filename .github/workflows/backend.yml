@@ -76,3 +76,19 @@ jobs:
           #	⚠️ YAPMA: bu satiri silme.
           GEBZEM_TEST_DB: postgres://postgres:gebzem@localhost:5432/gebzem_ci?sslmode=disable
         run: go test ./... -count=1
+
+      # ⚠️⚠️ "MUHAFIZ GERCEKTEN KOSTU MU" KANITI.
+      #	`migrate_test.go` env degiskeni yoksa **SKIP** eder ve `go test`
+      #	skip'i YESIL gosterir. Yani degisken bir gun kaybolursa migration
+      #	dogrulamasi **SESSIZCE** devre disi kalir ve CI yine yesil doner —
+      #	bu projede "yalanci yesil" sinifi DEFALARCA sahaya cikti
+      #	(turu 93b · 115c · 167). Adim, testin BASARI CIKTISINI arar.
+      # ⚠️ YAPMA: bu adimi kaldirma; `-v` bayragini dusurme (cikti kaybolur).
+      - name: migration muhafizi ATLANMADI mi
+        working-directory: backend
+        env:
+          GEBZEM_TEST_DB: postgres://postgres:gebzem@localhost:5432/gebzem_ci?sslmode=disable
+        run: |
+          go test ./internal/database/ -run TestMigrationlarTemizSemadaUygulanir -v -count=1 | tee /tmp/mig.log
+          grep -q "migration .* dosya .* tablo" /tmp/mig.log \
+            || { echo "HATA: migration muhafizi KOSMADI (SKIP edilmis olabilir)"; exit 1; }
