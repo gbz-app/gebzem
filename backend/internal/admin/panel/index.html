@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang=tr>
+<head>
+<meta charset=utf-8>
+<meta name=viewport content="width=device-width,initial-scale=1">
+<title>Gebzem · Yönetim</title>
+<link rel=stylesheet href="/admin/varlik/panel.css">
+</head>
+<body>
+
+<!-- GIRIS -->
+<div class=login id=login>
+  <form class=lcard id=lform autocomplete=off>
+    <div class=llogo>Gebzem</div>
+    <div class=lsub>Yönetim Paneli</div>
+    <input id=lu placeholder="Kullanıcı adı" autocomplete=username>
+    <input id=lp type=password placeholder="Şifre" autocomplete=current-password>
+    <button type=submit id=lbtn>Giriş yap</button>
+    <div class=lerr id=lerr></div>
+  </form>
+</div>
+
+<!-- UYGULAMA -->
+<div class=app id=app hidden>
+  <aside class=side>
+    <div class=brand>Gebzem</div>
+    <nav id=nav>
+      <a data-t=genel class=active>Genel Bakış</a>
+      <a data-t=firmalar>Firmalar</a>
+      <a data-t=urunler>Ürünler</a>
+      <a data-t=kullanicilar>Kullanıcılar</a>
+      <a data-t=sikayetler>Şikâyetler <span class=rozet id=rozetSikayet hidden>0</span></a>
+      <a data-t=icerik>İçerik</a>
+      <a data-t=yayinlar>Yayınlar</a>
+      <a data-t=gunluk>İşlem Günlüğü</a>
+    </nav>
+    <div class=logout id=cikis>Çıkış</div>
+  </aside>
+
+  <main class=main>
+    <div class=topbar>
+      <div class=ptitle id=ptitle>Genel Bakış</div>
+      <div class=live><span class=dd></span><span id=saat></span></div>
+    </div>
+    <div id=govde></div>
+  </main>
+</div>
+
+<!-- KATMAN (form/onay) -->
+<div class=perde id=perde hidden><div class=modal id=modal></div></div>
+
+<script src="/admin/varlik/panel.js"></script>
+</body>
+</html>

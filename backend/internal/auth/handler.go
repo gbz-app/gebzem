@@ -186,9 +186,18 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 	var userID, hash string
 	var verified bool
+	// ⚠️⚠️ TURU 181 — ASKI DURUMU DA OKUNUR (migration 052).
+	//	Kapi `auth.Middleware`de de var ama BURADA DA ZORUNLU: aksi halde
+	//	askiya alinmis kullanici GECERLI BIR JETON alir, her istekte 403
+	//	yer ve "giris oldu ama uygulama calismiyor" gibi bir durum olusur.
+	//	Girisi kapida durdurmak, sebebi ILK ANDA soyler.
+	var askida bool
+	var askiSebep string
 	err := h.db.QueryRow(r.Context(),
-		`SELECT id, password_hash, verified FROM users WHERE phone=$1`, strings.TrimSpace(req.Phone)).
-		Scan(&userID, &hash, &verified)
+		`SELECT id, password_hash, verified,
+		        suspended_at IS NOT NULL, COALESCE(suspend_sebep,'')
+		   FROM users WHERE phone=$1`, strings.TrimSpace(req.Phone)).
+		Scan(&userID, &hash, &verified, &askida, &askiSebep)
 	if err == pgx.ErrNoRows || (err == nil && bcrypt.CompareHashAndPassword([]byte(hash), []byte(req.Password)) != nil) {
 		writeErr(w, http.StatusUnauthorized, "telefon veya şifre hatalı")
 		return
@@ -199,6 +208,16 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 	if !verified {
 		writeErr(w, http.StatusForbidden, "hesap doğrulanmamış, kayıt akışını tamamlayın")
+		return
+	}
+	// ⚠️⚠️ ASKI KONTROLU **SIFRE DOGRULANDIKTAN SONRA**: once kontrol
+	//	edilseydi, yanlis sifre girenler bile "bu numara askida" bilgisini
+	//	ogrenirdi (hesap varligi sizintisi).
+	if askida {
+		if askiSebep == "" {
+			askiSebep = "hesabınız askıya alındı"
+		}
+		writeErr(w, http.StatusForbidden, askiSebep)
 		return
 	}
 	token, err := GenerateToken(h.cfg.JWTSecret, userID)

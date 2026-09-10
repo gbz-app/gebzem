@@ -14,6 +14,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/redis/go-redis/v9"
 
+	"github.com/gbz-app/gebzem/backend/internal/admin"
 	"github.com/gbz-app/gebzem/backend/internal/ai"
 	"github.com/gbz-app/gebzem/backend/internal/auth"
 	"github.com/gbz-app/gebzem/backend/internal/bildirim"
@@ -111,6 +112,9 @@ func main() {
 	chatH.SetGonderiGorunur(socialH.GorunurMu)
 	kanalH := kanal.NewHandler(db) // turu 75: kanal (tek yonlu yayin)
 	isletmeH := isletme.NewHandler(db, bildirimS)
+	// TURU 181 - yonetim paneli. Isletme yazma yolu isletmeH uzerinden
+	// DEVREDILIR (tek kaynak); admin kendi INSERT/UPDATE yazmaz.
+	adminH := admin.NewHandler(db, isletmeH)
 	adresH := isletme.NewAdresHandler(db)
 	vitrinH := vitrin.NewHandler(db)
 	randevuH := randevu.NewHandler(db, bildirimS)
@@ -179,7 +183,48 @@ func main() {
 	}
 	r.Get("/admin", adminYonlendir)
 	r.Get("/admin/", adminYonlendir)
-	r.Get("/admin/izle", callsH.AdminPanel)
+
+	// ⚠️⚠️⚠️ TURU 181 — YONETIM PANELI YENIDEN KURULDU (`internal/admin`).
+	//
+	//	Kullanici emri: *"adminden firma ekleme silme vs her seyi adminle
+	//	bagla"*. Panel turu 78'den beri %100 SALT-OKURDU; artik firma /
+	//	kullanici / urun / icerik / sikayet yonetiyor.
+	//
+	// ⚠️ ESKI UCLAR **KALDI** (`/admin/stats`, `/admin/users`,
+	//	`/admin/user/{id}`, `/admin/calls`, `/admin/audio`, `/admin/ws`):
+	//	calisiyorlar, arama-ic bagimliliklari (`h.hub`) var ve tasimak
+	//	kazancsiz risk olurdu. Yeni panel onlari da cagirabilir.
+	// ⚠️ `/admin/login` DE KALDI: eski bir sekme/betik onu cagiriyor
+	//	olabilir. Panel artik `/admin/giris` kullaniyor (jeton doner,
+	//	ADMIN_KEY DEGIL).
+	r.Get("/admin/izle", adminH.Panel)
+	r.Get("/admin/varlik/{dosya}", adminH.Varlik)
+	r.Post("/admin/giris", adminH.Giris)
+	r.Post("/admin/cikis", adminH.Cikis)
+	r.Get("/admin/istatistik", adminH.Istatistik)
+	r.Get("/admin/kategoriler", adminH.Kategoriler)
+	r.Get("/admin/gunluk", adminH.Gunluk)
+	// firma (isletme)
+	r.Get("/admin/isletmeler", adminH.IsletmeListesi)
+	r.Post("/admin/isletmeler", adminH.IsletmeOlustur)
+	r.Patch("/admin/isletmeler/{id}", adminH.IsletmeGuncelle)
+	r.Post("/admin/isletmeler/{id}/onay", adminH.IsletmeOnay)
+	r.Delete("/admin/isletmeler/{id}", adminH.IsletmeKapat)
+	// urun
+	r.Get("/admin/urunler", adminH.UrunListesi)
+	r.Post("/admin/urunler/{id}/durum", adminH.UrunDurum)
+	// kullanici
+	r.Get("/admin/kullanicilar", adminH.KullaniciListesi)
+	r.Post("/admin/kullanicilar/{id}/aski", adminH.KullaniciAski)
+	r.Post("/admin/kullanicilar/{id}/onay", adminH.KullaniciOnay)
+	r.Post("/admin/kullanicilar/{id}/jeton", adminH.KullaniciJeton)
+	// moderasyon
+	r.Get("/admin/sikayetler", adminH.SikayetListesi)
+	r.Patch("/admin/sikayetler/{id}", adminH.SikayetKapat)
+	r.Get("/admin/icerik/{tur}", adminH.IcerikListesi)
+	r.Post("/admin/icerik/{tur}/{id}/durum", adminH.IcerikDurum)
+
+	// ESKI uclar (salt-okur; panel bunlari da kullanabilir)
 	r.Post("/admin/login", callsH.AdminLogin)
 	r.Get("/admin/stats", callsH.AdminStats)
 	r.Get("/admin/users", callsH.AdminUsers)
@@ -188,6 +233,8 @@ func main() {
 	r.Get("/admin/audio", callsH.AdminAudio) // canli ses teshis
 	r.Get("/admin/ws", callsH.AdminWS)
 	// Canli yayin moderasyonu (5651: uzaktan bitirme) — ?key= korumali
+	// ⚠️ TURU 181: bu iki uc SUNUCUDA VARDI ama PANELDE onlari cagiran
+	//	arayuz YOKTU (kesif bulgusu) — artik "Yayınlar" sekmesinde.
 	r.Get("/admin/streams", streamsH.AdminList)
 	r.Post("/admin/streams/{id}/end", streamsH.AdminEnd)
 

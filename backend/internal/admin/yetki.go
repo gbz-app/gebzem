@@ -25,7 +25,10 @@ import (
 	"encoding/json"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
+
+	"github.com/go-chi/chi/v5"
 )
 
 // Key — ADMIN_KEY. BOS ise admin tarafi TAMAMEN KAPALIDIR (fail-closed).
@@ -37,33 +40,55 @@ import (
 // ⚠️ YAPMA: buraya `if k == "" { k = "..." }` yazma.
 func Key() string { return os.Getenv("ADMIN_KEY") }
 
-// Yetkili — istegin admin anahtarini tasiyip tasimadigini soyler.
+// esit — sabit zamanli dize karsilastirmasi.
 //
-// ⚠️⚠️ IKI KAYNAK KABUL EDILIR ve bu BILINCLI:
-//   - `?key=` — mevcut panelin ve `tools/` betiklerinin kullandigi yol;
-//     GERIYE UYUMLULUK icin KALDIRILAMAZ.
-//   - `X-Admin-Key` basligi — YENI yol. Query parametresi Caddy/Cloudflare
-//     erisim loglarina ve tarayici gecmisine DUSER; yazma islemleri
-//     (silme, askiya alma) icin baslik tercih edilir.
+// ⚠️ Duz `==` erken cikar ve degerin ilk baytlarini zamanlama ile
 //
-// ⚠️⚠️ KARSILASTIRMA **SABIT ZAMANLI** (`subtle.ConstantTimeCompare`):
-//
-//	duz `==` erken cikar ve anahtarin ilk baytlarini zamanlama ile
 //	sizdirabilir. Bedeli sifir, kazanci gercek.
 //
-// ⚠️ Uzunluk farkinda da sabit zamanli dal kullanilir: `ConstantTimeCompare`
+// ⚠️ Farkli uzunlukta `ConstantTimeCompare` 0 doner — ayni kod yolu.
+func esit(a, b string) bool {
+	return subtle.ConstantTimeCompare([]byte(a), []byte(b)) == 1
+}
+
+// jetonAl — istekteki admin kimligini cikarir (jeton ya da ham anahtar).
 //
-//	farkli uzunlukta 0 doner, yani ayni kod yolu.
+// ⚠️ Sira: `X-Admin-Jeton` -> `X-Admin-Key` -> `?key=`.
+func jetonAl(r *http.Request) string {
+	if j := r.Header.Get("X-Admin-Jeton"); j != "" {
+		return j
+	}
+	return ""
+}
+
+// Yetkili — istegin admin kimligini tasiyip tasimadigini soyler.
+//
+// ⚠️⚠️ **UC KAYNAK** kabul edilir ve ucu de BILINCLI:
+//
+//  1. `X-Admin-Jeton` — **PANELIN kullandigi yol** (turu 181). Kisa
+//     omurlu, ADMIN_KEY ile ilgisi olmayan rastgele jeton (bkz.
+//     `oturum.go`). Sizsa bile ana anahtari ele vermez ve 12 saatte duser.
+//  2. `X-Admin-Key` basligi — betikler icin; anahtar loglara DUSMEZ.
+//  3. `?key=` sorgu parametresi — `tools/` betiklerinin ve elle `curl`
+//     cagrilarinin kullandigi ESKI yol. **KALDIRILAMAZ** (calisan yollari
+//     kirar) ama panel artik onu KULLANMIYOR.
+//
+// ⚠️ YAPMA: (3)'u kaldirma — `tools/` betikleri ve `/admin/streams`
+//
+//	cagrilari ona bagli.
 func Yetkili(r *http.Request) bool {
+	if depo.gecerli(jetonAl(r)) {
+		return true
+	}
 	k := Key()
 	if k == "" {
-		return false
+		return false // fail-closed: anahtar yoksa admin KAPALI
 	}
 	aday := r.Header.Get("X-Admin-Key")
 	if aday == "" {
 		aday = r.URL.Query().Get("key")
 	}
-	return subtle.ConstantTimeCompare([]byte(aday), []byte(k)) == 1
+	return esit(aday, k)
 }
 
 // kapi — her admin ucunun ILK satiri. Yetkisizse 401 yazar ve false doner.
@@ -129,4 +154,76 @@ func kisalt(s string, n int) string {
 		return s
 	}
 	return string(r[:n])
+}
+
+// sayi — sorgu parametresini SINIRLARA CEKEREK okur.
+//
+// ⚠️ Tavan ZORUNLU: `?limit=100000` admin de olsa tek istekte tum tabloyu
+//
+//	belleğe alirdi.
+func sayi(r *http.Request, ad string, varsayilan, alt, ust int) int {
+	v, err := strconv.Atoi(r.URL.Query().Get(ad))
+	if err != nil {
+		return varsayilan
+	}
+	if v < alt {
+		return alt
+	}
+	if v > ust {
+		return ust
+	}
+	return v
+}
+
+// uuidBicimi — 8-4-4-4-12 onaltilik bicim.
+//
+// ⚠️⚠️ ZORUNLU: admin uclari kimlikleri dogrudan SQL parametresi yapiyor.
+//
+//	Bozuk bir deger pgx'te "invalid input syntax for type uuid" ile
+//	**500** dondurur; bicim kapisi onu 400'e cevirir ve loglari
+//	gurultuden korur.
+//
+// ⚠️ `regexp` KULLANILMADI: elle tarama daha ucuz ve bagimliliksiz
+//
+//	(`internal/isletme/ozellik.go` ile ayni karar).
+func uuidBicimi(s string) bool {
+	if len(s) != 36 {
+		return false
+	}
+	for i, c := range s {
+		if i == 8 || i == 13 || i == 18 || i == 23 {
+			if c != '-' {
+				return false
+			}
+			continue
+		}
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') && (c < 'A' || c > 'F') {
+			return false
+		}
+	}
+	return true
+}
+
+// kimlik — yol parametresinden UUID okur; bozuksa 400 yazip false doner.
+func kimlik(w http.ResponseWriter, r *http.Request, ad string) (string, bool) {
+	id := chi.URLParam(r, ad)
+	if !uuidBicimi(id) {
+		hata(w, http.StatusBadRequest, "geçersiz kimlik")
+		return "", false
+	}
+	return id, true
+}
+
+// yolParam — chi yol parametresi (kisa sarmal).
+func yolParam(r *http.Request, ad string) string { return chi.URLParam(r, ad) }
+
+// sayiYol — yol parametresini int64 olarak okur; bozuksa 0.
+func sayiYol(r *http.Request, ad string) int64 { return sayiCoz(chi.URLParam(r, ad)) }
+
+func sayiCoz(s string) int64 {
+	v, err := strconv.ParseInt(s, 10, 64)
+	if err != nil {
+		return 0
+	}
+	return v
 }

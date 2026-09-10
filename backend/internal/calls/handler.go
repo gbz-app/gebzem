@@ -19,6 +19,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/gbz-app/gebzem/backend/internal/admin"
 	"github.com/gbz-app/gebzem/backend/internal/auth"
 	"github.com/gbz-app/gebzem/backend/internal/chat"
 	"github.com/gbz-app/gebzem/backend/internal/livekit"
@@ -1714,11 +1715,35 @@ func adminKey() string {
 }
 
 func adminYetkili(r *http.Request) bool {
-	k := adminKey()
-	return k != "" && r.URL.Query().Get("key") == k
+	// ⚠️⚠️⚠️ TURU 181 — YETKI **TEK KAYNAGA** DEVREDILDI
+	//	(internal/admin/yetki.go).
+	//
+	//	Panel artik ADMIN_KEY yerine kisa omurlu bir OTURUM JETONU
+	//	kullaniyor; bu kopya onu TANIMIYORDU ve eski sekmeler
+	//	(kullanicilar / aramalar / ses teshis) panelden 401 alirdi.
+	//
+	// ⚠️ YAPMA: buraya tekrar kendi karsilastirmani yazma.
+	return admin.Yetkili(r)
 }
 
 // POST /admin/login {user,pass} -> {key}. Panel key'i localStorage'da saklar.
+// ⚠️⚠️⚠️ TURU 181 — **KODA GOMULU VARSAYILAN SIFRE KALDIRILDI (GUVENLIK).**
+//
+//	Eski govde `ADMIN_USER` bossa `"admin"`, `ADMIN_PASS` bossa
+//	**`"Gebzem2026!"`** kullaniyordu. Repo **PUBLIC** ve sunucunun
+//	`.env` dosyasinda o iki degisken **YOKTU** (olculdu, turu 181):
+//	yani panele giris bilgisi HERKESE ACIKTI ve kaynakta yaziliydi.
+//
+//	Uc kapi da artik ZORUNLU (fail-closed): `ADMIN_USER`, `ADMIN_PASS`
+//	ve `ADMIN_KEY`. Biri bile bossa 503.
+//
+// ⚠️ YAPMA: buraya tekrar `if u == "" { u = "..." }` yazma.
+//
+// ⚠️ BU UC **ESKI** yoldur ve ADMIN_KEY'in kendisini donduruyor. Yeni panel
+//
+//	`POST /admin/giris` kullaniyor ve kisa omurlu bir JETON aliyor
+//	(bkz. `internal/admin/oturum.go`). Uc SILINMEDI cunku sahada eski bir
+//	sekme ya da betik onu cagiriyor olabilir.
 func (h *Handler) AdminLogin(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		User string `json:"user"`
@@ -1726,18 +1751,13 @@ func (h *Handler) AdminLogin(w http.ResponseWriter, r *http.Request) {
 	}
 	json.NewDecoder(r.Body).Decode(&req)
 	u := os.Getenv("ADMIN_USER")
-	if u == "" {
-		u = "admin"
-	}
 	p := os.Getenv("ADMIN_PASS")
-	if p == "" {
-		p = "Gebzem2026!"
+	if u == "" || p == "" || adminKey() == "" {
+		writeErr(w, http.StatusServiceUnavailable,
+			"admin kapalı (ADMIN_USER / ADMIN_PASS / ADMIN_KEY tanımsız)")
+		return
 	}
 	if req.User == u && req.Pass == p {
-		if adminKey() == "" { // TARAMA #16: env yoksa panel kapali (bos key sizdirma)
-			writeErr(w, http.StatusServiceUnavailable, "admin kapalı (ADMIN_KEY tanımsız)")
-			return
-		}
 		writeJSON(w, http.StatusOK, map[string]string{"key": adminKey()})
 		return
 	}

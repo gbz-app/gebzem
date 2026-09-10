@@ -20,6 +20,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 
+	"github.com/gbz-app/gebzem/backend/internal/admin"
 	"github.com/gbz-app/gebzem/backend/internal/auth"
 	"github.com/gbz-app/gebzem/backend/internal/chat"
 	"github.com/gbz-app/gebzem/backend/internal/engel"
@@ -548,13 +549,16 @@ func (h *Handler) Kick(w http.ResponseWriter, r *http.Request) {
 // ---- admin (calls admin key deseni — paket private oldugu icin kopya) ----
 
 func adminOK(r *http.Request) bool {
-	// TARAMA #16: sabit yedek anahtar KALDIRILDI — repo PUBLIC; ADMIN_KEY bos kalirsa
-	// admin uclari KAPALI kalir (fail-closed), eski 'gbz-izle-2026' ile acilmaz.
-	k := os.Getenv("ADMIN_KEY")
-	if k == "" {
-		return false
-	}
-	return r.URL.Query().Get("key") == k
+	// ⚠️⚠️⚠️ TURU 181 — YETKI **TEK KAYNAGA** DEVREDILDI.
+	//
+	//	Bu fonksiyon calls paketindeki adminYetkili fonksiyonunun
+	//	KOPYASIYDI (kendi serhi de bunu soyluyordu: "paket private
+	//	oldugu icin kopya"). Iki kopya kacinilmaz olarak ayrisir:
+	//	turu 181de panel OTURUM JETONU kullanmaya basladi ve bu kopya
+	//	onu TANIMAZDI — yani "Yayinlar" sekmesi panelden CALISMAZDI.
+	//
+	// ⚠️ YAPMA: buraya tekrar kendi anahtar karsilastirmani yazma.
+	return admin.Yetkili(r)
 }
 
 // GET /admin/streams — canli yayinlar (izleyici + jeton)
