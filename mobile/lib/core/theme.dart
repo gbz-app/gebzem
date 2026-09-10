@@ -138,10 +138,10 @@ const _icerikZeminAcik = Color(0xFFF2F2F5); // icerik alani (beyazin kirlisi)
 //
 //	Uc katman, her biri bir oncekinden BIR TIK acik:
 //	  `kAltMenuZemin`  #0E0E10  (alt menu — en koyu katman)
-//	  `kYuzeyKoyu`     #17171A  (kart / panel / sheet)
+//	  `kYuzeyKoyu`     #1D1D21  (kart / panel / sheet)
 //	  `kInputZemin`    #202024  (metin kutulari)
-//	Sayfa zemini (`kAiZemin` #050308) merdivenin ALTINDA kalir: en dipteki
-//	yuzey odur, uzerine binen her katman acilir.
+//	⚠️ TURU 180ae: icerik alani (`kAiZemin`) artik #17171A ve alt menuden
+//	   BIR TIK ACIK — bkz. o sabitin serhi.
 //
 // ⚠️⚠️ **TAM SIYAH (#000) BILEREK BIRAKILDI**: OLED'de tam siyah, uzerindeki
 //	#17171A karttan ayirt edilemeyecek kadar uzak duruyordu ve kullanici
@@ -156,7 +156,7 @@ const kAltMenuZemin = Color(0xFF0E0E10);
 /// ⚠️ Sabit ve TEMADAN BAGIMSIZ: bu merdiven yalniz KOYU yuzeylerde
 ///	kullanilir (uygulamanin varsayilani koyu, turu 180x). Acik temada
 ///	ekranlar kendi `ColorScheme`ini kullanmaya devam eder.
-const kYuzeyKoyu = Color(0xFF17171A);
+const kYuzeyKoyu = Color(0xFF1D1D21);
 
 /// Metin kutusu zemini — kart yuzeyinden BIR TIK acik.
 ///
@@ -445,7 +445,22 @@ const LinearGradient kAiMorGradient = LinearGradient(
 ///	duruyordu; MENU EKRANI da ayni zemini kullaniyor (kullanici emri:
 ///	*"GebzemAI'daki arka plan mantiginin aynisini buraya yap"*).
 /// ⚠️ Kopyalanmadi, TASINDI: iki ekranin zemini birlikte donmeli.
-const Color kAiZemin = Color(0xFF050308);
+/// ⚠️⚠️⚠️ TURU 180ae — **ICERIK ALANI ARTIK ALT MENUDEN BIR TIK ACIK**
+///	(kullanici emri, IKINCI kez: *"alt menu tam siyahin 1 tik altinda
+///	olacak, alt menunun bir tik altinda icerik rengi olacak, bunun bir tik
+///	alt rengi de inputlar olacak"*).
+///
+/// ⚠️⚠️ **TURU 180ad'DE TERS ANLASILDI**: sayfa zemini merdivenin ALTINA
+///	(#050308, en KOYU) konmustu; kullanici ise icerik alaninin alt
+///	menuden **DAHA ACIK** olmasini istiyor. Dogru merdiven:
+///	  `kAltMenuZemin`  #0E0E10  (alt menu — en koyu)
+///	  `kAiZemin`       #17171A  (**icerik alani**)
+///	  `kYuzeyKoyu`     #1D1D21  (kart / panel — icerikten ayrilsin diye)
+///	  `kInputZemin`    #202024  (metin kutulari)
+/// ⚠️ Kart yuzeyi ARADA kalir: icerik zeminiyle AYNI olsaydi kartlar
+///	zeminin icinde KAYBOLURDU (kullanicinin saydigi uc katman korunur,
+///	kart o merdivenin icine oturur).
+const Color kAiZemin = Color(0xFF17171A);
 
 /// ⚠️⚠️⚠️ TURU 178 — **KOYU SAYFA TEMASI (TEK KAYNAK).**
 ///

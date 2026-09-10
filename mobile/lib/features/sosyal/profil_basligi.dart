@@ -61,10 +61,20 @@ const double kKapakKisaltma = 0.92;
 ///	gorunur. Avatarin dikey konumu da `kh`den turedigi icin
 ///	ikisi BIRLIKTE kayar.
 /// Alt kavisin derinligi. ⚠️ `kapakYuksekligi`ye EKLENIR (bkz. kirpici).
-const double kKapakKavis = 22;
+///
+/// ⚠️⚠️⚠️ TURU 180ae — **%50 AZALTILDI** (kullanici emri: *"header 15px daha
+///	kisalt, sol sag raduslerini de %50 azalt"*): 22 -> **11**.
+/// ⚠️ Kirpici bu sabitten TURETIYOR (yay merkezleri `(r, h)` ve `(w-r, h)`),
+///	yani tek satirlik degisiklik iki alt koseyi BIRLIKTE dondurur.
+const double kKapakKavis = 11;
 
+/// ⚠️⚠️⚠️ TURU 180ae — **HEADER 15 dp KISALDI** (kullanici emri).
+///	Turu 180'de eklenen `+15` payi KALKTI: `... * kKapakKisaltma` (yani
+///	net -15 dp).
+/// ⚠️ Avatarin dikey konumu ve alt kavis bu degerden TURETILIYOR — ucu de
+///	BIRLIKTE kayar, elle ikinci bir ayar GEREKMEZ.
 double kapakYuksekligi(double genislik) =>
-    math.min(genislik * 9 / 16, 240.0) * kKapakKisaltma + 15;
+    math.min(genislik * 9 / 16, 240.0) * kKapakKisaltma;
 
 class ProfilBasligi extends StatelessWidget {
   const ProfilBasligi({

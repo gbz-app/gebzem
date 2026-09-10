@@ -31,6 +31,7 @@ import '../ilan/ilan_ekranlari.dart' show IlanDetayEkrani;
 import '../ilan/ilan_servisi.dart';
 import '../talep/talep_servisi.dart' show dugunKategorileri;
 import 'demo_veri.dart' show kDemoAkis, demoGonderiler;
+import 'istatistik_ekrani.dart';
 import 'sosyal_servisi.dart';
 import 'kaydedilenler_sayfasi.dart';
 import 'takip_listesi.dart';
@@ -544,6 +545,7 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
     }
   }
 
+  // ignore: unused_element
   Future<void> _menu() async {
     final p = _p;
     if (p == null) return;
@@ -714,8 +716,37 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
         //	farki gordu (*"geri donme ikonu bunda yemektekigibi
         //	degil"*). Artik ACIKCA ayni ikon veriliyor.
         automaticallyImplyLeading: false,
+        // ⚠️⚠️⚠️ TURU 180ae — **SEKME MODUNDA SOL UST = DUZENLEME IKONU**
+        //	(kullanici emri: *"profil duzenle ve kaydedilen butonlari
+        //	kaldir, onun yerine sol uste icon ekle, duzenleme ikonu
+        //	yeterli"*).
+        // ⚠️ Sekme modunda geri oku ZATEN yoktu (altinda yigin yok) — o
+        //	bos yuva kullanildi, hicbir sey ORTULMEDI.
+        // ⚠️⚠️ YALNIZ KENDI profilimde: baskasinin profilinde "duzenle"
+        //	ikonu cizmek OLU bir dugme olurdu.
         leading: widget.sekmeModu
-            ? null
+            ? (_benimMi
+                  ? GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () async {
+                        await Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const ProfilDuzenleEkrani(),
+                          ),
+                        );
+                        if (mounted) unawaited(_yukle());
+                      },
+                      child: const SizedBox(
+                        width: 52,
+                        height: 52,
+                        child: Center(
+                          child: _BlurDaire(
+                            child: Icon(LucideIcons.pencil, size: 20),
+                          ),
+                        ),
+                      ),
+                    )
+                  : null)
             : GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onTap: () => Navigator.of(context).maybePop(),
@@ -769,35 +800,31 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
                 isletme: _isletme!,
               ),
             ),
-          IconButton(
-            tooltip: 'Menü',
-            onPressed: _menu,
-            icon: _BlurDaire(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Container(
-                    width: 19,
-                    height: 2,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(1),
-                    ),
-                  ),
-                  const SizedBox(height: 5),
-                  Container(
-                    width: 11,
-                    height: 2,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(1),
-                    ),
-                  ),
-                ],
+          // ⚠️⚠️⚠️ TURU 180ae — **HAMBURGER KALDIRILDI, YERINE ISTATISTIK**
+          //	(kullanici emri: *"en sagdaki carkin sagindaki hamburger
+          //	iconu kaldir gereksiz, disin soluna istatistik alani ekle ve
+          //	istatistik sayfasini olustur"*).
+          //
+          // ⚠️⚠️ **HAMBURGERIN ICI OLU KALMADI**: `_menu` sheet'i
+          //	paylas/kopyala/engelle/sikayet tasiyordu ve o eylemlerin
+          //	BASKA girisi VAR — kendi profilimde "Hesabım" (dişli),
+          //	baskasinin profilinde `_dugmeler` satirindaki eylemler.
+          //	`_menu` govdesi SILINMEDI (asagida `unused_element` serhi).
+          // ⚠️ Istatistik YALNIZ KENDI profilimde: baskasinin kac kisiyle
+          //	yazistigi ya da kac gonderi begendigi GIZLIDIR ve uc zaten
+          //	`/users/me/...` (turu 180g "Beğeniler" karariyla ayni).
+          if (_benimMi)
+            IconButton(
+              tooltip: 'İstatistik',
+              icon: const _BlurDaire(
+                child: Icon(LucideIcons.chartNoAxesColumn, size: 22),
+              ),
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => IstatistikEkrani(profil: _p),
+                ),
               ),
             ),
-          ),
         ],
       ),
       // ⚠️⚠️⚠️ TURU 180j — **ALTTAKI YUZEN HAP TAMAMEN KALKTI.**
@@ -1460,7 +1487,25 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
   ///    (Denetim bunu ORTA seviye "olu ozellik" olarak yakaladi.)
   // ⚠️ TURU 107 — parametre KALDIRILDI: gizli hesap anahtari Ayarlara
   //    tasindi ve profil nesnesine burada ihtiyac kalmadi.
-  Widget _kendiDugmelerim() => Column(
+  /// ⚠️⚠️⚠️ TURU 180ae — **KENDI PROFILIMDE ARTIK DUGME YOK.**
+  ///
+  /// Kullanici emri: *"profilde profil duzenle ve kaydedilen butonlari
+  /// kaldir gereksiz, onun yerine sol uste icon ekle duzenleme ikonu
+  /// yeterli"* + *"isletme hesabindaki hizmetleri yonet / menuyu yonet
+  /// bunlar olmasin, ayarlardan yapilsin"*.
+  ///
+  /// ⚠️⚠️ **HICBIR OZELLIK ULASILAMAZ KALMADI** (bu projede o sinif DOKUZ
+  ///	kez sahaya cikti) — girisler TASINDI:
+  ///	  · Profili duzenle -> header'da **sol ust kalem ikonu**
+  ///	  · Kaydedilenler   -> Hesabım (disli) ekrani
+  ///	  · "…yonet" (katalog) -> Hesabım > **Işletme bilgilerim**
+  /// ⚠️ Uc girisin UCU DE bu turda ACIKCA dogrulandi; biri eksik olsaydi
+  ///	isletme sahibi kendi menusune BIR DAHA giremezdi (turu 180o'da
+  ///	birebir bu yasandi).
+  Widget _kendiDugmelerim() => const SizedBox.shrink();
+
+  // ignore: unused_element
+  Widget _eskiKendiDugmelerim() => Column(
     children: [
       Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -1484,11 +1529,6 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
             Expanded(
               child: OutlinedButton.icon(
                 icon: const Icon(LucideIcons.bookmark, size: 16),
-                // ⚠️⚠️ TURU 113 (denetim) — **KIRPILIYORDU.** Gereken 115.7 dp,
-                //	alan 102.2 dp -> 13.5 dp kirpma; "Kaydedilenler" TEK
-                //	KELIME oldugu icin sarilamaz ve `Text` varsayilani
-                //	`clip` oldugu icin uc nokta bile cikmiyordu.
-                //	Ayni sinif yazi olceginde daha da agirlasiyordu.
                 label: const FittedBox(
                   fit: BoxFit.scaleDown,
                   child: Text('Kaydedilenler'),
@@ -2501,7 +2541,14 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
             },
           ),
         ),
-        Container(height: 1, color: scheme.onSurface.withValues(alpha: 0.10)),
+        // ⚠️⚠️⚠️ TURU 180ae — **TAM GENISLIKTEKI AYIRICI KALDIRILDI**
+        //	(kullanici emri: *"profildeki borderi da kaldir"*).
+        //	Onceden burada `Container(height: 1, %10 beyaz)` vardi.
+        // ⚠️ Secili sekmenin BEYAZ cubugu DURUYOR — kaldirilan sey yalnizca
+        //	sayfayi yatay kesen cizgi; secim gostergesi gitseydi hangi
+        //	sekmede oldugumuz ANLASILMAZDI.
+        // ⚠️ Serit yuksekligi DEGISMEZ: cizgi `Column`un AYRI bir cocuguydu
+        //	ve ustteki `SizedBox(height: ...)` ona bagli DEGIL.
       ],
     );
   }

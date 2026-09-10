@@ -125,14 +125,18 @@ void main() {
     double parlaklik(Color c) =>
         (c.r * 0.299 + c.g * 0.587 + c.b * 0.114);
     final altMenu = parlaklik(kAltMenuZemin);
+    final icerik = parlaklik(kAiZemin);
     final yuzey = parlaklik(kYuzeyKoyu);
     final input = parlaklik(kInputZemin);
-    final sayfa = parlaklik(kAiZemin);
 
-    expect(sayfa, lessThan(altMenu),
-        reason: 'sayfa zemini merdivenin ALTINDA kalmali');
-    expect(altMenu, lessThan(yuzey),
-        reason: 'alt menu, kart yuzeyinden KOYU olmali');
+    // ⚠️⚠️⚠️ TURU 180ae — **SIRA DUZELTILDI.** Turu 180ad'de sayfa zemini
+    //	merdivenin ALTINA konmustu; kullanici IKINCI kez soyledi: *"alt menu
+    //	tam siyahin 1 tik altinda, ONUN bir tik altinda ICERIK, onun bir tik
+    //	alti da INPUTLAR"*. Yani icerik alt menuden **ACIK**.
+    expect(altMenu, lessThan(icerik),
+        reason: 'alt menu, icerik alanindan KOYU olmali (kullanici emri)');
+    expect(icerik, lessThan(yuzey),
+        reason: 'icerik alani, kart yuzeyinden KOYU olmali');
     expect(yuzey, lessThan(input),
         reason: 'kart yuzeyi, input zemininden KOYU olmali');
     // ⚠️ Alt menu TAM SIYAH OLMAMALI (kullanici emri: "bir tik ustu");

@@ -6,11 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/theme.dart'
-    show
-        kAltMenuZemin,
-        kAltMenuAktifIkon,
-        kAltMenuPasifIkon,
-        kHikayePaylasGradient;
+    show kAltMenuZemin, kAltMenuAktifIkon, kAltMenuPasifIkon;
 import '../chats/chats_provider.dart';
 import '../medya/medya_gorsel.dart';
 import '../sosyal/hizmet_menusu.dart' show hizmetMenusuAc;
@@ -345,7 +341,19 @@ class AltMenu extends ConsumerWidget {
                         'Mesaj',
                         rozet: okunmamis,
                       ),
-                      _oge(4, LucideIcons.radio, 'Canlı'),
+                      // ⚠️⚠️⚠️ TURU 180ae — **CANLI YAYIN -> SOHBET ODALARI**
+                      //	(kullanici emri: *"alttaki canlı yayın ikonu
+                      //	yerine sohbet odası ikonu koy, oraya tıkladığında
+                      //	sohbet odaları gözüksün"*).
+                      // ⚠️⚠️ CANLI YAYIN **ULASILAMAZ KALMADI**: anasayfadaki
+                      //	bolme secicisinin ucuncu ogesi artik "Canlı Yayın"
+                      //	ve `LiveTab`i ciziyor (bkz. `akis_ekrani.dart`
+                      //	`kCanliBolme`). Yayin BASLATMA girisi de bu
+                      //	sekmenin sag ustundeki "+" menusunde duruyor.
+                      // ⚠️ `micVocal` — sesli oda (Spaces) dili. `radio`
+                      //	YAYIN ikonuydu; oda ile yayin AYNI ikonla
+                      //	gosterilseydi iki ayri ozellik ayirt edilemezdi.
+                      _oge(4, LucideIcons.micVocal, 'Odalar'),
                       _profil(),
                     ],
                   ),
@@ -438,7 +446,13 @@ class AltMenu extends ConsumerWidget {
     //    buyut"). Olculdu: 24'te murekkep 22.6x16.0 dp, 28'de 25.1x18.7 dp —
     //    yani kardeslerinin (~19.8 dikey) HALA altindaydi. 31'de dikey
     //    murekkep ~20.7 dp ile hizalanir.
-    if (ikon == LucideIcons.radio) return 33;
+    // ⚠️⚠️ TURU 180ae — `radio` girisi KALDIRILDI: o ikon alt menuden CIKTI
+    //	(yerine `micVocal` geldi). Olu bir girdi birakmak, haritayi
+    //	"bakip guvenilen" bir kayit olmaktan cikarirdi.
+    // ⚠️ `micVocal` icin SAPMA YOK: `radio` yatay bir dalga cizimidir ve
+    //	dikey murekkebi kardeslerinin ~2/3'u kaliyordu (turu 96o'da
+    //	olculdu, 33'e cikarilmisti); `micVocal` mikrofon govdesi + yaylarla
+    //	kutuyu `clapperboard`/`messageCircle` gibi DIKEYDE doldurur.
     return kAltMenuIkonBoy;
   }
 
@@ -591,61 +605,32 @@ class AltMenu extends ConsumerWidget {
           // ⚠️ Renkler SABIT (tema-bagimsiz): alt menu zemini de sabit
           //    siyah; temadan boyanirsa acik temada halka kaybolur
           //    (turu 96m dersi).
-          const halka = kAltMenuLogoHalka;
           return Container(
             width: cap,
             height: cap,
-            padding: const EdgeInsets.all(halka),
+            // ⚠️⚠️⚠️ TURU 180ae — **MOR GRADYAN HALKA KALDIRILDI**
+            //	(kullanici emri: *"alt menudeki mor daireyi de kaldir,
+            //	gereksiz"*). Ortadaki dugme artik alt menuyle AYNI zeminde
+            //	duran sade bir ikon.
+            // ⚠️ `kAltMenuLogoCap` (58 dp) ve kaldirma DEGISMEDI: dokunma
+            //	hedefi, tasma payi ve `alt_menu_test.dart`in olculeri buna
+            //	bagli.
+            // ⚠️⚠️ Zemin `kAltMenuZemin`: cubukla AYNI renk oldugu icin
+            //	daire GORUNMEZ olur, geriye yalniz ikon kalir — istenen bu.
+            //	Ayri (acik) bir zemin verilseydi "mor daireyi kaldirdim,
+            //	yerine gri daire koydum" olurdu.
+            // ⚠️ `kAltMenuLogoHalka` ve `kHikayePaylasGradient` artik burada
+            //	KULLANILMIYOR; ikisi de baska yerlerde yasiyor (hikaye
+            //	seridi, `theme.dart`) — SILINMEDILER.
             decoration: const BoxDecoration(
               shape: BoxShape.circle,
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                // ⚠️⚠️⚠️ TURU 119b — **HIKAYE PAYLASMA DAIRESIYLE AYNI**
-                //	(kullanici emri: *"alttaki logonun cevresi halen
-                //	TURUNCU; ben sana STORY EKLEMEDEKI bizim MOR
-                //	gradient rengin aynisini yap dedim"*).
-                //	⚠️ Turu 117de YANLIS gradyan verilmisti
-                //	   (`kHikayeHalkaGradient` = mor->kirmizi->TURUNCU).
-                //	   Dogrusu `kHikayePaylasGradient` = SIYAH->MOR,
-                //	   yani seritteki kendi "Hikâyen" dairesinin halkasi.
-                // ⚠️ ESKI (turu 117) NOT:
-                //	(kullanici emri: *"border rengini logo icin oradaki
-                //	turuncu kirmizimsi, STORYDEKI bizim story gradient
-                //	yap"*). Onceden burada AYRI bir uclu vardi (turuncu
-                //	#FF9A3C -> pembe #FF5E7A -> mor #8B3FFF), yani ayni
-                //	ekranda IKI FARKLI "marka gradyani" duruyordu.
-                // ⚠️ TEK KAYNAK: `core/theme.dart`.
-                //    ⚠️ YAPMA: renkleri buraya tekrar ELLE yazma.
-                colors: kHikayePaylasGradient,
-              ),
+              color: kAltMenuZemin,
             ),
-            // ⚠️⚠️⚠️ TURU 180ad — **LOGO YERINE IKON** (kullanici emri:
-            //	*"alttaki ortadaki menuye giden logo yerine bir icon koy"*).
-            //
-            // ⚠️ Ikon `layoutGrid`: bu dugme HIZMET MENUSUNU aciyor
-            //	(kategori izgarasi) — `home` ya da `menu` yaniltici olurdu
-            //	(ilki anasayfaya gider sanilir, ikincisi hamburgerin isi).
-            // ⚠️⚠️ **GRADYAN HALKA VE 58 dp CAP DEGISMEDI**: kaldirma,
-            //	tasma payi ve dokunma hedefi bu olculere bagli
-            //	(`alt_menu_test.dart` ucunu de olcuyor).
-            // ⚠️ Ic daire zemini `kAltMenuZemin`: ikon gradyan halkanin
-            //	uzerinde degil, halkanin CEVRELEDIGI koyu dairenin
-            //	icinde durur — beyaz ikon acik mor uzerinde 2,1:1 ile
-            //	SILIK kalirdi (olculdu).
-            // ⚠️ `px` ARTIK KULLANILMIYOR ama hesap DURUYOR: logo geri
-            //	istenirse tek satirla donulur.
-            child: Container(
-              decoration: const BoxDecoration(
-                shape: BoxShape.circle,
-                color: kAltMenuZemin,
-              ),
-              child: const Center(
-                child: Icon(
-                  LucideIcons.layoutGrid,
-                  size: 24,
-                  color: kAltMenuAktifIkon,
-                ),
+            child: const Center(
+              child: Icon(
+                LucideIcons.layoutGrid,
+                size: 26,
+                color: kAltMenuAktifIkon,
               ),
             ),
           );

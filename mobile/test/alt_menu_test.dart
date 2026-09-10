@@ -70,11 +70,14 @@ Widget _kur({
 /// ⚠️⚠️ TURU 112 — logo artik IKI KUTU: disda **gradient halka**
 ///	(turuncu-mor, kullanici emri), icinde gorsel. Geometri testleri
 ///	DIS kutuyu, gorsel testleri IC kutuyu olcer.
+/// ⚠️⚠️⚠️ TURU 180ae — **MOR GRADYAN HALKA KALDIRILDI** (kullanici emri:
+///	*"alt menudeki mor daireyi de kaldir, gereksiz"*). Olcut
+///	`gradient != null` idi; artik tek bir DUZ RENKLI daire var.
 Finder get _logoBulucu => find.byWidgetPredicate((w) =>
     w is Container &&
     w.decoration is BoxDecoration &&
-    (w.decoration as BoxDecoration).gradient != null &&
-    (w.decoration as BoxDecoration).shape == BoxShape.circle);
+    (w.decoration as BoxDecoration).shape == BoxShape.circle &&
+    (w.decoration as BoxDecoration).color == kAltMenuZemin);
 
 /// Ortadaki dugmenin IC dairesi.
 ///
@@ -143,7 +146,8 @@ void main() {
     await t.pumpWidget(_kur(secili: 0));
     await t.pump();
 
-    for (final e in ['Anasayfa', 'Ara', 'Reels', 'Mesaj', 'Canlı', 'Profil']) {
+    // ⚠️ TURU 180ae — "Canlı" -> **"Odalar"** (sekme sohbet odalarina cevrildi).
+    for (final e in ['Anasayfa', 'Ara', 'Reels', 'Mesaj', 'Odalar', 'Profil']) {
       expect(find.text(e), findsNothing, reason: '"$e" METNI cizilmemeli');
       // ⚠️ Gorunur etiket kalkinca a11y etiketi TEK kaynaktir.
       expect(find.bySemanticsLabel(e), findsWidgets,
@@ -162,7 +166,8 @@ void main() {
       LucideIcons.search,
       LucideIcons.clapperboard,
       LucideIcons.messageCircle,
-      LucideIcons.radio,
+      // ⚠️ TURU 180ae — `radio` (canli yayin) -> `micVocal` (sohbet odasi).
+      LucideIcons.micVocal,
     ]) {
       expect(t.widget<Icon>(find.byIcon(i)).color, kAltMenuPasifIkon);
     }
@@ -250,13 +255,18 @@ void main() {
         reason: 'logo gorseli KALDIRILDI (yerine ikon kondu)');
 
     final boyut = t.getSize(gorsel);
-    expect(boyut.width, kAltMenuLogoIcCap);
-    expect(boyut.height, kAltMenuLogoIcCap);
+    // ⚠️ TURU 180ae: halka kalkinca IC daire de kalkti — tek daire var.
+    expect(boyut.width, kAltMenuLogoCap);
+    expect(boyut.height, kAltMenuLogoCap);
 
-    // ⚠️⚠️ DIS HALKA: turuncu-mor GRADIENT ve DIS CAP `kAltMenuLogoCap`
-      //    olmak ZORUNDA — halka disariya eklenirse logo cubuktan tasar.
+    // ⚠️⚠️⚠️ TURU 180ae — **GRADYAN HALKA KALDIRILDI** (kullanici emri:
+    //	*"alt menudeki mor daireyi de kaldir, gereksiz"*). Muhafiz artik
+    //	halkanin YOKLUGUNU kilitler — sessizce geri gelmesin.
+    // ⚠️ DIS CAP `kAltMenuLogoCap` OLARAK KALIR: kaldirma hesabi, tasma
+    //	payi ve dokunma hedefi buna bagli.
     final dis = t.widget<Container>(_logoBulucu).decoration as BoxDecoration;
-    expect(dis.gradient, isNotNull, reason: 'halka GRADIENT olmali');
+    expect(dis.gradient, isNull,
+        reason: 'mor gradyan halka KALDIRILDI (kullanici emri)');
     expect(t.getSize(_logoBulucu).width, kAltMenuLogoCap,
         reason: 'dis cap DEGISMEMELI (kaldirma hesabi buna bagli)');
     expect(kAltMenuLogoCap, greaterThan(kAltMenuIkonBoy),
@@ -337,17 +347,26 @@ void main() {
         reason: 'golge OLMAMALI');
   });
 
-  testWidgets('CANLI (radio) ikonu optik olarak BUYUK cizilir', (t) async {
+  testWidgets('ODALAR ikonu var ve CANLI YAYIN ikonu alt menuden CIKTI',
+      (t) async {
     await t.pumpWidget(_kur(secili: 0));
     await t.pump();
 
-    final canli = t.widget<Icon>(find.byIcon(LucideIcons.radio)).size!;
+    // ⚠️⚠️ TURU 180ae — eski test `radio`nun optik olarak BUYUK cizildigini
+    //	olcuyordu. O ikon alt menuden CIKTI (canli yayin anasayfadaki
+    //	"Canlı Yayın" bolmesine tasindi), yani test ARTIK OLCULEMEYEN bir
+    //	seye bakiyordu — silinmedi, **YENI GERCEGE** cevrildi.
+    expect(find.byIcon(LucideIcons.micVocal), findsOneWidget,
+        reason: 'sohbet odasi ikonu alt menude OLMALI');
+    expect(find.byIcon(LucideIcons.radio), findsNothing,
+        reason: 'canli yayin ikonu alt menuden KALKTI');
+
+    // ⚠️ `micVocal` icin optik SAPMA YOK (bkz. `_ikonBoy` serhi): mikrofon
+    //	govdesi + yaylar kutuyu dikeyde kardesleri kadar doldurur.
+    final oda = t.widget<Icon>(find.byIcon(LucideIcons.micVocal)).size!;
     final ev = t.widget<Icon>(find.byIcon(LucideIcons.house)).size!;
-    // ⚠️ Kullanici: "canli yayin ikonu kucuk kalmis". Lucide `radio` dikeyde
-    //    kisa oldugu icin ayni `size`da KUCUK gorunur (turu 82 optik boy
-    //    dersi). Esitlemek sikayeti GERI GETIRIR.
-    expect(canli, greaterThan(ev),
-        reason: 'radio nominal olarak kardeslerinden BUYUK olmali');
+    expect(oda, ev,
+        reason: 'micVocal kardesleriyle AYNI nominal boyda cizilmeli');
   });
 
   /// Profil hucresindeki daire (fotograf yokken cizilen).

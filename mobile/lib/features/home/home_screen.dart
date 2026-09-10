@@ -16,8 +16,12 @@ import '../chats/chats_screen.dart';
 import '../ilan/ilan_ekranlari.dart';
 import '../randevu/randevu_listeleri.dart';
 import '../isletme/isletme_duzenle.dart';
+import '../isletme/urun_ekranlari.dart' show UrunKatalogEkrani;
+import '../sosyal/kaydedilenler_sayfasi.dart' show KaydedilenlerSayfasi;
 import '../live/live_start_screen.dart';
-import '../live/live_tab.dart';
+// ⚠️ TURU 180ae — `LiveTab` importu KALKTI: canli yayin listesi artik
+//    `akis_ekrani.dart` icinde ("Canlı Yayın" bolmesi) ciziliyor.
+import '../rooms/rooms_tab.dart' show RoomsTab;
 import '../sosyal/akis_ekrani.dart';
 import '../sosyal/bildirimler_sayfasi.dart';
 import '../sosyal/kesfet_ekrani.dart';
@@ -274,7 +278,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           //    boyle davranir) — kabul edilen bir bedel.
           _index == _reels ? const ReelsSayfasi() : const SizedBox.shrink(),
           const _MesajSekmesi(), // sohbetler + CAGRI GECMISI segmenti
-          const _CanliSekmesi(), // canli yayinlar + SESLI ODALAR segmenti
+          // ⚠️ TURU 180ae — bu yuva artik SOHBET ODALARI (canli yayin
+          //    anasayfadaki "Canlı Yayın" bolmesine tasindi).
+          const _OdalarSekmesi(),
           // ⚠️⚠️⚠️ TURU 108 — **DOGRUDAN PROFIL** (kullanici emri: *"profile
           //	tikladigimda direk profil gelmeli"*). Eskiden bu sekme AYARLAR
           //	listesiydi; kendi profiline ulasmak IKI dokunustu.
@@ -492,16 +498,32 @@ class _HapSecici extends StatelessWidget {
   }
 }
 
-/// ⚠️ TURU 76 — CANLI SEKMESI: canli yayinlar + SESLI ODALAR.
-/// ⚠️ YAPMA: `RoomsTab`i kaldirma — sesli oda (Spaces) akisi orada.
-class _CanliSekmesi extends StatefulWidget {
-  const _CanliSekmesi();
+/// ⚠️⚠️⚠️ TURU 180ae — **SOHBET ODALARI SEKMESI** (kullanici emri: *"alttaki
+///	canlı yayın ikonu yerine sohbet odası ikonu koy, oraya tıkladığında
+///	sohbet odaları gözüksün"*).
+///
+/// ═══════════ ONCEKI HAL VE NEYIN NEREYE GITTIGI ═══════════
+///
+/// · Bu sekme turu 180t'den beri YALNIZ canli yayin listesini (`LiveTab`)
+///   ciziyordu; sesli odaya tek giris "+" menusundeydi.
+/// · Simdi TERSI: sekme **`RoomsTab`** cizer, canli yayin ise anasayfanin
+///   bolme secicisine tasindi (`akis_ekrani.dart` -> `kCanliBolme`).
+///
+/// ⚠️⚠️ **HICBIRI ULASILAMAZ KALMADI** (bu projenin en sik hata sinifi):
+///	canli yayin IZLEME anasayfadaki "Canlı Yayın" bolmesinde,
+///	yayin BASLATMA bu sekmenin sag ustundeki "+" dugmesinde, oda ACMA ise
+///	`RoomsTab`in KENDI FAB'inde ("Oda aç").
+/// ⚠️ Yayin baslatma girisi BILEREK burada birakildi: `LiveStartScreen`
+///	kamerayi acar ve akis bolmesi bir LISTE govdesidir — oraya konsaydi
+///	bolme her degistiginde onizleme kurulup yikilirdi.
+class _OdalarSekmesi extends StatefulWidget {
+  const _OdalarSekmesi();
 
   @override
-  State<_CanliSekmesi> createState() => _CanliSekmesiState();
+  State<_OdalarSekmesi> createState() => _OdalarSekmesiState();
 }
 
-class _CanliSekmesiState extends State<_CanliSekmesi> {
+class _OdalarSekmesiState extends State<_OdalarSekmesi> {
   @override
   Widget build(BuildContext context) => koyuSayfa(
     Builder(
@@ -538,7 +560,7 @@ class _CanliSekmesiState extends State<_CanliSekmesi> {
               ),
               const Center(
                 child: Text(
-                  'Canlı Yayın',
+                  'Sohbet Odaları',
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
@@ -562,7 +584,11 @@ class _CanliSekmesiState extends State<_CanliSekmesi> {
           ),
         ),
       ),
-      const Expanded(child: LiveTab()),
+      // ⚠️⚠️ TURU 180ae — `LiveTab` -> **`RoomsTab`**.
+      //	`RoomsTab` kendi `Scaffold`unu dondurur (kendi `YenileSarmali`si
+      //	+ **kendi FAB'i "Oda aç"**), yani buraya ikinci bir olusturma
+      //	dugmesi KONMAZ — iki giris ayni isi yapip birbirini golgelerdi.
+      const Expanded(child: RoomsTab()),
           ],
         ),
       ),
@@ -756,6 +782,19 @@ class _ProfileTab extends ConsumerWidget {
                 MaterialPageRoute(builder: (_) => const ProfilDuzenleEkrani()),
               ),
             ),
+            // ⚠️⚠️⚠️ TURU 180ae — **KAYDEDILENLER BURAYA TASINDI** (kullanici
+            //	emri: profildeki iki dugme kaldirildi). Giris OLMASAYDI
+            //	`post_saves` tablosu ve `GET /users/me/saved` ucu TOPTAN
+            //	ULASILAMAZ kalirdi — turu 75b'de tam bu yasanmisti
+            //	("kaydetme KARA DELIK: yaziliyor, listeleyen YOK").
+            AyarSatiri(
+              ikon: LucideIcons.bookmark,
+              baslik: 'Kaydedilenler',
+              altBaslik: 'Kaydettiğin gönderiler',
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const KaydedilenlerSayfasi()),
+              ),
+            ),
             // ⚠️⚠️ TURU 77 — ISLETME HESABI GIRISI. Bu projede "kod var ama
             //    hicbir dugmeye bagli degil" hatasi BES kez yasandi.
             AyarSatiri(
@@ -771,6 +810,41 @@ class _ProfileTab extends ConsumerWidget {
                 ref.invalidate(myProfileProvider);
               },
             ),
+            // ⚠️⚠️⚠️ TURU 180ae — **KATALOG GIRISI BURAYA TASINDI** (kullanici
+            //	emri: *"isletme hesabindaki hizmetleri yonet / menuyu yonet
+            //	bunlar olmasin, AYARLARDAN yapilsin"*).
+            //
+            // ⚠️⚠️ **BU GIRIS ZORUNLU**: profildeki "…yonet" dugmesi
+            //	kaldirildi ve turu 180o'da OLCULDU — o dugme olmayinca
+            //	isletme sahibi oda/menu/hizmet EKLEYEMIYOR, mevcutlari
+            //	DUZENLEYEMIYOR; katalogun tek girisi BASKASININ profili
+            //	kaliyor ve sahip kendi profilinde "baskasi" olamaz.
+            // ⚠️ YALNIZ isletme hesabinda cizilir: kisisel hesapta bos bir
+            //	katalog acardi.
+            // ⚠️ `modul` VERILMIYOR -> ekran varsayilan "Ürünler" basligini
+            //	kullanir. Kategoriden TAHMIN YURUTULMEZ (turu 89 karari);
+            //	modulu sunucudan tasimak icin bu satirin isletme detayini
+            //	de cekmesi gerekirdi — AYRI IS.
+            if (isletme)
+              AyarSatiri(
+                ikon: LucideIcons.bookOpen,
+                baslik: 'Ürün ve hizmetlerim',
+                altBaslik: 'Menü, oda ve hizmetlerini yönet',
+                onTap: () async {
+                  final p = ref.read(myProfileProvider).valueOrNull;
+                  final id = (p?['id'] ?? '').toString();
+                  if (id.isEmpty) return;
+                  await Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => UrunKatalogEkrani(
+                        isletmeId: id,
+                        isletmeAd: (p?['name'] ?? '').toString(),
+                        benimMi: true,
+                      ),
+                    ),
+                  );
+                },
+              ),
             // ⚠️⚠️ TURU 80 — RANDEVULARIM (MUSTERI tarafi). Bu giris
             //    OLMASAYDI kullanici aldigi randevuyu bir daha GOREMEZ ve
             //    IPTAL EDEMEZDI.

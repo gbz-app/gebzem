@@ -23,6 +23,19 @@ import 'profil_sayfasi.dart';
 import 'sosyal_servisi.dart';
 import 'story_seridi.dart';
 import 'olustur_menusu.dart';
+// ⚠️⚠️ TURU 180ae — ucuncu bolme artik CANLI YAYIN listesini ciziyor.
+import '../live/live_tab.dart' show LiveTab;
+
+/// ⚠️⚠️⚠️ TURU 180ae — **CANLI YAYIN BOLMESININ INDISI** (kullanici emri:
+///	*"anasayfadaki mahalle yerine Canlı Yayın olsun"*).
+///
+/// ⚠️ Sayi UC YERDE okunuyor (secici · `_yenile` kapisi · govde dali); duz
+///	`2` yazilsaydi biri degistiginde otekiler SESSIZCE geride kalirdi —
+///	bu projede "ayni kuralin iki kopyasi drift eder" sinifi ALTI kez
+///	sahaya cikti.
+/// ⚠️ Dizilerin UZUNLUGU (3) DEGISMEDI: `_listeler`/`_bolmeKaydirma` hala uc
+///	elemanli; canli bolmesinin listesi yalnizca DAIMA BOS kalir.
+const int kCanliBolme = 2;
 
 /// ⚠️⚠️ TURU 75 — ANA SAYFA AKISI (Instagram/Facebook duzeni).
 ///
@@ -115,7 +128,18 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
   ///    aramalari tam bu yuzden sagirlasti).
   /// ⚠️ YAPMA: iki bolmeyi `IndexedStack`e koyma.
   final List<List<Gonderi>> _listeler = [<Gonderi>[], <Gonderi>[], <Gonderi>[]];
-  final List<bool> _bolmeYuklendi = [false, false, false];
+  /// ⚠️⚠️⚠️ TURU 180ae — **UCUNCU BOLME ARTIK "Canlı Yayın"** (kullanici
+  ///	emri: *"anasayfadaki mahalle yerine Canlı Yayın olsun"*).
+  ///
+  ///	O bolme gonderi listesi CIZMEZ; govde dogrudan `LiveTab`i cizer ve
+  ///	`LiveTab` kendi verisini KENDI ceker (kendi `YenileSarmali`si,
+  ///	kendi WS dinleyicisi, kendi 30 sn yedegi var).
+  /// ⚠️ Bu yuzden bolme **BASLANGICTAN ITIBAREN "yuklendi"** sayilir:
+  ///	`_bolmeDegistir` yalnizca `!_bolmeYuklendi[yeni]` iken `_bolmeYukle`
+  ///	cagirir; false birakilsaydi her gecis ~3 saniyelik BOSA bir yukleme
+  ///	dongusu baslatir ve `_yenile` orada hicbir sey yapmadigi icin dongu
+  ///	iki tur donup pes ederdi.
+  final List<bool> _bolmeYuklendi = [false, false, true];
   final List<double> _bolmeKaydirma = [0, 0, 0];
 
   /// ⚠️⚠️ TURU 114 — MAHALLE bolmesinin konumu. BIR KEZ alinir ve bolme
@@ -155,6 +179,12 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
 
   Future<void> _yenile() async {
     if (_yukleniyor) return;
+    // ⚠️⚠️⚠️ TURU 180ae — CANLI YAYIN BOLMESINDE **AG ISTEGI ATILMAZ.**
+    //	Govde orada `LiveTab` ciziyor ve o kendi verisini kendi cekiyor;
+    //	burada bir gonderi istegi atmak hem gereksiz trafik hem de
+    //	`_yukleniyor` bayragini bosa mesgul etmek olurdu (o bayrak
+    //	PAYLASILAN — turu 80b'de akisi KALICI kilitlemisti).
+    if (_bolme == kCanliBolme) return;
     setState(() {
       _yukleniyor = true;
       _hata = null;
@@ -500,9 +530,16 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
           children: [
             _bolmeYazisi(0, 'Arkadaş'),
             _bolmeYazisi(1, 'Keşfet'),
-            // ⚠️ MAHALLE = konuma gore gonderiler (`GET /mahalle`). Yeni tablo
-            //    ACILMADI: `posts.enlem/boylam` migration 044'ten beri var.
-            _bolmeYazisi(2, 'Mahalle'),
+            // ⚠️⚠️⚠️ TURU 180ae — **"Mahalle" -> "Canlı Yayın"** (kullanici
+            //	emri). Bolme artik `GET /mahalle` CAGIRMAZ; govde dogrudan
+            //	`LiveTab` ciziyor.
+            // ⚠️ Sunucudaki `/mahalle` ucu ve `posts.enlem/boylam` sutunlari
+            //	DOKUNULMADAN duruyor (veri SILINMEZ kurali); istemcide o
+            //	yola giden cagri yeri KAPANDI.
+            // ⚠️ Etiket UZUN: secici zaten yatay kaydirilabilir
+            //	(`SingleChildScrollView` + `titleSpacing: 0`) — asiri yazi
+            //	olceginde TASMAZ, KAYAR.
+            _bolmeYazisi(kCanliBolme, 'Canlı Yayın'),
           ],
         ),
       ),
@@ -807,7 +844,18 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
       //    Iki bolme artik TEK govdeyi paylasiyor; ayrim VERIDE (`_listeler`),
       //    widget agacinda DEGIL. Boylece gorunmeyen bolmenin videosu
       //    yasamiyor ve akista otomatik oynatmanin dort kapisi bozulmuyor.
-      body: YenileSarmali(onRefresh: _elleYenile, child: _govde(benimId)),
+      // ⚠️⚠️⚠️ TURU 180ae — CANLI YAYIN BOLMESI **KENDI EKRANINI CIZER.**
+      //
+      //	`LiveTab` bir `Scaffold` DONDURUR ve icinde KENDI `YenileSarmali`si
+      //	vardir. Disaridan ikinci bir `RefreshIndicator` ile sarilsaydi iki
+      //	gosterge ust uste biner ve asagi-cek jesti IC listeye giderken DIS
+      //	sarmal HIC tetiklenmezdi (turu 82b'de galeri seridinde olculen
+      //	"ic ice kaydirma" sinifi).
+      // ⚠️ Hikaye seridi ve gonderi listesi burada BILEREK cizilmez: bolme
+      //	artik gonderi bolmesi DEGIL.
+      body: _bolme == kCanliBolme
+          ? const LiveTab()
+          : YenileSarmali(onRefresh: _elleYenile, child: _govde(benimId)),
     ));
   }
 
