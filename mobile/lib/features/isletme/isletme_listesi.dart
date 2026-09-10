@@ -2886,8 +2886,19 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
           //    bu bir KULLANICI SECIMI, cikarim degil.
           segment(LucideIcons.listFilter, 'Liste görünümü', !_izgara,
               () => setState(() => _izgara = false)),
-          segment(LucideIcons.layoutGrid, 'Kart görünümü', _izgara,
-              () => setState(() => _izgara = true)),
+          // ⚠️⚠️⚠️ TURU 180ag — **ORTADAKI SEGMENT (`layoutGrid` / kart
+          //	gorunumu) KALDIRILDI** (kullanici emri: *"gorunumde ortadaki
+          //	2. gorunumu kaldir"*).
+          //
+          // ⚠️ `_izgara` ARTIK DAIMA `false`: diske yazilmiyordu, tek
+          //	yazicisi bu segmentti. Yani izgara dali (`_izgaraKarti` +
+          //	`SliverGrid`) ULASILAMAZ kod oldu — govdeler SILINMEDI, karar
+          //	tek satirla geri alinabilsin diye duruyor.
+          // ⚠️ **CERCEVE (kenarlik + dolgu) DURUYOR**: kullanici onu bir kez
+          //	ACIKCA reddetti (*"hepsi BIR SEYIN ICINDE border olacak"*) —
+          //	tek segment kalsa bile kutu kaldirilmaz (turu 96j).
+          // ⚠️ YAPMA: `kSeg*` sabitlerine dokunma; kutu genisligi segment
+          //	SAYISINDAN turemiyor ve muhafiz testi o sabitleri kilitliyor.
           segment(
             LucideIcons.map,
             'Haritada gör',

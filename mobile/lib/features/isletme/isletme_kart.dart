@@ -15,6 +15,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../medya/medya_gorsel.dart';
 import '../sosyal/profil_basligi.dart' show kOnayliRengi;
 import '../sosyal/profil_sayfasi.dart';
+import 'isletme_menu_seridi.dart'; // turu 180ag: kartin altindaki menu seridi
 import 'isletme_servisi.dart';
 
 /// ⚠️⚠️ TURU 93 — YAN BOSLUK **TEK KAYNAK** (kullanici emri: *"hepsi bir
@@ -66,6 +67,14 @@ const double kKartIcBosluk = 15;
 /// ⚠️ 32'ye CIKARMA: kutuya 3 dp pay kalir ve kalp kapak koseine yapisik
 ///    gorunur; ayrica kampanya rozetiyle optik agirligi esitlenirdi.
 const double kKalpOlcu = 28;
+
+/// Kalbin beyaz konturunu KALINLASTIRAN golge ofseti — **TEK KAYNAK**
+/// (dort yon de bunu okur; ayri sayilar yazilsaydi kontur bir yandan kalin
+/// obur yandan ince olurdu).
+///
+/// ⚠️ TURU 180ag: **0.5 -> 0.35** (kullanici emri: *"kalpteki kalinligi
+///	1 tik azalt"*). 0'a cekme — cizgi acik zeminde silikleşir.
+const double _kKalpKontur = 0.35;
 
 /// ⚠️⚠️⚠️ TURU 180ae — **LISTE KARTINDAKI KARE FOTOGRAF** (Preply mantigi:
 ///	16:9 kapak yerine solda kare kucuk gorsel).
@@ -266,19 +275,19 @@ class _IsletmeKartiState extends ConsumerState<IsletmeKarti> {
     final gorselID = (o.kapakMediaId != null && o.kapakMediaId!.isNotEmpty)
         ? o.kapakMediaId!
         : (o.avatarMediaId ?? '');
-    final etiketler = <String>[
-      // ⚠️ Kategori adi SUNUCUDAN gelen anahtardan cozulur; istemcide
-      //    TAHMIN EDILMEZ (turu 89 karari).
-      if (isletmeKategorileri[o.kategori] != null)
-        isletmeKategorileri[o.kategori]!,
-      // ⚠️⚠️ KAMPANYA ETIKETLERI **KALDIRILDI** (kullanici emri: *"buradaki
-      //	yemek 300 TL indirim vs bunlar olmasin"*).
-      //
-      //	`o.kampanyalar` MODELDE ve sunucuda AYNEN DURUYOR; kaldirilan
-      //	yalniz BU KARTTAKI cizim. Izgara/serit kartlari `kampanyaRozetleri`
-      //	ile onlari HALA cizer — veri OLU KALMADI.
-      // ⚠️ YAPMA: `...o.kampanyalar.take(2)` satirini buraya geri koyma.
-    ];
+    // ⚠️⚠️⚠️ TURU 180ag — **ETIKET SERIDI KARTTAN TAMAMEN KALKTI**
+    //	(kullanici emri: *"isim altindaki yemek butonu kaldir, oraya
+    //	aciklama yaz"*). Onceden burada `etiketler` listesi kuruluyordu:
+    //	  · kategori adi (`isletmeKategorileri[o.kategori]`) — turu 180ag'de
+    //	    KALDIRILDI; yerini ACIKLAMA aldi.
+    //	  · kampanya etiketleri — turu 180af'te KALDIRILMISTI (*"buradaki
+    //	    yemek 300 TL indirim vs bunlar olmasin"*).
+    //
+    // ⚠️ VERI OLU KALMADI: `o.kategori` ve `o.kampanyalar` MODELDE ve
+    //	sunucuda AYNEN duruyor; izgara/serit kartlari `kampanyaRozetleri` ve
+    //	kendi etiketleriyle onlari HALA ciziyor.
+    // ⚠️ YAPMA: `...o.kampanyalar.take(2)` ya da kategori hapini buraya geri
+    //	koyma.
     return Padding(
       padding: const EdgeInsets.only(bottom: kZeminliKartAralik),
       child: GestureDetector(
@@ -292,14 +301,27 @@ class _IsletmeKartiState extends ConsumerState<IsletmeKarti> {
         // ⚠️ Yaricap `kYaricap` TEK KAYNAGINDAN (hap kurali) — elle sayi
         //	yazilsaydi ekrandaki ALTINCI farkli yaricap olurdu (turu 96).
         child: Container(
-          padding: const EdgeInsets.all(kKartIcDolgu),
           decoration: BoxDecoration(
             color: kKartZemin(context),
             borderRadius: BorderRadius.circular(kYaricap(kKartFoto)),
           ),
+          // ⚠️⚠️ `clipBehavior` ZORUNLU: menu seridi kartin GERCEK kenarina
+          //	kadar kayiyor ve kirpilmazsa ogeler yuvarlak koselerin DISINA
+          //	tasar.
+          clipBehavior: Clip.antiAlias,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+            // ⚠️⚠️ IC DOLGU ARTIK `Container`IN KENDISINDE DEGIL: menu seridi
+            //	kartin kenarina kadar kaymak ZORUNDA (turu 144 dersi:
+            //	kolonda kalsaydi serit kartin IC kenarinda biter ve ogeler
+            //	"duvara carpmis gibi" dururdu). Dolgu metin bloklarina
+            //	devredildi; serit kendi yatay dolgusunu KENDI tasiyor.
+            Padding(
+              padding: const EdgeInsets.all(kKartIcDolgu),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -375,9 +397,34 @@ class _IsletmeKartiState extends ConsumerState<IsletmeKarti> {
                           IsletmeKapakKalbi(dolu: _favori, onTap: _cevir),
                         ],
                       ),
-                      if (etiketler.isNotEmpty) ...[
-                        const SizedBox(height: 6),
-                        _etiketSeridi(context, etiketler),
+                      // ⚠️⚠️⚠️ TURU 180ag — **ACIKLAMA, KATEGORI ETIKETININ
+                      //	TAM YERINDE** (kullanici emri: *"isim altindaki
+                      //	yemek butonu kaldir, oraya aciklama yaz"*).
+                      //
+                      //	Onceden burada `_etiketSeridi` ("Yemek" hapi)
+                      //	vardi. Kategori bilgisi KAYBOLMADI: ekranin
+                      //	kendisi ZATEN o kategorinin listesi (baslik
+                      //	"2 Restoran") ve izgara/serit kartlari etiketi
+                      //	cizmeye devam ediyor.
+                      // ⚠️⚠️ **UYDURMA CUMLE YAZILMADI**: `aciklama`
+                      //	sunucudan gelir ve BUGUN BOS gelir (`isletmeler`
+                      //	tablosunda sutun YOK — 48 migration tarandi).
+                      //	O durumda satir HIC CIZILMEZ.
+                      // ⚠️ YAPMA: bos gelince `o.adres`e geri dusme
+                      //	(kullanici acikca *"acik adres yazma"* dedi) ya da
+                      //	sabit bir tanitim metni basma (turu 135).
+                      if (o.aciklama.trim().isNotEmpty) ...[
+                        const SizedBox(height: 5),
+                        Text(
+                          o.aciklama.trim(),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            height: 1.3,
+                            color: soluk,
+                          ),
+                        ),
                       ],
                       const SizedBox(height: 8),
                       _kutular(context, o, ks, soluk),
@@ -386,26 +433,6 @@ class _IsletmeKartiState extends ConsumerState<IsletmeKarti> {
                 ),
               ],
             ),
-            // ⚠️⚠️⚠️ ACIKLAMA — **ADRESIN YERINE** (kullanici emri: *"isletme
-            //	aciklama olsun, acik adres yazma"*).
-            //
-            //	Onceden burada `o.adres` yaziyordu ("İbrahim Ağa Cd. No:35")
-            //	ve kullanici bunu ACIKCA istemedi.
-            // ⚠️⚠️ **UYDURMA CUMLE YAZILMADI**: `aciklama` sunucudan gelir ve
-            //	BUGUN BOS gelir (`isletmeler` tablosunda sutun YOK) — o
-            //	durumda satir HIC CIZILMEZ. Adresi "aciklama" diye gostermek
-            //	ya da sabit bir tanitim metni basmak turu 135'te reddedilen
-            //	uydurma-veri sinifinin ta kendisi olurdu.
-            // ⚠️ YAPMA: bos gelince `o.adres`e geri dusme.
-            if (o.aciklama.trim().isNotEmpty) ...[
-              const SizedBox(height: 10),
-              Text(
-                o.aciklama.trim(),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: 13, height: 1.3, color: soluk),
-              ),
-            ],
             // ⚠️ IKONLU META — `vitrinSatiri` **TEK KAYNAK** (izgara ve serit
             //    kartlari da onu cizer); kopyalanmadi.
             // ⚠️⚠️ Puan burada TEKRAR CIZILMEZ (`puanHaric: true`): kutuya
@@ -413,6 +440,28 @@ class _IsletmeKartiState extends ConsumerState<IsletmeKarti> {
             //    IKI KEZ gorunurdu.
             const SizedBox(height: 9),
             vitrinSatiri(context, o, kompakt: false, puanHaric: true),
+                ],
+              ),
+            ),
+            // ⚠️⚠️⚠️ TURU 180ag — **MENU SERIDI** (kullanici emri: *"altina
+            //	menuler gelsin menu ekle · sol sag scroll · menu icinde resim
+            //	menu ismi ve fiyat"*).
+            //
+            // ⚠️⚠️ **KAPI `urunSayisi > 0`**: liste ucu urun ADI/GORSELI
+            //	dondurmuyor, yani serit isletme basina AYRI bir istek
+            //	(`/users/{id}/urunler`) demek — turu 17'de kapatilan N+1.
+            //	Bu tek kapi, urunu OLMAYAN isletmeler icin istegi tamamen
+            //	kaldirir; kalani `UrunDeposu` (tembel + semafor 4 + tek ucus
+            //	+ onbellek) sinirlar. Ayrintili gerekce
+            //	`isletme_menu_seridi.dart` basinda.
+            // ⚠️ YAPMA: bu kapiyi kaldirma — 60 kayitlik listede kosulsuz
+            //	cagri 60 es zamanli istek demektir.
+            if (o.urunSayisi > 0)
+              IsletmeMenuSeridi(
+                isletmeId: o.id,
+                isletmeAd: o.ad,
+                urunSayisi: o.urunSayisi,
+              ),
             ],
           ),
         ),
@@ -426,6 +475,12 @@ class _IsletmeKartiState extends ConsumerState<IsletmeKarti> {
   ///	`Row` RenderFlex tasma seridi cizerdi.
   /// ⚠️ Yukseklik ACIKCA verilir: yaricap ondan turuyor (hap kurali); dolguya
   ///	birakilsaydi yazi olcegi degisince yaricap "hap" olmaktan cikardi.
+  ///
+  /// ⚠️⚠️ TURU 180ag — **CAGRI YERI KAPATILDI, GOVDE DURUYOR** (kullanici
+  ///	emri: kategori hapinin yerine aciklama). Bu dosyada uye silmek
+  ///	komsu uyeyi goturme riski tasiyor ve karar tek satirla geri
+  ///	alinabilsin isteniyor (projenin yerlesik deseni).
+  // ignore: unused_element
   Widget _etiketSeridi(BuildContext c, List<String> etiketler) => Wrap(
         spacing: 6,
         runSpacing: 6,
@@ -650,11 +705,25 @@ class IsletmeKapakKalbi extends StatelessWidget {
                 Icons.favorite_border,
                 size: kKalpOlcu,
                 color: Colors.white,
+                // ⚠️⚠️ TURU 180ag — KALINLIK **BIR TIK AZALDI** (kullanici
+                //	emri: *"kalpteki kalinligi 1 tik azalt"*): ofset
+                //	**0.5 -> 0.35** (dort yon de AYNI sabitten).
+                //
+                // ⚠️ Lucide/Material ikonlari FONT'tur, `strokeWidth`
+                //	YOKTUR — kalinlik ancak ayni renkte kaydirilmis
+                //	golgelerle simule edilir. Inceltmenin TEK dogru kolu
+                //	bu ofsettir.
+                // ⚠️ `size` (`kKalpOlcu`) ile INCELTME: o cizgiyi de
+                //	inceltir ama IKONU DA kucultur; kullanici boyut degil
+                //	KALINLIK istedi (turu 175 dersi).
+                // ⚠️ Golgeleri TAMAMEN kaldirma: koyu golge turu 96d'de
+                //	zaten kaldirildi, kalan beyaz golgeler cizgiyi acik
+                //	zeminde bir tik belirgin tutuyor.
                 shadows: [
-                  Shadow(color: Colors.white, offset: Offset(0.5, 0)),
-                  Shadow(color: Colors.white, offset: Offset(-0.5, 0)),
-                  Shadow(color: Colors.white, offset: Offset(0, 0.5)),
-                  Shadow(color: Colors.white, offset: Offset(0, -0.5)),
+                  Shadow(color: Colors.white, offset: Offset(_kKalpKontur, 0)),
+                  Shadow(color: Colors.white, offset: Offset(-_kKalpKontur, 0)),
+                  Shadow(color: Colors.white, offset: Offset(0, _kKalpKontur)),
+                  Shadow(color: Colors.white, offset: Offset(0, -_kKalpKontur)),
                 ],
               ),
             ],
