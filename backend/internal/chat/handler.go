@@ -14,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/gbz-app/gebzem/backend/internal/auth"
+	"github.com/gbz-app/gebzem/backend/internal/media"
 	"github.com/gbz-app/gebzem/backend/internal/push"
 	"github.com/gbz-app/gebzem/backend/internal/sohbet"
 )
@@ -901,38 +902,22 @@ func kisaltRef(s string) string {
 //
 // ⚠️ Hata YUTULUR: mesaj silme islemi medya temizligi yuzunden BASARISIZ OLMAZ.
 func (h *Handler) medyayiKopar(ctx context.Context, mediaID string) {
-	var kalan int
-	// ⚠️⚠️ TURU 78b — SAYIM EKSIKTI (denetim bulgusu). `users.kapak_media_id`
-	//    (033) ve `chats.avatar_media_id` (024) SAYILMIYORDU. Ayni medya hem bir
-	//    mesaja hem profil kapagina/grup fotografina bagliysa, mesaj "herkesten
-	//    silindiginde" HALA KULLANILAN medya kopariliyordu -> kapak/grup
-	//    fotografi SESSIZCE kayboluyordu.
-	// ⚠️ YAPMA: yeni bir medya sutunu eklerken bu sayimi guncellemeyi atlama
-	//    (`erisebilir()` dal listesinin kardesi — ikisi BIRLIKTE degisir).
-	if err := h.db.QueryRow(ctx, `
-		SELECT (SELECT count(*) FROM messages WHERE media_id=$1)
-		     + (SELECT count(*) FROM users WHERE avatar_media_id=$1
-		                                      OR kapak_media_id=$1)
-		     + (SELECT count(*) FROM chats WHERE avatar_media_id=$1)
-		     + (SELECT count(*) FROM isletmeler
-		         WHERE $1 = ANY(kapak_medyalari))`,
-		mediaID).Scan(&kalan); err != nil {
-		return
-	}
-	if kalan > 0 {
-		return // baska mesaj/avatar/kapak/grup fotografi hala kullaniyor
-	}
-	var anahtar, thumb string
-	if err := h.db.QueryRow(ctx, `
-		UPDATE media_assets SET status='silindi', deleted_at=now()
-		 WHERE id=$1 AND status IN ('aktif','bagli')
-		 RETURNING object_key, thumb_key`, mediaID).Scan(&anahtar, &thumb); err != nil {
-		return
-	}
-	for _, a := range []string{anahtar, thumb} {
-		if a != "" {
-			h.db.Exec(ctx, `INSERT INTO media_delete_queue (object_key) VALUES ($1)`, a)
-		}
+	// ⚠️⚠️⚠️ TURU 181 — GOVDE **`internal/media`ya DEVREDILDI** (tek kaynak).
+	//
+	//	Bu fonksiyonun UC KOPYASI vardi (chat · kanal · social) ve ucu de
+	//	FARKLI tablo kumesi sayiyordu; ustelik UCU DE canli Postgres'te
+	//	`operator does not exist: uuid = text` ile PATLIYOR ve hata
+	//	`if err != nil { return }` ile YUTULUYORDU — yani hicbir medya
+	//	koparilmiyordu (olculdu, turu 181).
+	//
+	//	Ayrinti + tam tablo kumesi: `internal/media/kopar.go`.
+	//
+	// ⚠️ YAPMA: sayimi buraya geri kopyalama. Yeni bir medya sutunu
+	//	eklenecekse `media.kullanimSayimi` guncellenir, burasi DEGIL.
+	// ⚠️ Hata YALNIZ loglanir: medya koparilamamasi kullanicinin islemini
+	//	(mesaj/gonderi silme) BASARISIZ YAPMAMALI.
+	if err := media.Kopar(ctx, h.db, mediaID); err != nil {
+		log.Printf("medya kopar (chat): %v", err)
 	}
 }
 

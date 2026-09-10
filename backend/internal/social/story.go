@@ -2,15 +2,18 @@ package social
 
 import (
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5"
 
 	"github.com/gbz-app/gebzem/backend/internal/auth"
 	"github.com/gbz-app/gebzem/backend/internal/engel"
+	"github.com/gbz-app/gebzem/backend/internal/media"
 )
 
 // ⚠️⚠️⚠️ TURU 76b — HIKAYE (STORY). Kullanici emri: *"story olayini getirmemiz
@@ -436,15 +439,42 @@ func (h *Handler) StoryIzleyenler(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) StorySil(w http.ResponseWriter, r *http.Request) {
 	me := auth.UserID(r.Context())
 	id := chi.URLParam(r, "id")
-	tag, err := h.db.Exec(r.Context(),
-		`UPDATE stories SET durum='silindi' WHERE id=$1 AND user_id=$2`, id, me)
+	// ⚠️⚠️ TURU 181 — MEDYA KIMLIGI **UPDATE ILE BIRLIKTE** okunur
+	//	(`RETURNING`): ayri bir SELECT ile alinsaydi iki istek arasinda
+	//	satir degisebilir ve yanlis medya koparilabilirdi.
+	// ⚠️ `media_id` NULL olabilir (metin hikayesi, migration 027) ->
+	//	isaretci.
+	var medya *string
+	err := h.db.QueryRow(r.Context(),
+		`UPDATE stories SET durum='silindi' WHERE id=$1 AND user_id=$2
+		 RETURNING media_id`, id, me).Scan(&medya)
 	if err != nil {
+		// ⚠️ `pgx.ErrNoRows` = eslesen satir yok (baskasinin hikayesi ya da
+		//	olmayan kimlik). Eskiden `RowsAffected()==0` ile ayirt
+		//	ediliyordu; `QueryRow` yolunda karsiligi budur.
+		if errors.Is(err, pgx.ErrNoRows) {
+			hata(w, 404, "hikaye bulunamadı")
+			return
+		}
 		hata(w, 500, "silinemedi")
 		return
 	}
-	if tag.RowsAffected() == 0 {
-		hata(w, 404, "hikaye bulunamadı")
-		return
+	// ⚠️⚠️⚠️ TURU 181 — **MEDYA KOPARMA BURADA HIC YOKTU** (kesif bulgusu).
+	//
+	//	Kullanici hikayesini silse bile `media_assets` satiri
+	//	'aktif'/'bagli' kaliyor ve R2 nesnesi silme kuyruguna HIC
+	//	girmiyordu -> kalici depolama sizintisi. Kardes yollar (mesaj,
+	//	gonderi, kanal gonderisi) bunu ZATEN yapiyordu; asimetrinin
+	//	kendisi hataydi.
+	//
+	// ⚠️ `media.Kopar` HERHANGI bir yerde hala kullaniliyorsa DOKUNMAZ
+	//	(ayni gorsel bir gonderide de olabilir) — sayim `kopar.go`da.
+	// ⚠️ Hata YALNIZ loglanir: silme islemi ZATEN basarili oldu,
+	//	kullaniciya 500 donmek yanlis olurdu.
+	if medya != nil && *medya != "" {
+		if e := media.Kopar(r.Context(), h.db, *medya); e != nil {
+			log.Printf("medya kopar (story): %v", e)
+		}
 	}
 	yaz(w, 200, map[string]bool{"ok": true})
 }

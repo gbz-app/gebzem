@@ -367,6 +367,12 @@ func TestListeSelectScanVeYanitHizali(t *testing.T) {
 		"count(*)":           "urunSayisi",
 		// ⚠️ TURU 113 — `favorim` bayragi (EXISTS alt sorgusu).
 		"isletme_favoriler": "favorim",
+		// ⚠️⚠️ TURU 181 — ilk 5 urun onizlemesi (N+1 kok cozumu).
+		//	Imza `json_agg`: bu SELECT'teki TEK toplama-JSON alt sorgusu
+		//	odur ve digerlerinin imzalariyla (min(/count(/isletme_favoriler)
+		//	CAKISMAZ — `altSorgu` bir Go haritasi, iterasyon sirasi
+		//	RASTGELEDIR, yani imzalar birbirini kapsamamak ZORUNDA.
+		"json_agg": "urunler",
 	}
 	scanIstisna := map[string]string{
 		"u.name":                  "ad",
@@ -438,6 +444,11 @@ func TestListeSelectScanVeYanitHizali(t *testing.T) {
 		"min(p.fiyat_kurus)": "min_fiyat_kurus",
 		"count(*)":           "urun_sayisi",
 		"isletme_favoriler":  "favorim",
+		// ⚠️⚠️ TURU 181 — ilk 5 urun onizlemesi (N+1 kok cozumu).
+		//	Imzalar birbirini KAPSAMAMALI: `altAnahtar` bir Go haritasi ve
+		//	iterasyon sirasi RASTGELEDIR. `json_agg` yalniz bu alt
+		//	sorguda geciyor (olculdu).
+		"json_agg": "urunler",
 	}
 	for _, s := range sutunlar {
 		anahtar, ok := istisna[s]

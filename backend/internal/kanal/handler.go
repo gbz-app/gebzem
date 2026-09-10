@@ -16,6 +16,7 @@ import (
 
 	"github.com/gbz-app/gebzem/backend/internal/auth"
 	"github.com/gbz-app/gebzem/backend/internal/engel"
+	"github.com/gbz-app/gebzem/backend/internal/media"
 )
 
 // ⚠️⚠️⚠️ TURU 75 — KANAL (WhatsApp "Kanallar" deseni: TEK YONLU yayin).
@@ -808,34 +809,22 @@ func (h *Handler) PostSil(w http.ResponseWriter, r *http.Request) {
 //
 // ⚠️ YAPMA: kumeyi daraltma; yeni bir medya tuketicisi eklersen IKI yere de ekle.
 func (h *Handler) medyayiKopar(ctx context.Context, mediaID string) {
-	var kalan int
-	if err := h.db.QueryRow(ctx, `
-		SELECT (SELECT count(*) FROM messages WHERE media_id=$1)
-		     + (SELECT count(*) FROM users WHERE avatar_media_id=$1)
-		     + (SELECT count(*) FROM posts
-		         WHERE $1 = ANY(media_ids) AND durum='yayinda')
-		     + (SELECT count(*) FROM channel_posts
-		         WHERE $1 = ANY(media_ids) AND durum='yayinda')
-		     + (SELECT count(*) FROM channels WHERE avatar_media_id=$1)
-		     + (SELECT count(*) FROM isletmeler
-		         WHERE $1 = ANY(kapak_medyalari))`,
-		mediaID).Scan(&kalan); err != nil || kalan > 0 {
-		return
-	}
-	var anahtar, thumb string
-	if err := h.db.QueryRow(ctx, `
-		UPDATE media_assets SET status='silindi', deleted_at=now()
-		 WHERE id=$1 AND status IN ('aktif','bagli')
-		 RETURNING object_key, thumb_key`, mediaID).Scan(&anahtar, &thumb); err != nil {
-		return
-	}
-	// ⚠️ R2 silme KUYRUGA yazilir (015'in `media_delete_queue` tablosu) —
-	//    istek yolunda ag cagrisi yapmiyoruz.
-	for _, a := range []string{anahtar, thumb} {
-		if a != "" {
-			h.db.Exec(ctx,
-				`INSERT INTO media_delete_queue (object_key) VALUES ($1)`, a)
-		}
+	// ⚠️⚠️⚠️ TURU 181 — GOVDE **`internal/media`ya DEVREDILDI** (tek kaynak).
+	//
+	//	Bu fonksiyonun UC KOPYASI vardi (chat · kanal · social) ve ucu de
+	//	FARKLI tablo kumesi sayiyordu; ustelik UCU DE canli Postgres'te
+	//	`operator does not exist: uuid = text` ile PATLIYOR ve hata
+	//	`if err != nil { return }` ile YUTULUYORDU — yani hicbir medya
+	//	koparilmiyordu (olculdu, turu 181).
+	//
+	//	Ayrinti + tam tablo kumesi: `internal/media/kopar.go`.
+	//
+	// ⚠️ YAPMA: sayimi buraya geri kopyalama. Yeni bir medya sutunu
+	//	eklenecekse `media.kullanimSayimi` guncellenir, burasi DEGIL.
+	// ⚠️ Hata YALNIZ loglanir: medya koparilamamasi kullanicinin islemini
+	//	(mesaj/gonderi silme) BASARISIZ YAPMAMALI.
+	if err := media.Kopar(ctx, h.db, mediaID); err != nil {
+		log.Printf("medya kopar (kanal): %v", err)
 	}
 }
 

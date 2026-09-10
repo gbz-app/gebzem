@@ -91,12 +91,27 @@ var Kategoriler = map[string]string{
 }
 
 type isletmeReq struct {
-	Kategori string          `json:"kategori"`
-	Adres    string          `json:"adres"`
-	Il       string          `json:"il"`
-	Ilce     string          `json:"ilce"`
-	Telefon  string          `json:"telefon"`
-	Web      string          `json:"web"`
+	Kategori string `json:"kategori"`
+	// ⚠️⚠️⚠️ TURU 181 — ISLETME ACIKLAMASI (migration 052).
+	//
+	//	Istemci bu alani turu 180af'ten beri OKUYOR (`IsletmeOzet.aciklama`)
+	//	ve turu 180ag'de kartta kategori etiketinin YERINE koydu; sunucuda
+	//	sutun olmadigi icin DAIMA bos geliyor ve satir HIC cizilmiyordu.
+	//
+	// ⚠️ DUZ `string` (isaretci DEGIL): kardesleri `Adres`/`Il`/`Ilce`/
+	//	`Telefon`/`Web` ile AYNI desen — duzenleme formu bu alanlarin
+	//	HEPSINI her kaydetmede gonderiyor. Isaretci yapmak, ayni ekranda
+	//	iki farkli "gonderilmedi" semantigi olusturur ve hangisinin hangi
+	//	kurala uydugunu takip etmek imkansizlasir.
+	// ⚠️ Tavan `Adres` ile ayni sinifta (300 -> 500): aciklama bir tanitim
+	//	metni, kartta 2 satir cizilyor ama profil sayfasi tamamini
+	//	gosterebilir.
+	Aciklama string `json:"aciklama"`
+	Adres    string `json:"adres"`
+	Il       string `json:"il"`
+	Ilce     string `json:"ilce"`
+	Telefon  string `json:"telefon"`
+	Web      string `json:"web"`
 	// ⚠️⚠️ TURU 180 — ISLETME OZELLIKLERI + ODEME SECENEKLERI.
 	//
 	//	Kullanici emri: *"bilgi kisminda odeme secenekleri, ozellikler yok;
@@ -106,16 +121,16 @@ type isletmeReq struct {
 	// ⚠️ ISARETCI: "alan gelmedi" ile "bosaltildi" AYRI seylerdir. Duz
 	//	dilim olsaydi yalniz adresini degistiren bir istek ozellikleri
 	//	SIFIRA EZERDI (turu 85b koordinat dersi).
-	Ozellikler *[]string     `json:"ozellikler"`
-	Odeme      *[]string     `json:"odeme"`
+	Ozellikler *[]string `json:"ozellikler"`
+	Odeme      *[]string `json:"odeme"`
 	// ⚠️⚠️ TURU 180k — KAPAK SLIDERI (migration 051). `Ozellikler` ile AYNI
 	//	desen: **ISARETCI** cunku "alan gelmedi" ile "slider bosaltildi"
 	//	AYRI seylerdir. Duz dilim olsaydi yalniz telefonunu degistiren bir
 	//	istek kapak videosunu SILERDI.
 	// ⚠️ Beyaz liste YOK (icerik bir medya id'si, sabit bir kume degil);
 	//	dogrulama `temizMedya` ile: UUID bicimi + adet tavani.
-	KapakMedyalari *[]string `json:"kapak_medyalari"`
-	Calisma  json.RawMessage `json:"calisma"`
+	KapakMedyalari *[]string       `json:"kapak_medyalari"`
+	Calisma        json.RawMessage `json:"calisma"`
 	// ⚠️⚠️ TURU 78 — **ISARETCI** (pointer): "gonderilmedi" ile "0" AYRI seydir.
 	//    Duz `float64` olsaydi istemcinin alani HIC gondermemesi de 0 olarak
 	//    okunur ve UPSERT mevcut koordinati SIFIRA EZERDI — sahada tam olarak
@@ -128,15 +143,15 @@ type isletmeReq struct {
 	//	gondermeyen bir istemci (or. eski surum ya da yalniz adres guncelleyen
 	//	ekran) puani/min tutari SIFIRA EZERDI — bu projede koordinatlarda
 	//	TAM OLARAK bu yasandi (turu 78/85b).
-	MinTutarKurus *int64           `json:"min_tutar_kurus"`
-	TeslimatMin   *int             `json:"teslimat_dk_min"`
-	TeslimatMax   *int             `json:"teslimat_dk_max"`
-	Puan          *float64         `json:"puan"`
+	MinTutarKurus *int64   `json:"min_tutar_kurus"`
+	TeslimatMin   *int     `json:"teslimat_dk_min"`
+	TeslimatMax   *int     `json:"teslimat_dk_max"`
+	Puan          *float64 `json:"puan"`
 	// ⚠️ Oy sayisi da BEYAN: gercek bir oy tablosu YOK (bkz. 046 serhi).
 	//    Puanin yaninda "(120)" gostermek puani daha inandirici kilar; o
 	//    yuzden ikisi BIRLIKTE anlamli, ayri ayri degil.
-	PuanSayisi    *int             `json:"puan_sayisi"`
-	Kampanyalar   json.RawMessage  `json:"kampanyalar"`
+	PuanSayisi  *int            `json:"puan_sayisi"`
+	Kampanyalar json.RawMessage `json:"kampanyalar"`
 }
 
 func kisalt(s string, n int) string {
@@ -222,6 +237,7 @@ func (h *Handler) Kaydet(w http.ResponseWriter, r *http.Request) {
 	if _, ok := Kategoriler[req.Kategori]; !ok {
 		req.Kategori = "diger"
 	}
+	req.Aciklama = kisalt(strings.TrimSpace(req.Aciklama), 500)
 	req.Adres = kisalt(strings.TrimSpace(req.Adres), 300)
 	req.Il = kisalt(strings.TrimSpace(req.Il), 60)
 	req.Ilce = kisalt(strings.TrimSpace(req.Ilce), 60)
@@ -292,6 +308,38 @@ func (h *Handler) Kaydet(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// ⚠️⚠️⚠️ TURU 181 — **KAPAK SLIDERI MEDYA SAHIPLIGI** (guvenlik).
+	//
+	//	`temizMedya` YALNIZCA bicim suzgecidir (UUID kalibi + tekilleme +
+	//	adet tavani); SAHIPLIK ve DURUM kontrolu YAPMIYORDU. Projedeki
+	//	diger SEKIZ medya baglama yolunun HEPSI yapiyor — asimetrinin
+	//	kendisi hataydi.
+	//
+	// ⚠️⚠️ SOMURU YOLU SOMUTTU: `media.erisebilir()` icindeki (b2) dali
+	//	`isletmeler.kapak_medyalari`nda gecen HER medyayi **gizlilik/engel
+	//	kapisi OLMADAN HERKESE** aciyor (bilincli: isletme kapagi
+	//	herkese acik olmali). Sahiplik dogrulanmadigi icin, bir sohbette
+	//	gordugu medya id'sini bilen biri onu KENDI isletmesinin kapagina
+	//	baglayip **baskasinin ozel fotografini herkese acik** hale
+	//	getirebilirdi.
+	//
+	// ⚠️ Desen `UrunEkle`nin (urun.go:115-124) BIREBIR esi: adet uymuyorsa
+	//	403. `RowsAffected` karsilastirmasi ZORUNLU — yalniz hata bakmak,
+	//	"bes id gonderdim, ikisi benim" durumunu KACIRIR.
+	// ⚠️ Kontrol islemin (tx) DISINDA: reddedilecek istek icin islem acmak
+	//	gereksiz; ayrica `Kaydet` hicbir sey yazmadan donuyor.
+	kapaklar := temizMedya(req.KapakMedyalari)
+	if len(kapaklar) > 0 {
+		tag, err := h.db.Exec(r.Context(), `
+			SELECT 1 FROM media_assets
+			 WHERE id = ANY($1) AND owner_id=$2 AND status IN ('aktif','bagli')`,
+			kapaklar, me)
+		if err != nil || int(tag.RowsAffected()) != len(kapaklar) {
+			hata(w, 403, "geçersiz medya")
+			return
+		}
+	}
+
 	tx, err := h.db.Begin(r.Context())
 	if err != nil {
 		hata(w, 500, "kaydedilemedi")
@@ -311,7 +359,11 @@ func (h *Handler) Kaydet(w http.ResponseWriter, r *http.Request) {
 		INSERT INTO isletmeler
 		  (user_id, kategori, adres, il, ilce, telefon, web, calisma, enlem, boylam,
 		   min_tutar_kurus, teslimat_dk_min, teslimat_dk_max, puan, kampanyalar,
-		   puan_sayisi, ozellikler, odeme, kapak_medyalari)
+		   puan_sayisi, ozellikler, odeme, kapak_medyalari,
+		   -- ⚠️ TURU 181 — YENI SUTUN **SONA** eklendi ($20): araya girseydi
+		   --    ondan sonraki TUM parametre numaralari kayardi ve sessiz bir
+		   --    deger karisikligi riski dogardi.
+		   aciklama)
 		-- TURU 85 - TIP DONUSUMU ZORUNLU (ayrinti: fonksiyon ustundeki serh).
 		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,
 		        COALESCE($9, 0::double precision),
@@ -322,8 +374,10 @@ func (h *Handler) Kaydet(w http.ResponseWriter, r *http.Request) {
 		        --    Bir Go nil dilimi SQL NULL'a cevrilir ve 23502 verir
 		        --    (turu 75b posts.media_ids dersi).
 		        COALESCE($17::text[], '{}'), COALESCE($18::text[], '{}'),
-		        COALESCE($19::text[], '{}'))
+		        COALESCE($19::text[], '{}'),
+		        $20)
 		ON CONFLICT (user_id) DO UPDATE SET
+		  aciklama=EXCLUDED.aciklama,
 		  kategori=EXCLUDED.kategori, adres=EXCLUDED.adres, il=EXCLUDED.il,
 		  ilce=EXCLUDED.ilce, telefon=EXCLUDED.telefon, web=EXCLUDED.web,
 		  calisma=EXCLUDED.calisma,
@@ -357,11 +411,28 @@ func (h *Handler) Kaydet(w http.ResponseWriter, r *http.Request) {
 		temizListe(req.Ozellikler, OzellikAdlari),
 		temizListe(req.Odeme, OdemeAdlari),
 		// ⚠️ Beyaz liste DEGIL bicim suzgeci: deger bir medya id'si
-		//    (bkz. `temizMedya` serhi).
-		temizMedya(req.KapakMedyalari)); err != nil {
+		//    (bkz. `temizMedya` serhi). Sahiplik/durum kontrolu YUKARIDA,
+		//    islemden ONCE yapildi (turu 181).
+		kapaklar,
+		// ⚠️ $20 — aciklama (turu 181). Duz dize: kardesleri (adres/il/ilce)
+		//    ile AYNI desen; duzenleme formu hepsini her kaydetmede gonderir.
+		req.Aciklama); err != nil {
 		log.Printf("isletme kaydet: %v", err)
 		hata(w, 500, "kaydedilemedi")
 		return
+	}
+	// ⚠️⚠️ TURU 181 — MEDYAYI 'bagli' ISARETLE (gonderi/urun/hikaye ile AYNI
+	//	desen). Aksi halde bosta-medya supurgesi (015) kapak slideri
+	//	medyasini "kimse kullanmiyor" sanip SILEBILIRDI.
+	// ⚠️ Islemin ICINDE: kapak yazilmadan medya 'bagli' olmamali.
+	if len(kapaklar) > 0 {
+		if _, err := tx.Exec(r.Context(),
+			`UPDATE media_assets SET status='bagli' WHERE id = ANY($1)`,
+			kapaklar); err != nil {
+			log.Printf("isletme kapak medya bagla: %v", err)
+			hata(w, 500, "kaydedilemedi")
+			return
+		}
 	}
 	if tx.Commit(r.Context()) != nil {
 		hata(w, 500, "kaydedilemedi")
@@ -479,7 +550,7 @@ func (h *Handler) Detay(w http.ResponseWriter, r *http.Request) {
 		hata(w, 404, "işletme bulunamadı")
 		return
 	}
-	var kategori, adres, il, ilce, telefon, web string
+	var kategori, adres, il, ilce, telefon, web, aciklama string
 	var ozellikler, odeme []string
 	var calisma []byte
 	var enlem, boylam float64
@@ -512,7 +583,7 @@ func (h *Handler) Detay(w http.ResponseWriter, r *http.Request) {
 	//    uretirse `[]string` taramasi PATLAR ve isletme detayi 404 olurdu.
 	var kapakTurleri []string
 	if h.db.QueryRow(r.Context(), `
-		SELECT i.kategori, i.adres, i.il, i.ilce, i.telefon, i.web, i.calisma,
+		SELECT i.kategori, i.adres, i.il, i.ilce, i.telefon, i.web, i.calisma, i.aciklama,
 		       i.enlem, i.boylam, u.onayli, COALESCE(ra.acik, false),
 		       i.ozellikler, i.odeme, i.kapak_medyalari,
 		       COALESCE((SELECT array_agg(COALESCE(ma.kind,'yok') ORDER BY km.idx)
@@ -522,7 +593,7 @@ func (h *Handler) Detay(w http.ResponseWriter, r *http.Request) {
 		  JOIN users u ON u.id = i.user_id
 		  LEFT JOIN randevu_ayar ra ON ra.isletme_id = i.user_id
 		 WHERE i.user_id=$1 AND u.hesap_turu='isletme'`, hedef).
-		Scan(&kategori, &adres, &il, &ilce, &telefon, &web, &calisma,
+		Scan(&kategori, &adres, &il, &ilce, &telefon, &web, &calisma, &aciklama,
 			&enlem, &boylam, &dogrulandi, &randevuAcik,
 			&ozellikler, &odeme, &kapakMedyalari, &kapakTurleri) != nil {
 		hata(w, 404, "işletme bulunamadı")
@@ -534,7 +605,9 @@ func (h *Handler) Detay(w http.ResponseWriter, r *http.Request) {
 	yaz(w, 200, map[string]any{
 		"kategori": kategori, "kategori_ad": Kategoriler[kategori],
 		"adres": adres, "il": il, "ilce": ilce,
-		"telefon": telefon, "web": web,
+		// ⚠️⚠️ TURU 181 - isletme aciklamasi (migration 052).
+		"aciklama": aciklama,
+		"telefon":  telefon, "web": web,
 		"calisma": json.RawMessage(calisma),
 		"enlem":   enlem, "boylam": boylam, "dogrulandi": dogrulandi,
 		// ⚠️⚠️ TURU 80 — SCAN EDILEN HER ALAN YANIT HARITASINA DA KONUR.
@@ -594,7 +667,6 @@ func (h *Handler) Liste(w http.ResponseWriter, r *http.Request) {
 	//    ⚠️ ASIMETRI DUZELTILDI: `ilce` suzgeci ILAN ucunda VARDI, isletmede YOKTU.
 	ilce := strings.TrimSpace(r.URL.Query().Get("ilce"))
 	yalnizOnayli := r.URL.Query().Get("dogrulandi") == "1"
-
 
 	// ⚠️⚠️⚠️ TURU 93b — ARAMA YUKLEMI IKI KEZ KIRIKTI (denetimde yakalandi,
 	//	build ONCESI).

@@ -47,13 +47,24 @@ import (
 //	`isletmeler i` ile JOIN yapmak ZORUNDA.
 const isletmeSutunlari = `
 		u.id, u.name, COALESCE(u.username,''), u.avatar_url, u.avatar_media_id,
-		i.kategori, i.il, i.ilce, i.adres, u.onayli, u.kapak_media_id,
+		i.kategori, i.il, i.ilce, i.adres, i.aciklama, u.onayli, u.kapak_media_id,
 		i.calisma,
 		(SELECT min(p.fiyat_kurus) FROM isletme_urunleri p
 		  WHERE p.isletme_id = u.id AND p.durum = 'yayinda'
 		    AND p.fiyat_kurus > 0),
 		(SELECT count(*) FROM isletme_urunleri p
 		  WHERE p.isletme_id = u.id AND p.durum <> 'kaldirildi'),
+		(SELECT COALESCE(json_agg(json_build_object(
+		           'id', x.id, 'ad', x.ad, 'fiyat_kurus', x.fiyat_kurus,
+		           'media_id', x.media_id)
+		         ORDER BY x.sira, x.created_at), '[]'::json)
+		   FROM (SELECT p.id, p.ad, p.fiyat_kurus, p.sira, p.created_at,
+		                CASE WHEN array_length(p.media_ids, 1) > 0
+		                     THEN p.media_ids[1]::text END AS media_id
+		           FROM isletme_urunleri p
+		          WHERE p.isletme_id = u.id AND p.durum = 'yayinda'
+		          ORDER BY p.sira, p.created_at
+		          LIMIT 5) x),
 		i.min_tutar_kurus, i.teslimat_dk_min, i.teslimat_dk_max,
 		i.puan, i.puan_sayisi, i.kampanyalar,
 		i.enlem, i.boylam,
@@ -68,12 +79,13 @@ const isletmeSutunlari = `
 //	SELECT/Scan ayrisinca listeyi HICBIR IZ BIRAKMADAN bosaltirdi
 //	(turu 76 "Kaydedilenler BOMBOS" sinifi).
 func isletmeSatiri(rows pgx.Rows) (map[string]any, error) {
-	var id, ad, kullanici, avatar, kat, il, ilce, adres string
+	var id, ad, kullanici, avatar, kat, il, ilce, adres, aciklama string
 	var medya, kapak *string
 	var dogru bool
 	var calisma []byte
 	var minFiyat *int64
 	var urunSayisi int
+	var urunler []byte
 	var minTutar *int64
 	var teslimatMin, teslimatMax *int
 	var puan *float64
@@ -83,8 +95,8 @@ func isletmeSatiri(rows pgx.Rows) (map[string]any, error) {
 	var favorim bool
 	var createdAt time.Time
 	if err := rows.Scan(&id, &ad, &kullanici, &avatar, &medya,
-		&kat, &il, &ilce, &adres, &dogru, &kapak,
-		&calisma, &minFiyat, &urunSayisi,
+		&kat, &il, &ilce, &adres, &aciklama, &dogru, &kapak,
+		&calisma, &minFiyat, &urunSayisi, &urunler,
 		&minTutar, &teslimatMin, &teslimatMax,
 		&puan, &puanSayisi, &kampanyalar,
 		&enlem, &boylam, &favorim, &createdAt); err != nil {
@@ -95,10 +107,38 @@ func isletmeSatiri(rows pgx.Rows) (map[string]any, error) {
 		"avatar_url": avatar, "avatar_media_id": medya,
 		"kategori": kat, "kategori_ad": Kategoriler[kat],
 		"il": il, "ilce": ilce, "adres": adres, "dogrulandi": dogru,
+		// ⚠️⚠️ TURU 181 — ISLETME ACIKLAMASI (migration 052).
+		//	Istemci `IsletmeOzet.aciklama` alanini turu 180af'ten beri
+		//	OKUYOR; sunucuda sutun olmadigi icin DAIMA bos geliyor ve
+		//	kartta o satir HIC cizilmiyordu.
+		"aciklama":        aciklama,
 		"kapak_media_id":  kapak,
 		"calisma":         json.RawMessage(calisma),
 		"min_fiyat_kurus": minFiyat,
 		"urun_sayisi":     urunSayisi,
+		// ⚠️⚠️⚠️ TURU 181 — **ILK 5 URUN: N+1'IN KOK COZUMU.**
+		//
+		//	Turu 180ag'de isletme kartinin altina menu seridi kondu.
+		//	Liste ucu urun ADI/GORSELI dondurmedigi icin istemci kart
+		//	basina AYRI bir `/users/{id}/urunler` istegi atmak ZORUNDAYDI
+		//	(turu 17'de kapatilan N+1 sinifi); bedeli tembel yukleme +
+		//	semafor + onbellekle sinirlanmisti ama SINIF DURUYORDU.
+		//
+		//	Artik onizleme SUNUCUDAN, TEK SORGUDA geliyor:
+		//	  [{id, ad, fiyat_kurus, media_id}]  (en fazla 5, `sira`ya gore)
+		//
+		// ⚠️ YALNIZ `durum='yayinda'`: sunucu silmeyi soft-delete yapiyor
+		//	(`kaldirildi`) ve `tukendi` de bir durum. Musteriye YAYINDA
+		//	olmayan kalem cizilmez (turu 178'de McDonald's kaydinda
+		//	18 yayinda / 24 kaldirilmis olculdu).
+		// ⚠️ `media_id` = `media_ids[1]` (KAPAK). Dizinin tamami
+		//	GONDERILMEZ: onizleme icin tek gorsel yeter, tam galeri urun
+		//	detayinda ZATEN var.
+		// ⚠️ `urun_sayisi` ile TUTARSIZ OLABILIR ve bu DOGRU: sayac
+		//	`<> 'kaldirildi'` sayiyor (tukendi DAHIL), onizleme yalniz
+		//	yayindakileri gosteriyor. Sayac "katalogda kac kalem var",
+		//	onizleme "su an satista neler var" sorusuna cevap veriyor.
+		"urunler": json.RawMessage(urunler),
 		"min_tutar_kurus": minTutar,
 		"teslimat_dk_min": teslimatMin,
 		"teslimat_dk_max": teslimatMax,
