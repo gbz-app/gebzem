@@ -55,6 +55,16 @@ const double kKartIcBosluk = 15;
 ///    gorunur; ayrica kampanya rozetiyle optik agirligi esitlenirdi.
 const double kKalpOlcu = 28;
 
+/// ⚠️⚠️⚠️ TURU 180ae — **LISTE KARTINDAKI KARE FOTOGRAF** (Preply mantigi:
+///	16:9 kapak yerine solda kare kucuk gorsel).
+///
+/// ⚠️ 92 dp SECILDI, tahminle DEGIL TURETILEREK: sagdaki kolonun tasidigi
+///	uc satir (ad 16 · etiket 24 · kutu ~46) + iki bosluk (6 + 8) = **~92**.
+///	Fotograf o kolonla AYNI boyda olsun ki kart "L" gibi kirik gorunmesin.
+/// ⚠️ `kKartIcBosluk` (kapaga binen ogelerin kenar payi) burada KULLANILMAZ:
+///	kalp artik fotografin uzerinde DEGIL, sagdaki satirin icinde.
+const double kKartFoto = 92;
+
 /// ⚠️⚠️ **EKRANDAKI TEK GRI.** Slider zemini, kapak yer tutucusu ve 60x60
 ///    kartlar AYNI tonu kullanir (kullanici emri: *"ayni grilikte olsun"*).
 /// ⚠️ YAPMA: bu ekranlarda elle `0xFFE7E7EA` gibi bir gri yazma.
@@ -189,18 +199,57 @@ class _IsletmeKartiState extends ConsumerState<IsletmeKarti> {
     }
   }
 
+  /// ⚠️⚠️⚠️ TURU 180ae — **ISLETME KARTI PREPLY MANTIGINDA YENIDEN KURULDU**
+  ///	(kullanici emri: *"kart görünümlerini de sana görsel atacağım o
+  ///	şekilde göster / sadece MANTIĞINI al"*).
+  ///
+  /// ═══════════ REFERANSTAN ALINAN **MANTIK** (gorsel DEGIL) ═══════════
+  ///
+  ///	solda KARE FOTOGRAF · saginda ad + onay tiki · altinda ETIKETLER ·
+  ///	altinda **IKI KUTU** (fiyat / puan) · sonra aciklama satiri ·
+  ///	en altta IKONLU meta · sag ustte KALP.
+  ///
+  /// ⚠️⚠️ **16:9 KAPAK KALDIRILDI.** Referans duzende buyuk kapak YOK; kart
+  ///	bir SATIR (fotograf + bilgi). Kapak kalsaydi kart ~2 kat uzar ve
+  ///	referansin en belirgin ozelligi (ekranda daha cok isletme gorme)
+  ///	kaybolurdu.
+  /// ⚠️ Gorsel kaynagi sirasi DEGISMEDI: **kapak -> avatar -> notr kutu**.
+  ///	Kirik gorsel CIZILMEZ (turu 93 karari).
+  ///
+  /// ═══════════ NE **UYDURULMADI** (turu 135 dersi) ═══════════
+  ///
+  /// · **ACIKLAMA METNI YOK**: `IsletmeOzet`te (ve sunucunun liste yanitinda)
+  ///   `aciklama` alani YOK. Referanstaki tanitim satirinin karsiligi olarak
+  ///   GERCEK olan tek sey ADRES — o cizilir, yoksa satir HIC cizilmez.
+  ///   Sahte bir tanitim cumlesi yazmak, uzerine karar verilen bir YALAN
+  ///   olurdu.
+  /// · Kutular yalniz VERISI VARSA cizilir; ikisi de yoksa satir CIZILMEZ.
+  ///   "0 TL" / "★ 0" yanlis bilgidir.
+  ///
+  /// ⚠️ Kalp SAG UST'te KALDI (kullanici emri) ama artik kapagin UZERINDE
+  ///	degil, kartin icinde: zemin fotograf olmadigi icin "beyaz kontur acik
+  ///	fotografta kayboluyor" sinifi (turu 96d/96j) YAPISAL OLARAK bitti.
   @override
   Widget build(BuildContext context) {
     final o = widget.o;
+    final ks = Theme.of(context).colorScheme;
+    final soluk = Theme.of(
+      context,
+    ).textTheme.bodyMedium?.color?.withValues(alpha: 0.62);
     final gorselID = (o.kapakMediaId != null && o.kapakMediaId!.isNotEmpty)
         ? o.kapakMediaId!
         : (o.avatarMediaId ?? '');
-    // ⚠️ Kapak genisligi ACIKCA verilir: yoksa gorsel 2048px'e kadar decode
-    //    edilir (turu 91 performans dersi, ~9 MB gecici RAM/kart).
-    final kartGenislik = MediaQuery.sizeOf(context).width - kYanBosluk * 2;
+    final etiketler = <String>[
+      // ⚠️ Kategori adi SUNUCUDAN gelen anahtardan cozulur; istemcide
+      //    TAHMIN EDILMEZ (turu 89 karari).
+      if (isletmeKategorileri[o.kategori] != null)
+        isletmeKategorileri[o.kategori]!,
+      // ⚠️ En fazla IKI kampanya: uc rozet dar telefonda ucuncu satira sarip
+      //    karti sismis gosteriyordu. `kampanyaRozetleri` de AYNI tavani
+      //    kullaniyor — iki yuzey ayni kurali izler.
+      ...o.kampanyalar.take(2),
+    ];
     return Padding(
-      // ⚠️ Kartlar arasi bosluk, ad-gorsel boslugunun ~3.5 kati: goz hangi
-      //    ismin hangi gorsele ait oldugunu ancak boyle ayirir.
       padding: const EdgeInsets.only(bottom: kKartAralik),
       child: GestureDetector(
         // ⚠️ **DALGA YOK** (kullanici emri: "tikladiginda titreme olmasin").
@@ -211,76 +260,232 @@ class _IsletmeKartiState extends ConsumerState<IsletmeKarti> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            ClipRRect(
-              // ⚠️ Kapak, slider, 60x60 kutu, cip ve input ARTIK AYNI yaricapi
-              //    kullanir (bkz. `kYaricap` serhi).
-              borderRadius: BorderRadius.circular(kYaricapBuyuk),
-              child: Stack(
-                children: [
-                  AspectRatio(
-                    aspectRatio: 16 / 9,
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(kYaricap(kKartFoto)),
+                  child: SizedBox(
+                    width: kKartFoto,
+                    height: kKartFoto,
                     child: gorselID.isEmpty
                         ? ColoredBox(color: kYuzeyGri(context))
+                        // ⚠️ Genislik ACIKCA verilir: yoksa gorsel 2048px'e
+                        //    kadar decode edilir (turu 91: ~9 MB gecici
+                        //    RAM/kart). `kucuk: true` — 92 dp'lik bir kare
+                        //    icin ham 1600x1600 avatari cozmek gereksiz.
                         : MedyaGorsel(
                             mediaId: gorselID,
                             fit: BoxFit.cover,
-                            width: kartGenislik,
+                            width: kKartFoto,
+                            kucuk: true,
                           ),
                   ),
-                  kampanyaRozetleri(o),
-                  // ⚠️ KALP **SAG UST** (referans ekran). Kapaga biner;
-                  //    altta rozetler var, ustte bos alan.
-                  Positioned(
-                    right: kKartIcBosluk,
-                    top: kKartIcBosluk,
-                    child: IsletmeKapakKalbi(dolu: _favori, onTap: _cevir),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 9),
-            Row(
-              children: [
-                Flexible(
-                  child: Text(
-                    o.ad,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      // ⚠️ 16 -> 17 -> **16** (kullanici emri, turu 96g:
-                      //    "isletme kartlarinin basliklari 1px kucuk").
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                    ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              o.ad,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                          if (o.dogrulandi)
+                            const Padding(
+                              padding: EdgeInsets.only(left: 5),
+                              child: Icon(
+                                LucideIcons.badgeCheck,
+                                size: 16,
+                                color: kOnayliRengi,
+                              ),
+                            ),
+                          // ⚠️ `Spacer` DEGIL: ad `Flexible` oldugu icin uzun
+                          //    adlarda alanin tamamini yer ve `Spacer` 0
+                          //    genislige duserek kalbi ADA YAPISTIRIRDI.
+                          //    Sabit bosluk GARANTIDIR.
+                          const SizedBox(width: 8),
+                          IsletmeKapakKalbi(dolu: _favori, onTap: _cevir),
+                        ],
+                      ),
+                      if (etiketler.isNotEmpty) ...[
+                        const SizedBox(height: 6),
+                        _etiketSeridi(context, etiketler),
+                      ],
+                      const SizedBox(height: 8),
+                      _kutular(context, o, ks, soluk),
+                    ],
                   ),
                 ),
-                if (o.dogrulandi)
-                  const Padding(
-                    padding: EdgeInsets.only(left: 5),
-                    child: Icon(
-                      LucideIcons.badgeCheck,
-                      size: 16,
-                      color: kOnayliRengi,
-                    ),
-                  ),
               ],
             ),
-            // ⚠️ TURU 96d — 3 -> **6** (kullanici emri: *"isletme adi ve
-            //    altindaki puan vb. arasindaki boslugu bir tik daha arttir"*).
-            const SizedBox(height: 6),
-            // ⚠️ IKINCI SATIR ("Açık · … · En uygun … · Gebze") **KALDIRILDI**
-            //    (kullanici emri: *"alttaki kartlardaki en uygun, Gebze vs
-            //    sil"*). Kart artik TEK bilgi satiri tasiyor: puan · sure ·
-            //    min. tutar. Ayrinti karta dokununca acilan profilde zaten
-            //    var; iki satir kartlari uzatip listeyi agirlastiriyordu.
-            // ⚠️ `bilgiSatiri` SILINMEDI: acik/kapali bilgisi isletme
-            //    profilinde kullanilabilir. Burada CAGRILMIYOR.
-            vitrinSatiri(context, o, kompakt: false),
+            // ⚠️ ADRES — referanstaki "tanitim" satirinin GERCEK karsiligi.
+            //    Bos ise satir HIC cizilmez (bkz. yukaridaki serh).
+            if (o.adres.trim().isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Text(
+                o.adres.trim(),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 13, height: 1.3, color: soluk),
+              ),
+            ],
+            // ⚠️ IKONLU META — `vitrinSatiri` **TEK KAYNAK** (izgara ve serit
+            //    kartlari da onu cizer); kopyalanmadi.
+            // ⚠️⚠️ Puan burada TEKRAR CIZILMEZ (`puanHaric: true`): kutuya
+            //    tasindi. Iki yerde birden cizilseydi ayni sayi ayni kartta
+            //    IKI KEZ gorunurdu.
+            const SizedBox(height: 9),
+            vitrinSatiri(context, o, kompakt: false, puanHaric: true),
           ],
         ),
       ),
     );
   }
+
+  /// Kategori + kampanya etiketleri (referanstaki rozet/etiket seridi).
+  ///
+  /// ⚠️ `Wrap` — `Row` DEGIL: uc etiket dar telefonda tek satira sigmaz ve
+  ///	`Row` RenderFlex tasma seridi cizerdi.
+  /// ⚠️ Yukseklik ACIKCA verilir: yaricap ondan turuyor (hap kurali); dolguya
+  ///	birakilsaydi yazi olcegi degisince yaricap "hap" olmaktan cikardi.
+  Widget _etiketSeridi(BuildContext c, List<String> etiketler) => Wrap(
+        spacing: 6,
+        runSpacing: 6,
+        children: [
+          for (final e in etiketler)
+            Container(
+              height: 24,
+              padding: const EdgeInsets.symmetric(horizontal: 9),
+              decoration: BoxDecoration(
+                color: kYuzeyGri(c),
+                borderRadius: BorderRadius.circular(kYaricap(24)),
+              ),
+              // ⚠️⚠️ `Center(widthFactor: 1)` — `alignment:` DEGIL:
+              //	alignment'li bir `Container` gelen GEVSEK kisitin TAMAMINI
+              //	kaplar ve `Wrap` cocuguna ekran genisligi kadar kisit
+              //	verdigi icin etiket **TAM GENISLIKTE** cizilirdi
+              //	(`kampanyaRozetleri`nde emulatorde birebir bu yasandi).
+              child: Center(
+                widthFactor: 1,
+                child: Text(
+                  e,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      );
+
+  /// Referanstaki **IKI KUTU**: fiyat ve puan.
+  ///
+  /// ⚠️⚠️ Kutu YALNIZ verisi VARSA cizilir; ikisi de yoksa `SizedBox.shrink`.
+  ///	"0 TL" / "★ 0" yazmak YANLIS BILGIDIR (bu projede kapak/teslimat/
+  ///	mesafe de ayni kurali izliyor).
+  /// ⚠️ Kutular ICERIK KADAR yer kaplar (`Wrap`); `Expanded` ile satirin
+  ///	yarisina gerilselerdi tek kutulu bir kart iki kutulu kartla AYNI
+  ///	gorunur ve bilgi eksikligi GIZLENIRDI.
+  Widget _kutular(
+    BuildContext c,
+    IsletmeOzet o,
+    ColorScheme ks,
+    Color? soluk,
+  ) {
+    final fiyat = o.minFiyatKurus;
+    final kutular = <Widget>[
+      if (fiyat != null && fiyat > 0)
+        _kutu(
+          c,
+          // ⚠️ **"₺" YERINE "TL"**: bazi Android yazi tiplerinde ₺ glifi
+          //    eksik ve tofu (kutu) cizilir (turu 110/179 karari).
+          '${(fiyat / 100).round()} TL',
+          'en uygun',
+          null,
+          soluk,
+        ),
+      if (o.puan != null)
+        _kutu(
+          c,
+          o.puan!.toStringAsFixed(1).replaceAll('.', ','),
+          // ⚠️ Oy sayisi YOKSA alt satir "degerlendirme" DEMEZ — olmayan bir
+          //    sayiyi ima etmemek icin ikincil metin BOS birakilir.
+          o.puanSayisi > 0 ? '${o.puanSayisi} oy' : '',
+          ks.primary,
+          soluk,
+        ),
+    ];
+    if (kutular.isEmpty) return const SizedBox.shrink();
+    return Wrap(spacing: 8, runSpacing: 8, children: kutular);
+  }
+
+  /// Tek kutu: buyuk deger + altinda kucuk etiket.
+  ///
+  /// ⚠️ Yildiz YALNIZ puan kutusunda (`renk != null`): fiyat kutusuna da
+  ///	konsaydi iki kutu ayirt edilemezdi.
+  Widget _kutu(
+    BuildContext c,
+    String deger,
+    String etiket,
+    Color? renk,
+    Color? soluk,
+  ) =>
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+        decoration: BoxDecoration(
+          color: kYuzeyGri(c),
+          borderRadius: BorderRadius.circular(kYaricap(46)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (renk != null) ...[
+                  // ⚠️ Yildiz da AYNI kalinlikta (satirdaki tek ince ikon
+                  //    kalmasin) — `vitrinSatiri` ile ayni karar.
+                  kalinIkon(LucideIcons.star, olcu: 14, renk: renk),
+                  const SizedBox(width: 4),
+                ],
+                Text(
+                  deger,
+                  maxLines: 1,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    color: renk,
+                  ),
+                ),
+              ],
+            ),
+            if (etiket.isNotEmpty)
+              Text(
+                etiket,
+                maxLines: 1,
+                style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: kMetaKalinlik,
+                  color: soluk,
+                ),
+              ),
+          ],
+        ),
+      );
 }
 
 /// Kapaga binen kalp.
@@ -456,7 +661,17 @@ Widget kampanyaRozetleri(IsletmeOzet o) {
 /// ⚠️ Her parca YALNIZ verisi VARSA cizilir (migration 046'da hepsi
 ///    OPSIYONEL). NULL iken "★ 0" ya da "0 dk" YANLIS BILGI olurdu.
 /// ⚠️⚠️ `puan` bir DEGERLENDIRME SISTEMINDEN gelmiyor — editoryal bir sayi.
-Widget vitrinSatiri(BuildContext c, IsletmeOzet o, {required bool kompakt}) {
+/// ⚠️⚠️ TURU 180ae — **`puanHaric`**: liste karti puani artik KUTUDA
+///	gosteriyor (Preply mantigi). Varsayilan `false`, yani izgara ve serit
+///	kartlarinin davranisi **BIREBIR AYNI** kaldi.
+/// ⚠️ Ayri bir "kutusuz vitrin satiri" fonksiyonu YAZILMADI: bu projede ayni
+///	kuralin iki kopyasi ALTI kez drift etti.
+Widget vitrinSatiri(
+  BuildContext c,
+  IsletmeOzet o, {
+  required bool kompakt,
+  bool puanHaric = false,
+}) {
   final soluk = Theme.of(
     c,
   ).textTheme.bodyMedium?.color?.withValues(alpha: 0.62);
@@ -465,7 +680,7 @@ Widget vitrinSatiri(BuildContext c, IsletmeOzet o, {required bool kompakt}) {
   final boy = kompakt ? 12.0 : 13.0;
   final p = <Widget>[];
 
-  if (o.puan != null) {
+  if (o.puan != null && !puanHaric) {
     p.add(
       Row(
         mainAxisSize: MainAxisSize.min,

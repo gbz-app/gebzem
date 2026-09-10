@@ -138,6 +138,22 @@ const double kAltKutu = 70; // gorsel kutu (kare)
 const double kAltHucre = 82; // kutu + altindaki yazi alani
 const double kAltIcBosluk = (kAltHucre - kAltKutu) / 2; // = 6
 
+/// ⚠️⚠️⚠️ TURU 180ae — **MUTFAK CIPLERI: FILTRE CIPININ %15 BUYUGU**
+///	(kullanici emri: *"filtredeki gibi buton yap, %15 kadar daha buyuk
+///	olsun"*).
+///
+/// Olculer `_hizliCip`ten TURETILIR — elle "yaklasik" sayi YAZILMAZ:
+///	  boy   32 x 1.15 = 36.8 -> **37**
+///	  yazi  13 x 1.15 = 14.95 -> **15**
+///	  dolgu 11 x 1.15 = 12.65 -> **13**
+/// ⚠️ `kAltKutu`/`kAltHucre` **DOKUNULMADI**: onlari ilan ve talep ekranlari
+///	da okuyor; kullanici yalnizca YEMEK ekranini degistirmek istedi.
+/// ⚠️ `kAltCipBoy` bir TABANDIR (alt sinir), sabit yukseklik DEGIL: gercek
+///	boy yazi olceginden turetilir (bkz. `_altKategoriSeridi`).
+const double kAltCipBoy = 37;
+const double kAltCipYazi = 15;
+const double kAltCipDolgu = 13;
+
 /// ⚠️⚠️⚠️ TURU 96 — **BOLUMLERIN IC PAYI ARALIKTAN DUSULUR.**
 ///
 /// Iki bolum DOKUNMA ALANI icin kendi icinde bos pay tasiyor:
@@ -905,10 +921,18 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
                       // ⚠️ YAPMA: burayi tekrar `Padding` ile sarma — kart
                       //    16 yerine ~35 dp'ye kayar (olculdu).
                       SliverToBoxAdapter(
-                        child: KategoriSlider(
-                          slaytlar: _slaytlar,
-                          ilkGorsel: kSliderIlkGorsel,
-                        ),
+                        // ⚠️⚠️⚠️ TURU 180ae — **SLIDERDEKI GORSEL KALDIRILDI**
+                        //	(kullanici emri: *"yemekteki sliderdeki resmi
+                        //	kaldir"*). `ilkGorsel:` parametresi ARTIK
+                        //	GECILMIYOR; ilk slayt da otekiler gibi metin
+                        //	slaydi olarak cizilir.
+                        // ⚠️ `kSliderIlkGorsel` sabiti ve
+                        //	`assets/slider/slider1.jpg` **SILINMEDI**:
+                        //	varligi pubspec'ten cikarmak bu ekrani degil,
+                        //	onu HALA kullanabilecek yollari kirik gorsele
+                        //	dusururdu (turu 180q dersi). Geri almak TEK
+                        //	SATIR: `ilkGorsel: kSliderIlkGorsel`.
+                        child: KategoriSlider(slaytlar: _slaytlar),
                       ),
                       // ⚠️ TURU 96 — bu bosluk artik OTEKILERLE BIREBIR AYNI
                       //    (kullanici emri); slider'a ozel genis nefes YOK.
@@ -1879,204 +1903,116 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
   ///    altinda soyle kartlar olacak, UFAK kartlar 60x60 RADIUSLU, iste
   ///    doner kebap gibi"*).
   ///
-  /// ⚠️ Kart 60x60 KARE + altinda ad. Ad kutunun ICINE yazilsaydi "Lahmacun"
-  ///    gibi uzun kelimeler 60px'e SIGMAZDI; disarida iki satira sarabilir.
+  /// ⚠️⚠️ **BU SERH TURU 180ae'DE GECERSIZ KALDI** (asagidaki blok gecerli):
+  ///	*"Kart 60x60 KARE + altinda ad"* artik DOGRU DEGIL — kartlar CIPE
+  ///	cevrildi ve ad KUTUNUN ICINDE yaziliyor. Yanlis yonlendirmesin diye
+  ///	silinmeyip isaretlendi (bu projenin en sik hata sinifi: *serhin
+  ///	anlattigi sey GOVDEDE YOK*).
   /// ⚠️ Liste BOSSA serit HIC CIZILMEZ — her kategoride alt kategori yok
   ///    (bos yatay bosluk birakmiyoruz).
   /// ⚠️ Secili kart TEK: ikinci karta basmak oncekini kapatir. Coklu secim
   ///    "döner kebap" gibi ikisini birden iceren bir arama uretir ve
   ///    neredeyse DAIMA BOS sonuc doner.
+  /// ⚠️⚠️⚠️ TURU 180ae — **MUTFAK KARTLARI ARTIK BUTON (CIP)** (kullanici
+  ///	emri: *"mutfağın altındaki kartları filtredeki gibi buton yap, onları
+  ///	%15 kadar daha büyük olsun"*).
+  ///
+  /// ═══════════ NE DEGISTI ═══════════
+  ///
+  /// Onceki hal: 70x70 gri KUTU + altinda IKI SATIRA sarabilen ad. Bu yuzden
+  /// serit yuksekligi `TextPainter` ile OLCULUYORDU (iki satira saran bir ad
+  /// seridi tasirmasin diye — turu 93b/96/135'te uc kez sahaya cikti).
+  ///
+  /// Yeni hal: filtre cipleriyle (`_hizliCip`) **AYNI DIL** — kenarlikli hap,
+  /// TEK SATIR yazi, zemin dolgusu YOK, secili halde kenarlik `_notrYazi`.
+  ///
+  /// ⚠️⚠️ **`TextPainter` OLCUMU ARTIK GEREKMIYOR** ve bu bir sadelestirme
+  ///	DEGIL, YAPISAL bir kazanc: yazi tek satir oldugu icin yukseklik
+  ///	YALNIZCA yazi olceginden turer. (Eski olcum, olcum stili yazi tipini
+  ///	tasimadigi icin turu 135'te TAM BIR SATIR sasirmisti.)
+  /// ⚠️ Yine de yukseklik SABIT DEGIL: `textScaler`dan turetilir — sabit 37
+  ///	yazilsaydi ilk yazi olcegi kademesinde bile metin dikeyde kirpilirdi.
+  /// ⚠️ `kAltKutu`/`kAltHucre`/`kAltIcBosluk` sabitleri SILINMEDI: ilan ve
+  ///	talep ekranlari onlari HALA kullaniyor (kullanici yalniz YEMEK
+  ///	ekranini degistirmek istedi).
   Widget _altKategoriSeridi() {
     if (_altKategoriler.isEmpty) return const SizedBox.shrink();
-    // ⚠️⚠️ TURU 93b — YUKSEKLIK **YAZI OLCEGINDEN TURETILIR** (denetim).
-    //
-    //	Sabit 92px idi. Icerik: 60 (kutu) + 5 (bosluk) + iki satir metin
-    //	(11 x 1.15 x 2 = 25.3) = **90.3** -> pay yalnizca **1.7px**.
-    //	Android "Yazi tipi boyutu" ayarinin ILK KADEMESI (1.15) bile
-    //	2.1px tasirir ve "Lahmacun / Ev Yemeği / Kahvaltı" gibi IKI SATIRA
-    //	SARAN adlarda sari-siyah **RenderFlex** seridi cikar.
-    // ⚠️ Iki satir bir KENAR DURUM DEGIL, tasarimin NORMAL dali (serh
-    //    zaten "disarida iki satira sarabilir" diyor) — yani tasma nadir
-    //    degil, YAYGIN olurdu.
-    // ⚠️ `textScaler` ile turetmek `MediaQuery`ye baglamak DEMEK DEGILDIR:
-    //    olculen sey EKRAN BOYUTU degil KULLANICININ YAZI TERCIHI.
     final olcek = MediaQuery.textScalerOf(context);
-    // ⚠️⚠️⚠️ TURU 96 — SATIR SAYISI **OLCULUR**, VARSAYILMAZ.
-    //
-    //	Onceki hal KOSULSUZ 2 satir + 14px pay ayiriyordu. Adlarin hepsi tek
-    //	satira sigdiginda (Döner/Kebap/Pide/Pizza — TIPIK durum) seridin
-    //	altinda **~29dp OLU BOSLUK** kaliyordu; sliver arasindaki 16px'lik
-    //	nefes ustune binince kartlar ile arama kutusu arasi ekranda **42dp**
-    //	gorunuyordu. Kullanicinin *"butun satirlar ayni bosluk olsun"*
-    //	demesinin sebebi buydu: kod esit veriyordu, EKRAN esit degildi.
-    //
-    // ⚠️ OLCUM **KALIN** (`w700`) stille yapilir: secili kart kalin cizilir
-    //    ve kalin yazi DAHA GENISTIR — ince stille olculseydi bir ad
-    //    secilince 2 satira sarar ve serit O ANDA tasardi.
-    // ⚠️ `maxLines: 2` tavani KALIR: uc satirlik bir ad gelirse kirpilir
-    //    (ellipsis), serit buyumez.
-    // ⚠️⚠️ YUKSEKLIK `TextPainter.height`TEN OKUNUR, FORMULLE HESAPLANMAZ.
-    //    Ilk denemede `satirSayisi * fontSize * height` ile hesaplanmisti ve
-    //    emulatorde **BOTTOM OVERFLOW** seridi cikti: satir kutusunun gercek
-    //    boyu yazi tipinin ascent/descent metriklerine baglidir, carpimla
-    //    birebir tutmaz. `layout()` sonrasi `height` ise `Text` widget'inin
-    //    uretecegi DEGERIN TA KENDISIDIR (ayni painter).
-    // ⚠️⚠️⚠️ TURU 135 — **OLCUM STILI YAZI TIPINI DE TASIMALI** (emulatorde
-    //	goruldu: 360 dp + yazi olcegi 1.3 -> *"BOTTOM OVERFLOWED BY 20
-    //	PIXELS"*, yani TAM BIR SATIR).
-    //
-    //	Kok neden: olcum stili CIPLAK bir `TextStyle` idi ve `fontFamily`
-    //	TASIMIYORDU -> `TextPainter` platform varsayilanina (Roboto) duser.
-    //	Cizilen `Text` ise temadan **Google Sans** aliyor (tema `fontFamily`yi
-    //	TEK YERDE veriyor, bkz. `core/theme.dart`). Google Sans ayni puntoda
-    //	DAHA GENIS: "Lahmacun" Roboto'da tek satira sigiyor, Google Sans'ta
-    //	IKI satira sariyor -> olculen yukseklik bir satir EKSIK cikiyordu.
-    //	⚠️ Olcek 1.0'da gorunmuyordu (ad zaten tek satir); ilk kademelerde
-    //	   cikiyordu — turu 121'in *"uygulamanin fontu Roboto DEGIL"*
-    //	   dersinin AYNISI, bu kez olcum tarafinda.
-    //
-    // ⚠️ FIX **TEK KAYNAK**: `Text`in yaptigi seyin AYNISI yapilir —
-    //    ortamdaki `DefaultTextStyle` uzerine ayni farklar `merge` edilir.
-    //    Buraya elle bir aile adi (`kYaziAilesi` dahil) YAZILMAZ: tema
-    //    ailesi degisirse olcum yine geride kalirdi — nitekim turu 180i'de
-    //    aile Google Sans -> **Google Sans Flex** oldu ve bu satir sayesinde
-    //    olcum kendiliginden dogru kaldi.
-    // ⚠️ Kalinlik BILEREK w700 (cizim w600): kalin yazi DAHA GENIS, yani
-    //    olcum DAIMA guvenli tarafta kalir (bkz. yukaridaki serh).
-    final olcumStili = DefaultTextStyle.of(context).style.merge(
-          const TextStyle(
-              fontSize: 13, height: 1.15, fontWeight: FontWeight.w700),
-        );
-    var enYuksek = 0.0;
-    for (final a in _altKategoriler) {
-      final tp = TextPainter(
-        text: TextSpan(text: a.ad, style: olcumStili),
-        textDirection: TextDirection.ltr,
-        textScaler: olcek,
-        maxLines: 2,
-      )..layout(maxWidth: kAltHucre);
-      if (tp.height > enYuksek) enYuksek = tp.height;
-    }
-    // ⚠️ `ceilToDouble` — tam sayiya yuvarlama payi (<=1dp, gozle gorunmez);
-    //    ondalik yukseklikte Flutter'in yuvarlamasi tasma uretebiliyor.
-    final serit = (kAltKutu + 5 + enYuksek).ceilToDouble();
+    // ⚠️ 1.252 = Google Sans Flex satir kutusu carpani (turu 180i'de TTF
+    //    metriklerinden OLCULDU); +16 dikey dolgu payi.
+    // ⚠️ `dart:math` BILEREK import EDILMEDI (bu dosyada baska kullanimi yok):
+    //    alt sinir ucluyle uygulanir.
+    final ham = olcek.scale(kAltCipYazi) * 1.252 + 16;
+    final boy = (ham < kAltCipBoy ? kAltCipBoy : ham).ceilToDouble();
     return SizedBox(
-      height: serit,
+      height: boy,
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
-        // ⚠️ TURU 93b — `12` idi; `kYanBosluk` TEK KAYNAK (dosya basindaki
-        //    serhin ACIKCA yasakladigi sey elle yazilmisti: 60x60 kartlar
-        //    slider ve arama kutusundan **4px solda** duruyordu).
-        // ⚠️ Sag dolgu da `kYanBosluk`: yatay serit kaydirildiginda son
-        //    kartin kenara YAPISMAMASI icin.
-        // ⚠️ IC DIKEY DOLGU YOK (bkz. `kBosluk` serhi): bolumler arasi
-        //    mesafe YALNIZCA sliver sirasinda verilir.
-        // ⚠️⚠️ YATAY DOLGU `kYanBosluk` **DEGIL**: kutu hucrenin ortasinda
-        //    oldugu icin 9px ice kayardi (bkz. `kAltIcBosluk` serhi).
-        padding: const EdgeInsets.symmetric(
-            horizontal: kYanBosluk - kAltIcBosluk),
+        // ⚠️ Yatay dolgu artik TAM `kYanBosluk`: eski kod `- kAltIcBosluk`
+        //    dusuyordu cunku kutu, hucrenin ORTASINDA duruyordu. Cipte boyle
+        //    bir ic bosluk YOK — dusulseydi serit slider/arama kutusundan
+        //    6 dp SOLDA baslardi.
+        padding: const EdgeInsets.symmetric(horizontal: kYanBosluk),
         itemCount: _altKategoriler.length,
         itemBuilder: (_, i) {
           final a = _altKategoriler[i];
           final secili = _altSecili == a.ara;
-          final renk = kVurgu(context);
           return Padding(
-            // ⚠️ Kullanici emri (DORDUNCU kez azaltildi): 10 -> 4 -> 2 -> **0**.
-            //    Hucre genisligi 78 KALIR: daraltmak "Lahmacun"u tekrar
-            //    kelime ortasindan bolerdi.
-            // ⚠️ 0 "kutular yapisik" DEMEK DEGIL: kutu 60, hucre 78 ve kutu
-            //    hucrenin ORTASINDA -> iki kutu arasinda hala **18px** var.
-            //    Daha da azaltmak icin hucre genisligi dusmeli, o da yaziyi
-            //    boler. Bu, mevcut yazi olcusuyle ULASILABILIR EN DAR aralik.
-            padding: EdgeInsets.zero,
-            child: GestureDetector(
-              // ⚠️ `opaque`: kutu ile yazi ARASINDAKI bosluga dokunmak da
-              //    secer; aksi halde kullanici "bastim olmadi" der.
-              behavior: HitTestBehavior.opaque,
-              onTap: () {
-                setState(() => _altSecili = secili ? '' : a.ara);
-                // ⚠️ TURU 93b — BEKLEYEN ARAMA ZAMANLAYICISI IPTAL EDILIR:
-                //    kullanici yazip hemen karta basarsa 320ms'lik timer
-                //    ikinci bir istek daha atardi (jeton kapisi yanlis
-                //    veriyi engelliyor ama istek bosuna gidiyordu).
-                _gecikme?.cancel();
-                _yukle();
-              },
-              child: SizedBox(
-                // ⚠️ 64 -> **78**: yazi 13px olunca "Lahmacun" 64dp'ye
-                //    sigmayip KELIME ORTASINDAN bolunuyordu ("Lahmacu/n").
-                //    Kutu 60x60 KALIR, yalnizca yazi alani genisler.
-                width: kAltHucre,
-                child: Column(
-                  children: [
-                    AnimatedContainer(
-                      duration: const Duration(milliseconds: 160),
-                      width: kAltKutu,
-                      height: kAltKutu,
-                      decoration: BoxDecoration(
-                        // ⚠️ YUZEY yaricapi — kapak ve slider ile AYNI sabit
-                        //    (bkz. `kYaricap` serhi).
-                        borderRadius: BorderRadius.circular(kYaricap(kAltKutu)),
-                        // ⚠️ KENARLIK YOK (kullanici emri: *"kucuk kartlarda
-                        //    neden border var, onu da kaldir"*). Secili
-                        //    kartta da kenarlik cizilmez — secim ZEMIN
-                        //    RENGIYLE ve ad kalinligiyla belli olur.
-                        // ⚠️ Ton `kYuzeyGri` — kapak ve slider ile AYNI.
-                        // ⚠️⚠️ TURU 93b — ALFA KALDIRILDI + KENARLIK EKLENDI
-                        //	(denetim: kontrast **~1.06** olculdu).
-                        //
-                        //	`surfaceContainerHighest` (~#E3E1E6) %50 alfa ile
-                        //	acik tema zemini `#F2F2F5` uzerine binince
-                        //	**~#EBEAEE** cikiyordu — zeminden 7-8 birim fark.
-                        //	Kullanici kartlarin ICINDEKI HARFLERI kaldirttigi
-                        //	icin (turu 93) kutunun TEK isi "burada bir kart
-                        //	var" demek; gorunmez bir kart o isi YAPMAZ.
-                        //	⚠️ Ustelik cevresindeki slider zemini `#E7E7EA`
-                        //	   idi: "kart" kendi arka planindan DAHA ACIK
-                        //	   kaliyor, gorsel hiyerarsi TERS donuyordu.
-                        // ⚠️ Kenarlik filtre cipleriyle AYNI dili konusur
-                        //    (`_notrKenar`) — yeni bir sabit renk eklemez.
-                        color: _yuzey,
-                        // ⚠️⚠️ SECILI HAL **KENARLIK** (kullanici emri: *"dönere
-                        //	tikladigimda yesil oluyor, SIYAH olacak ya da eskisi
-                        //	gibi GRIMSI BORDER icinde"*).
-                        //
-                        //	Onceki hal kutuyu yesile boyuyordu. Artik zemin
-                        //	DEGISMEZ, cevresine siyah bir kenarlik cizilir —
-                        //	filtre cipleriyle AYNI dil.
-                        // ⚠️ Kenarlik kutuyu BUYUTMEZ: `BoxDecoration.border`
-                        //    ic tarafa cizilir, olculer sabit kalir.
-                        border: secili
-                            ? Border.all(color: renk, width: 1.6)
-                            : null,
+            // ⚠️ Cipler arasi aralik `_hizliCip` ile BIREBIR ayni (8).
+            padding: const EdgeInsets.only(right: 8),
+            child: Semantics(
+              button: true,
+              selected: secili,
+              label: a.ad,
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () {
+                  setState(() => _altSecili = secili ? '' : a.ara);
+                  // ⚠️ TURU 93b — BEKLEYEN ARAMA ZAMANLAYICISI IPTAL EDILIR:
+                  //    kullanici yazip hemen cipe basarsa 320ms'lik timer
+                  //    ikinci bir istek daha atardi.
+                  _gecikme?.cancel();
+                  _yukle();
+                },
+                child: Container(
+                  height: boy,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: kAltCipDolgu),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(kYaricap(boy)),
+                    // ⚠️⚠️ SECILI HAL **YALNIZ KENARLIK RENGI** (filtre
+                    //	cipleriyle ayni karar): zemin dolgusu ya da degisken
+                    //	`fontWeight`/`width` yerlesimi degistirir ve serit
+                    //	her dokunusta YANA KAYARDI (turu 96'da olculdu).
+                    // ⚠️ YAPMA: buraya `color:` (zemin) geri koyma.
+                    border:
+                        Border.all(color: secili ? _notrYazi : _notrKenar),
+                  ),
+                  // ⚠️⚠️ `Row(mainAxisSize.min)` ZORUNLU — `alignment:` DEGIL.
+                  //	`Container`a `alignment` verilince cocugu bir `Align`e
+                  //	sarar ve `Align` GEVSEK kisitta EN BUYUK BOYUTU ALIR;
+                  //	yatay `ListView`de genislik kisiti SINIRSIZ oldugu icin
+                  //	bu SONSUZ GENISLIK demektir (turu 138/180t tuzagi).
+                  //	`Row` hem genisligi icerikten alir hem cocugu dikeyde
+                  //	ORTALAR.
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        a.ad,
+                        // ⚠️ TEK SATIR: cip dili iki satir tasimaz; asiri
+                        //    uzun bir ad KIRPILIR, serit BUYUMEZ.
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: kAltCipYazi,
+                          color: _notrYazi,
+                          // ⚠️ KALINLIK SABIT (bkz. yukaridaki serh).
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
-                      // ⚠️⚠️ TURU 93 — KUTUNUN ICI **BOS** (kullanici emri:
-                      //    *"kart icinde yazi olmasin, kartlarin icindeki
-                      //    HARFLERI KALDIR"*). Kutu artik salt renkli bir
-                      //    yuzey; ad ALTINDA yaziyor.
-                      // ⚠️ YAPMA: buraya harf ya da ikon geri koyma.
-                    ),
-                    const SizedBox(height: 5),
-                    Text(
-                      a.ad,
-                      maxLines: 2,
-                      textAlign: TextAlign.center,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        // ⚠️ 11 -> **13** (kullanici emri: *"alt kategoriler
-                        //    doner kebap bunlari 2px daha buyuk yap yazi"*).
-                        // ⚠️ Serit yuksekligi bu degerden TURETILIYOR
-                        //    (`olcek.scale(13)`), yani buyutme tasma
-                        //    URETMEZ — sabit 92px olsaydi ederdi.
-                        fontSize: 13,
-                        height: 1.15,
-                        // ⚠️ KALINLIK SABIT: degisseydi metin genisler ve
-                        //    serit yana KAYARDI (ciplerde yasanan hata).
-                        fontWeight: FontWeight.w600,
-                        color: secili ? renk : null,
-                      ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
