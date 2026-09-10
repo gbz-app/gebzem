@@ -35,19 +35,43 @@ import (
 //	gomuluyor. Serbest birakilsaydi SQL enjeksiyonu olurdu. Harita
 //	disindaki her deger 400 ile reddedilir.
 //
-// ⚠️ Her girdi: tablo · kimlik sutunu tipi · sahiplik sutunu (denetim kaydi
+// ⚠️ Her girdi: tablo · kimlik tipi · sahiplik sutunu · ONIZLEME sutunu.
 //
-//	icin) . `durum` sutunu HEPSINDE var ve 'karantina' degerini KABUL EDER
+//	`durum` sutunu HEPSINDE var ve 'karantina' degerini KABUL EDER
 //	(CHECK'lerden dogrulandi).
+//
+// ⚠️⚠️ **ONIZLEME SUTUNU BURADA, SORGUDA DEGIL** (turu 181 canli hatasi):
+//
+//	ilk yazimda sorgu icinde `COALESCE(icerik,'')` VARSAYILMISTI ve uc
+//	tur birden **500** dondu — gercek sutun adi `metin` (canli semadan
+//	olculdu; `channels`ta ise `ad`). Sutun adini tabloyla AYNI YERDE
+//	tutmak, yeni bir tur eklenirken atlanmasini yapisal olarak zorlastirir.
+//
+// ⚠️ YAPMA: sutun adini sorguya elle yazma; buraya ekle.
+//
+// ⚠️⚠️ **KIMLIK TIPLERI CANLI SEMADAN OLCULDU** (turu 181), tahmin
+//
+//	EDILMEDI — ilk yazimda `posts.id` BIGINT sanilmisti ve o haliyle
+//	gecerli bir gonderi UUID'si **400** alirdi (moderasyon dugmesi
+//	calismazdi). Olcum:
+//	  posts.id         = uuid
+//	  post_comments.id = bigint
+//	  channels.id      = uuid
+//	  channel_posts.id = bigint
+//
+// ⚠️ Yeni bir tur eklerken kimlik tipini VARSAYMA; `information_schema`dan
+//
+//	oku.
 var icerikTablo = map[string]struct {
 	tablo    string
 	idUUID   bool // kimlik UUID mi (yoksa BIGINT)
 	sahipCol string
+	metinCol string
 }{
-	"gonderi":       {"posts", false, "author_id"},
-	"yorum":         {"post_comments", false, "author_id"},
-	"kanal":         {"channels", true, "owner_id"},
-	"kanal_gonderi": {"channel_posts", false, "author_id"},
+	"gonderi":       {"posts", true, "author_id", "metin"},
+	"yorum":         {"post_comments", false, "author_id", "metin"},
+	"kanal":         {"channels", true, "owner_id", "ad"},
+	"kanal_gonderi": {"channel_posts", false, "author_id", "metin"},
 }
 
 // SikayetListesi — GET /admin/sikayetler?durum=&limit=
@@ -229,9 +253,15 @@ func (h *Handler) IcerikDurum(w http.ResponseWriter, r *http.Request) {
 	// ⚠️ Sorgu `fmt.Sprintf` ile kuruluyor AMA tablo/sutun adlari BEYAZ
 	//	LISTEDEN geliyor (kullanici girdisi DEGIL); deger `$1`/`$2` ile
 	//	parametreli. Enjeksiyon yuzeyi YOK.
+	// ⚠️⚠️ ONCEKI DURUM `UPDATE ... FROM` ile AYNI ISLEMDE okunur: ayri bir
+	//	SELECT ile alinsaydi iki istek arasinda durum degisebilir ve
+	//	denetim kaydi YANLIS bir "oncesi" yazardi.
 	sorgu := fmt.Sprintf(`
-		UPDATE %s SET durum = $2 WHERE id = $1 RETURNING %s::text, durum`,
-		bilgi.tablo, bilgi.sahipCol)
+		UPDATE %s t SET durum = $2
+		  FROM (SELECT id, durum FROM %s WHERE id = $1) eski
+		 WHERE t.id = eski.id
+		 RETURNING t.%s::text, eski.durum`,
+		bilgi.tablo, bilgi.tablo, bilgi.sahipCol)
 	var sahip, eskiDurum string
 	if err := h.db.QueryRow(r.Context(), sorgu, id, req.Durum).
 		Scan(&sahip, &eskiDurum); err != nil {
@@ -239,7 +269,8 @@ func (h *Handler) IcerikDurum(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	Yaz(r, h.db, "icerik."+req.Durum, tur, id,
-		map[string]any{"sahip": sahip}, map[string]any{"durum": req.Durum})
+		map[string]any{"sahip": sahip, "durum": eskiDurum},
+		map[string]any{"durum": req.Durum})
 	yaz(w, http.StatusOK, map[string]any{"ok": true, "sahip": sahip})
 }
 
@@ -265,13 +296,10 @@ func (h *Handler) IcerikListesi(w http.ResponseWriter, r *http.Request) {
 	limit := sayi(r, "limit", 50, 1, 200)
 	offset := sayi(r, "offset", 0, 0, 100000)
 
-	// ⚠️ `metin` sutunu tablolara gore farkli adlanabilir; ortak olan
-	//	`durum` + `created_at` + sahiplik. Icerik onizlemesi icin
-	//	tabloya ozel sutun secilir.
-	metinCol := "COALESCE(icerik,'')"
-	if tur == "kanal" {
-		metinCol = "COALESCE(ad,'')"
-	}
+	// ⚠️ Onizleme sutunu TABLOYA OZEL ve `icerikTablo` haritasindan gelir
+	//	(bkz. harita serhi: ilk yazimda `icerik` VARSAYILMIS ve uc tur
+	//	birden canlida 500 dondurmustu).
+	metinCol := "COALESCE(t." + bilgi.metinCol + ",'')"
 	sorgu := fmt.Sprintf(`
 		SELECT t.id::text, t.durum, %s,
 		       COALESCE(u.name,''), COALESCE(u.username,''),
