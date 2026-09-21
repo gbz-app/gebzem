@@ -1,3 +1,4 @@
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&display=swap">
@@ -31,6 +32,9 @@
 
   /* ---------- Sahne / telefon kabuğu ---------- */
   .sahne{min-height:100%;display:flex;align-items:stretch;justify-content:center}
+  @media (max-width:559.98px), (max-height:719.98px){
+    .sahne{min-height:var(--gorunur,100%);height:var(--gorunur,auto)}
+  }
   .telefon{
     width:100%;
     background:var(--zemin);
@@ -48,8 +52,9 @@
 
   /* ---------- Ekran ---------- */
   .ekran{
-    flex:1;display:flex;flex-direction:column;
+    flex:1;min-height:0;display:flex;flex-direction:column;
     padding:0 24px 28px;
+    overflow-y:auto;overscroll-behavior:contain;
   }
   .ust-bosluk{height:20px;flex:none}
 
@@ -171,4 +176,21 @@
     if (devam.disabled) return;
     devam.textContent = 'Kod gönderiliyor…';
   });
+  /* ---- Klavye acilinca buton klavyenin USTUNDE kalsin ----
+     iOS'ta yerlesim alani kucululmez; gorunur alani visualViewport verir.
+     Iskeletin :root'a koydugu guvenli-alan dolgusu DUSULUR, yoksa
+     tam o kadar tasar. */
+  var gorus = window.visualViewport;
+  function yuksekligiOlc(){
+    if (!gorus) return;
+    var kok = document.documentElement;
+    var b = getComputedStyle(kok);
+    var dolgu = (parseFloat(b.paddingTop) || 0) + (parseFloat(b.paddingBottom) || 0);
+    kok.style.setProperty('--gorunur', Math.max(260, gorus.height - dolgu) + 'px');
+  }
+  if (gorus){
+    gorus.addEventListener('resize', yuksekligiOlc);
+    window.addEventListener('orientationchange', yuksekligiOlc);
+    yuksekligiOlc();
+  }
 </script>
