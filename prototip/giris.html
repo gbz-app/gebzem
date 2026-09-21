@@ -32,9 +32,6 @@
 
   /* ---------- Sahne / telefon kabuğu ---------- */
   .sahne{min-height:100%;display:flex;align-items:stretch;justify-content:center}
-  @media (max-width:559.98px), (max-height:719.98px){
-    .sahne{min-height:var(--gorunur,100%);height:var(--gorunur,auto)}
-  }
   .telefon{
     width:100%;
     background:var(--zemin);
@@ -98,11 +95,15 @@
   #tel::placeholder{color:var(--murekkep-soluk);font-weight:400;letter-spacing:.3px}
 
   /* ---------- Boşluk + devam düğmesi ---------- */
-  /* Klavye acikken buton alanin hemen altina cikar (flex-grow 1 -> 0) */
-  .esnek{flex-grow:1;flex-shrink:1;flex-basis:24px;min-height:24px;
-         transition:flex-grow .22s ease}
-  @media (hover:none) and (pointer:coarse){
-    body.klavye .esnek{flex-grow:0}
+  .esnek{flex:1;min-height:24px}
+
+  /* Klavye acilinca sarmal yukari otelenir. transform YERLESIMI DEGISTIRMEZ,
+     GPU'da calisir -> ziplama yok, gecis puruzsuz. Basma efekti (scale)
+     butonun KENDISINDE kaldigi icin iki transform CAKISMAZ. */
+  .devam-sarmal{
+    flex:none;
+    transition:transform .28s cubic-bezier(.22,.61,.36,1);
+    will-change:transform;
   }
 
   .devam{
@@ -118,12 +119,23 @@
   .devam:disabled{background:var(--dugme-pasif);color:var(--dugme-pasif-yazi);cursor:default}
   .devam:not(:disabled):active{transform:scale(.985)}
 
+  /* GECICI: klavye olcumu — dogrulandiktan sonra KALDIRILACAK */
+  .olcum{
+    position:fixed;top:0;left:0;right:0;z-index:99;
+    font:11px/1.45 ui-monospace,Menlo,Consolas,monospace;
+    background:#101317;color:#6EE7A8;
+    padding:5px 8px;padding-top:calc(5px + env(safe-area-inset-top,0px));
+    white-space:pre-wrap;word-break:break-all;
+  }
+
   :focus-visible{outline:2px solid var(--odak);outline-offset:3px;border-radius:12px}
 
   @media (prefers-reduced-motion: reduce){
     *{transition:none!important}
   }
 </style>
+
+<div class="olcum" id="olcum">ölçüm bekleniyor…</div>
 
 <div class="sahne">
   <div class="telefon">
@@ -149,19 +161,23 @@
 
       <div class="esnek"></div>
 
+      <div class="devam-sarmal" id="sarmal">
       <button class="devam" id="devam" type="button" disabled>
         Devam et
         <!-- lucide: arrow-right -->
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25"
              stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
       </button>
+      </div>
     </div>
   </div>
 </div>
 
 <script>
   var tel = document.getElementById('tel');
-  var devam = document.getElementById('devam');
+  var devam  = document.getElementById('devam');
+  var sarmal = document.getElementById('sarmal');
+  var olcum  = document.getElementById('olcum');
 
   function bicimle(ham){
     var d = ham.replace(/\D/g,'').slice(0,10);
@@ -181,38 +197,67 @@
     if (devam.disabled) return;
     devam.textContent = 'Kod gönderiliyor…';
   });
-  /* ---- Klavye acikken butonu yukari al ----
-     Artifact bir IFRAME icinde calisiyor: visualViewport iframe'in KENDI
-     alanini olcer ve klavye acilinca kucululmez; viewport meta'si da yok
-     sayilir. Yani klavye YUKSEKLIGI OGRENILEMEZ.
-     Cozum olcmek degil: odakta esnek bosluk kapanir, buton alanin hemen
-     altina gelir -> her cihazda klavyenin USTUNDE kalir. */
-  function klavyeDurumu(acik){
-    document.body.classList.toggle('klavye', acik);
-  }
-  tel.addEventListener('focus', function(){
-    klavyeDurumu(true);
-    setTimeout(function(){
-      try { devam.scrollIntoView({block:'nearest', behavior:'smooth'}); } catch(e){}
-    }, 320);
-  });
-  tel.addEventListener('blur', function(){ klavyeDurumu(false); });
+  /* ================== KLAVYE ==================
+     Hedef: buton klavyenin 10px ustunde dursun, ziplamadan, iki yonde de
+     animasyonlu. Bunun icin klavye YUKSEKLIGI lazim. Uc kaynak sirayla
+     denenir; hangisi calisirsa `kaynak` onu yazar (ust seritte gorunur). */
+  var KLAVYE_PAY = 10;   /* klavyeyle buton arasi */
+  var ALT_DOLGU  = 28;   /* .ekran'in alt dolgusu */
+  var acilisBoy  = window.innerHeight;
+  var kaynak = '-';
 
-  /* ---- Klavye acilinca buton klavyenin USTUNDE kalsin ----
-     iOS'ta yerlesim alani kucululmez; gorunur alani visualViewport verir.
-     Iskeletin :root'a koydugu guvenli-alan dolgusu DUSULUR, yoksa
-     tam o kadar tasar. */
-  var gorus = window.visualViewport;
-  function yuksekligiOlc(){
-    if (!gorus) return;
-    var kok = document.documentElement;
-    var b = getComputedStyle(kok);
-    var dolgu = (parseFloat(b.paddingTop) || 0) + (parseFloat(b.paddingBottom) || 0);
-    kok.style.setProperty('--gorunur', Math.max(260, gorus.height - dolgu) + 'px');
+  function klavyeBoyu(){
+    var g = window.visualViewport;
+    if (g){
+      var f = Math.round(window.innerHeight - g.height - g.offsetTop);
+      if (f > 80){ kaynak = 'visualViewport'; return f; }
+    }
+    var sk = navigator.virtualKeyboard;
+    if (sk && sk.boundingRect && sk.boundingRect.height > 80){
+      kaynak = 'virtualKeyboard'; return Math.round(sk.boundingRect.height);
+    }
+    var f2 = Math.round(acilisBoy - window.innerHeight);  /* iframe kucululduyse */
+    if (f2 > 80){ kaynak = 'innerHeight'; return f2; }
+    kaynak = 'YOK';
+    return 0;
   }
-  if (gorus){
-    gorus.addEventListener('resize', yuksekligiOlc);
-    window.addEventListener('orientationchange', yuksekligiOlc);
-    yuksekligiOlc();
+
+  function konumla(){
+    var kb = klavyeBoyu();
+    var kaydir = kb > 0 ? Math.max(0, kb + KLAVYE_PAY - ALT_DOLGU) : 0;
+    sarmal.style.transform = 'translateY(-' + kaydir + 'px)';
+    olcumYaz(kb, kaydir);
   }
+
+  /* GECICI olcum satiri — dogrulaninca kaldirilacak */
+  function olcumYaz(kb, kaydir){
+    if (!olcum) return;
+    var g = window.visualViewport;
+    olcum.textContent =
+      'inner=' + window.innerHeight +
+      '  vv=' + (g ? Math.round(g.height) : 'yok') +
+      '  off=' + (g ? Math.round(g.offsetTop) : '-') +
+      '  acilis=' + acilisBoy +
+      '\n' +
+      'KLAVYE=' + kb + '  kaydir=' + kaydir + '  kaynak=' + kaynak +
+      '  vk=' + (navigator.virtualKeyboard ? 'var' : 'yok');
+  }
+
+  if (window.visualViewport){
+    window.visualViewport.addEventListener('resize', konumla);
+    window.visualViewport.addEventListener('scroll', konumla);
+  }
+  window.addEventListener('resize', konumla);
+  if (navigator.virtualKeyboard){
+    try {
+      navigator.virtualKeyboard.overlaysContent = true;
+      navigator.virtualKeyboard.addEventListener('geometrychange', konumla);
+    } catch(e){}
+  }
+  /* Klavye animasyonu bitmeden olcum yanlis gelir -> birkac kez orneklenir */
+  function gecikmeliOlc(){ [60,180,340,520].forEach(function(ms){ setTimeout(konumla, ms); }); }
+  tel.addEventListener('focus', gecikmeliOlc);
+  tel.addEventListener('blur',  gecikmeliOlc);
+
+  konumla();
 </script>
