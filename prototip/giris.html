@@ -1,0 +1,208 @@
+<title>Telefon ile Giriş</title>
+<style>
+  /* ---------- Google Sans ---------- */
+  @font-face{font-family:'Google Sans';src:url('fonts/gs-400.ttf') format('truetype');font-weight:400;font-style:normal;font-display:swap}
+  @font-face{font-family:'Google Sans';src:url('fonts/gs-500.ttf') format('truetype');font-weight:500;font-style:normal;font-display:swap}
+  @font-face{font-family:'Google Sans';src:url('fonts/gs-700.ttf') format('truetype');font-weight:700;font-style:normal;font-display:swap}
+
+  /* ---------- Renk belirteçleri (açık tema) ---------- */
+  :root{
+    --zemin:#FFFFFF;
+    --murekkep:#101317;
+    --murekkep-soluk:#646B76;
+    --cizgi:#E6E8EC;
+    --alan:#F5F6F8;
+    --alan-cizgi:#E1E4E9;
+    --dugme:#101317;
+    --dugme-yazi:#FFFFFF;
+    --dugme-pasif:#EAECF0;
+    --dugme-pasif-yazi:#A7ADB7;
+    --odak:#101317;
+    --cerceve:#EFF0F3;
+    --golge:0 24px 60px rgba(16,19,23,.16), 0 2px 8px rgba(16,19,23,.06);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --zemin:#0D0F12;
+      --murekkep:#F2F4F6;
+      --murekkep-soluk:#9AA1AB;
+      --cizgi:#242830;
+      --alan:#191C21;
+      --alan-cizgi:#2A2F37;
+      --dugme:#F2F4F6;
+      --dugme-yazi:#0D0F12;
+      --dugme-pasif:#1C2026;
+      --dugme-pasif-yazi:#5A616B;
+      --odak:#F2F4F6;
+      --cerceve:#000000;
+      --golge:0 24px 60px rgba(0,0,0,.55);
+    }
+  }
+  :root[data-theme="dark"]{
+    --zemin:#0D0F12;
+    --murekkep:#F2F4F6;
+    --murekkep-soluk:#9AA1AB;
+    --cizgi:#242830;
+    --alan:#191C21;
+    --alan-cizgi:#2A2F37;
+    --dugme:#F2F4F6;
+    --dugme-yazi:#0D0F12;
+    --dugme-pasif:#1C2026;
+    --dugme-pasif-yazi:#5A616B;
+    --odak:#F2F4F6;
+    --cerceve:#000000;
+    --golge:0 24px 60px rgba(0,0,0,.55);
+  }
+
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;
+    background:var(--cerceve);
+    color:var(--murekkep);
+    font-family:'Google Sans','Segoe UI',system-ui,-apple-system,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  /* ---------- Sahne / telefon kabuğu ---------- */
+  .sahne{min-height:100%;display:flex;align-items:center;justify-content:center}
+  .telefon{
+    width:100%;min-height:100%;
+    background:var(--zemin);
+    display:flex;flex-direction:column;
+  }
+  @media (min-width:560px) and (min-height:720px){
+    .telefon{
+      width:390px;height:812px;min-height:0;
+      border-radius:46px;overflow:hidden;
+      border:1px solid var(--cizgi);
+      box-shadow:var(--golge);
+    }
+  }
+
+  /* ---------- Ekran ---------- */
+  .ekran{
+    flex:1;display:flex;flex-direction:column;
+    padding:0 24px 28px;
+  }
+  .ust-bosluk{height:76px;flex:none}
+
+  /* ---------- Başlık: üstte ince, altta kalın ---------- */
+  .baslik{display:flex;flex-direction:column;gap:2px}
+  .baslik .ince{font-size:24px;line-height:1.32;font-weight:400;letter-spacing:-.2px}
+  .baslik .kalin{font-size:24px;line-height:1.32;font-weight:700;letter-spacing:-.4px;text-wrap:balance}
+
+  /* ---------- Telefon numarası alanı ---------- */
+  .numara{
+    margin-top:32px;flex:none;
+    display:flex;align-items:stretch;
+    height:58px;
+    background:var(--alan);
+    border:1.5px solid var(--alan-cizgi);
+    border-radius:16px;
+    transition:border-color .16s ease, background-color .16s ease;
+  }
+  .numara:focus-within{border-color:var(--odak);background:var(--zemin)}
+
+  .ulke{
+    display:flex;align-items:center;gap:4px;
+    padding:0 14px 0 16px;
+    background:none;border:0;cursor:pointer;
+    font-family:inherit;font-size:17px;font-weight:500;
+    color:var(--murekkep);
+    border-radius:15px 0 0 15px;
+  }
+  .ulke svg{width:18px;height:18px;color:var(--murekkep-soluk);margin-top:1px}
+
+  .ayirac{width:1.5px;background:var(--alan-cizgi);margin:12px 0;flex:none}
+
+  #tel{
+    flex:1;min-width:0;
+    background:none;border:0;outline:0;
+    padding:0 16px;
+    font-family:inherit;font-size:17px;font-weight:500;
+    letter-spacing:.3px;
+    color:var(--murekkep);
+  }
+  #tel::placeholder{color:var(--murekkep-soluk);font-weight:400;letter-spacing:.3px}
+
+  /* ---------- Boşluk + devam düğmesi ---------- */
+  .esnek{flex:1;min-height:28px}
+
+  .devam{
+    flex:none;
+    height:56px;width:100%;
+    display:flex;align-items:center;justify-content:center;gap:8px;
+    background:var(--dugme);color:var(--dugme-yazi);
+    border:0;border-radius:16px;cursor:pointer;
+    font-family:inherit;font-size:16.5px;font-weight:700;letter-spacing:-.1px;
+    transition:background-color .16s ease, color .16s ease, transform .1s ease;
+  }
+  .devam svg{width:19px;height:19px}
+  .devam:disabled{background:var(--dugme-pasif);color:var(--dugme-pasif-yazi);cursor:default}
+  .devam:not(:disabled):active{transform:scale(.985)}
+
+  :focus-visible{outline:2px solid var(--odak);outline-offset:3px;border-radius:12px}
+
+  @media (prefers-reduced-motion: reduce){
+    *{transition:none!important}
+  }
+</style>
+
+<div class="sahne">
+  <div class="telefon">
+    <div class="ekran">
+      <div class="ust-bosluk"></div>
+
+      <h1 class="baslik">
+        <span class="ince">Başlamak için</span>
+        <span class="kalin">Telefon numaranı gir</span>
+      </h1>
+
+      <div class="numara">
+        <button class="ulke" type="button" aria-label="Ülke kodu: Türkiye, +90">
+          +90
+          <!-- lucide: chevron-down -->
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+        <span class="ayirac"></span>
+        <input id="tel" type="tel" inputmode="numeric" autocomplete="tel-national"
+               placeholder="5XX XXX XX XX" aria-label="Telefon numarası">
+      </div>
+
+      <div class="esnek"></div>
+
+      <button class="devam" id="devam" type="button" disabled>
+        Devam et
+        <!-- lucide: arrow-right -->
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+  var tel = document.getElementById('tel');
+  var devam = document.getElementById('devam');
+
+  function bicimle(ham){
+    var d = ham.replace(/\D/g,'').slice(0,10);
+    var p = [d.slice(0,3), d.slice(3,6), d.slice(6,8), d.slice(8,10)];
+    return p.filter(function(x){ return x.length; }).join(' ');
+  }
+
+  tel.addEventListener('input', function(){
+    var sondaMi = tel.selectionStart === tel.value.length;
+    var d = tel.value.replace(/\D/g,'').slice(0,10);
+    tel.value = bicimle(tel.value);
+    if (sondaMi) { tel.setSelectionRange(tel.value.length, tel.value.length); }
+    devam.disabled = d.length !== 10;
+  });
+
+  devam.addEventListener('click', function(){
+    if (devam.disabled) return;
+    devam.textContent = 'Kod gönderiliyor…';
+  });
+</script>
