@@ -98,7 +98,12 @@
   #tel::placeholder{color:var(--murekkep-soluk);font-weight:400;letter-spacing:.3px}
 
   /* ---------- Boşluk + devam düğmesi ---------- */
-  .esnek{flex:1;min-height:28px}
+  /* Klavye acikken buton alanin hemen altina cikar (flex-grow 1 -> 0) */
+  .esnek{flex-grow:1;flex-shrink:1;flex-basis:24px;min-height:24px;
+         transition:flex-grow .22s ease}
+  @media (hover:none) and (pointer:coarse){
+    body.klavye .esnek{flex-grow:0}
+  }
 
   .devam{
     flex:none;
@@ -176,6 +181,23 @@
     if (devam.disabled) return;
     devam.textContent = 'Kod gönderiliyor…';
   });
+  /* ---- Klavye acikken butonu yukari al ----
+     Artifact bir IFRAME icinde calisiyor: visualViewport iframe'in KENDI
+     alanini olcer ve klavye acilinca kucululmez; viewport meta'si da yok
+     sayilir. Yani klavye YUKSEKLIGI OGRENILEMEZ.
+     Cozum olcmek degil: odakta esnek bosluk kapanir, buton alanin hemen
+     altina gelir -> her cihazda klavyenin USTUNDE kalir. */
+  function klavyeDurumu(acik){
+    document.body.classList.toggle('klavye', acik);
+  }
+  tel.addEventListener('focus', function(){
+    klavyeDurumu(true);
+    setTimeout(function(){
+      try { devam.scrollIntoView({block:'nearest', behavior:'smooth'}); } catch(e){}
+    }, 320);
+  });
+  tel.addEventListener('blur', function(){ klavyeDurumu(false); });
+
   /* ---- Klavye acilinca buton klavyenin USTUNDE kalsin ----
      iOS'ta yerlesim alani kucululmez; gorunur alani visualViewport verir.
      Iskeletin :root'a koydugu guvenli-alan dolgusu DUSULUR, yoksa
